@@ -61,6 +61,7 @@ static void refFft(const float* in, std::complex<double>* y, uint32_t n){
 
 int main(int argc, char** argv){
     if(argc<3){ printf("usage: %s <n> <batch> [reps]\n", argv[0]); return 2; }
+    const auto tInit0=std::chrono::steady_clock::now();
     uint32_t n=(uint32_t)atoi(argv[1]); uint32_t batch=(uint32_t)atoi(argv[2]);
     int reps = argc>3?atoi(argv[3]):10;
     if(n<8 || (n&(n-1))){ printf("n must be power of two >= 8\n"); return 2; }
@@ -80,11 +81,16 @@ int main(int argc, char** argv){
 
     CK(aclInit(nullptr)); CK(aclrtSetDevice(0));
     aclrtStream s=nullptr; CK(aclrtCreateStream(&s));
+    // boot = aclInit + SetDevice + CreateStream（进程级一次性）；plan = 之后的数据准备
+    const auto tBoot1=std::chrono::steady_clock::now();
 
     std::vector<float> hIn(elements);
     for(uint32_t i=0;i<elements;i++)
         hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
     std::vector<float> hOut(elements,0.f);
+    // plan 计时从这里起：跳过 hIn 测试输入的生成（host 上的 sin/cos 逐元素循环，
+    // 大形状能到上百 ms，属于测试夹具而非 plan 准备）
+    const auto tPlan0=std::chrono::steady_clock::now();
 
     // twiddles (planar, padded to twPad)
     std::vector<float> twr(twPad,0.f), twi(twPad,0.f);
@@ -190,7 +196,58 @@ int main(int argc, char** argv){
         return true;
     };
 
+    // setup = 主机端准备（旋转因子/索引生成）+ 显存分配 + 首次上传 + 二进制加载，
+    // 在冷启动 warmup 之前截断，供端到端报告一次性开销。
+    const auto tSetup1=std::chrono::steady_clock::now();
+
     if(!launch()) return 1;
+
+    // ---- 端到端口径（AB_E2E=1，默认关闭，不影响矩阵/门禁解析）----
+    // 每次重复：H2D(输入) -> kfft_fwd -> D2H(输出)，与 bench_native_npu.py --e2e 的
+    //   xd.copy_(x_cpu) -> torch.fft.fft(xd) -> y.cpu() 逐段对应（见 docs/实验对比.md）。
+    // 计时边界含传输与同步，不含一次性 setup。
+    if(const char* ee=getenv("AB_E2E")){
+        int ereps = atoi(ee); if(ereps<=0) ereps = reps;
+        // AB_E2E_MODE: async（默认，带流 memcpy + 显式同步）| sync（阻塞 aclrtMemcpy）
+        //              | xfer（只做 H2D+D2H，不发射 kernel，用来隔离纯传输带宽）。
+        const char* mode = getenv("AB_E2E_MODE");
+        // async = H2D 后同步 + D2H 后同步（默认）
+        // sync  = 阻塞 aclrtMemcpy（等价语义，两种实测带宽无稳定差异）
+        // xfer  = 不发射 kernel，隔离纯 H2D+D2H 带宽（用于定位 E2E 中的传输占比）
+        const bool useAsync = !(mode && strcmp(mode,"sync")==0);
+        const bool xferOnly = (mode && strcmp(mode,"xfer")==0);
+        double sumE=0, minE=0, firstE=0;
+        const auto t0e=std::chrono::steady_clock::now();
+        for(int i=0;i<ereps;i++){
+            auto a0=std::chrono::steady_clock::now();
+            if(useAsync){
+                CK(aclrtMemcpyAsync(dIn, elements*4u, hIn.data(), elements*4u,
+                                    ACL_MEMCPY_HOST_TO_DEVICE, s));
+                CK(aclrtSynchronizeStream(s));
+                if(!xferOnly && !launch()) return 1;
+                CK(aclrtMemcpyAsync(hOut.data(), elements*4u, dOut, elements*4u,
+                                    ACL_MEMCPY_DEVICE_TO_HOST, s));
+                CK(aclrtSynchronizeStream(s));
+            }else{
+                CK(aclrtMemcpy(dIn, elements*4u, hIn.data(), elements*4u,
+                               ACL_MEMCPY_HOST_TO_DEVICE));
+                if(!xferOnly && !launch()) return 1;
+                CK(aclrtMemcpy(hOut.data(), elements*4u, dOut, elements*4u,
+                               ACL_MEMCPY_DEVICE_TO_HOST));
+            }
+            auto a1=std::chrono::steady_clock::now();
+            double u=std::chrono::duration<double,std::micro>(a1-a0).count();
+            sumE+=u; if(i==0){ firstE=u; minE=u; } else if(u<minE) minE=u;
+        }
+        double e=sumE/ereps;
+        double bootUs=std::chrono::duration<double,std::micro>(tBoot1-tInit0).count();
+        double planUs=std::chrono::duration<double,std::micro>(tSetup1-tPlan0).count();
+        double spanUs=std::chrono::duration<double,std::micro>(t0e-tSetup1).count();
+        printf("E2E n=%u batch=%u reps=%d e2e_us=%.1f e2e_min_us=%.1f first_us=%.1f "
+               "boot_us=%.1f plan_us=%.1f warmup_us=%.1f mode=%s\n",
+               n,batch,ereps,e,minE,firstE,bootUs,planUs,spanUs,useAsync?"async":"sync");
+        fflush(stdout);
+    }
 
     // 逐次 launch 计时：均值与最小值都报。均值与 §8.5 的 η 标定同口径，
     // 最小值与 bench_native_npu.py 的统计量同口径 —— 两边可以各自对齐比。

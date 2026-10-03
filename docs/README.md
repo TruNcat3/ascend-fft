@@ -6,6 +6,7 @@
 ## 推荐阅读顺序
 
 ```text
+实验对比.md                      ⓪ 图 + 详表（推荐先看，含端到端）
 阶段0-1-发现与结果.md          ① 环境/硬件能力/原生基线/最早能跑通
 性能优化-C2b与K择优.md          ② 主线：5 轮 A/B 优化全过程（含批折叠、屏障、η）
 trace与profile诊断-*.md         ③ 手段：msprof 诊断、管线占用率、对照 GPU 的假设评估
@@ -16,10 +17,14 @@ Cube张量化探针.md               ⑦ 探针：fp32 Cube（矩阵单元）可
 matrix_test_raw.md              ⑧ 存档：批折叠前的 44:5 基线（表格一字不改）
 ```
 
+图在 [`figures/`](figures/)，由 `scripts/plot_results.py` 从上面的表格/JSON 生成，
+正文 `实验对比.md` 负责图注与口径说明。
+
 ## 文档清单
 
 | 文档 | 主题 | 状态 |
 |---|---|---|
+| [实验对比.md](实验对比.md) | **图 + 详表**：speedup 热力图、延迟热力图、batch 缩放、六基线柱状、η 散点、端到端 | **推荐先看** |
 | [阶段0-1-发现与结果.md](阶段0-1-发现与结果.md) | 环境、硬件能力探测（probe）、`aclRfft1D` 基线、`kfft_fwd` 首版、框架骨架、阶段 3~6 | 历史主线 |
 | [性能优化-C2b与K择优.md](性能优化-C2b与K择优.md) | C2b、K 择优、merge 放宽、MTE 重叠、平面级 radix-4、**§11 批折叠/屏障/η/现状** | 最新主线 |
 | [trace与profile诊断-小尺寸与大尺寸.md](trace与profile诊断-小尺寸与大尺寸.md) | `msprof` 原生小 n profile、**§6.4 屏障份额量化**、对「学 cuButterfly 搜索策略」的评估 | 诊断 |
@@ -33,7 +38,10 @@ matrix_test_raw.md              ⑧ 存档：批折叠前的 44:5 基线（表�
 
 ```bash
 scripts/one_click_test.sh                 # 门禁 + 49 点矩阵，结果落 results/<UTC>/
-scripts/gen_stdlib_doc.py                  # 重新生成 性能对比-标准库vs自研.md
+python3 scripts/e2e_test.py --reps 10 --rounds 3   # 端到端（H2D+变换+D2H）
+python3 scripts/plot_results.py                   # 出图 -> docs/figures/
+python3 scripts/gen_compare_doc.py                # 出 docs/实验对比.md
+scripts/gen_stdlib_doc.py                 # 重新生成 性能对比-标准库vs自研.md
 scripts/calib_eta.py --fit                 # 重跑 η 标定（lstsq3，1/y 加权）
 python3 scripts/matrix_test.py --rounds 5 --out docs/matrix_test.md
 ```
