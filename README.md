@@ -1,5 +1,11 @@
 # Ascend-FFT
 
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Citation](https://img.shields.io/badge/CITATION-CFF-orange.svg)](CITATION.cff)
+[![Hardware](https://img.shields.io/badge/SoC-Ascend910__9382%20%C2%B7%2048%20AIV-8A2BE2.svg)](config/ascend910_93_profile.json)
+[![CANN](https://img.shields.io/badge/CANN-9.0.0-0B6BCB.svg)](docs/阶段0-1-发现与结果.md)
+[![Result](https://img.shields.io/badge/results-49%3A0%20vs%20CANN%20native-brightgreen.svg)](docs/matrix_test_a7.md)
+
 **华为昇腾（Ascend）上的复数 fp32 FFT 库，AscendC 实现。**
 设计移植自 [**cuButterfly**](https://github.com/TruNcat3/cuButterfly)（BSD-3-Clause），
 在 Ascend910_9382（48 AIV）全网格 49 个 `(n, batch)` 点上 **全部快于 CANN 原生复数 FFT（49 : 0）**。
@@ -161,6 +167,7 @@ ascend-fft/
 ├── scripts/                  构建 / 一键测试 / 基准 / η 标定 / 文档生成
 ├── docs/                     设计与实验文档（索引见 docs/README.md）
 ├── results/                  一键测试输出（git 忽略）
+├── CITATION.cff              GitHub「Cite this repository」引用元数据
 ├── LICENSE                   Apache-2.0
 └── THIRD_PARTY_NOTICES.md    cuButterfly 出处与 BSD-3-Clause 文本
 ```
@@ -198,6 +205,36 @@ ascend-fft/
 | [`docs/Cube张量化探针.md`](docs/Cube张量化探针.md) | fp32 Cube（矩阵单元）可行性探针 |
 
 ---
+
+## Citation
+
+使用本软件或其实验数据请引用 [`CITATION.cff`](CITATION.cff)。BibTeX：
+
+```bibtex
+@software{wang_ascendfft_2026,
+  author  = {Teng Wang},
+  title   = {Ascend-FFT: Hardware-Mapped Complex FFT on Huawei Ascend NPUs},
+  year    = {2026},
+  version = {0.1.0},
+  url     = {https://github.com/TruNcat3/ascend-fft}
+}
+```
+
+本仓库的**设计来源**是 [cuButterfly](https://github.com/TruNcat3/cuButterfly)，
+一并引用（其许可见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)）：
+
+```bibtex
+@software{wang_cubutterfly_2026,
+  author  = {Teng Wang},
+  title   = {cuButterfly: Hardware-Mapped Space-Time Parallelism for Butterfly Computations on GPUs},
+  year    = {2026},
+  version = {0.9.0},
+  url     = {https://github.com/TruNcat3/cuButterfly}
+}
+```
+
+Author: **Teng Wang**, High Efficient Intelligent Computing Lab, Suzhou
+Institute for Advanced Research of USTC, Suzhou, China.
 
 ## License
 

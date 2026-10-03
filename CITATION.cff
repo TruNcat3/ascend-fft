@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use this software or its experimental data, please cite it using the metadata below."
+title: "Ascend-FFT: Hardware-Mapped Complex FFT on Huawei Ascend NPUs"
+type: software
+authors:
+  - given-names: "Teng"
+    family-names: "Wang"
+    email: "wangt635@ustc.edu.cn"
+    affiliation: "High Efficient Intelligent Computing Lab, Suzhou Institute for Advanced Research of USTC, Suzhou, China"
+repository-code: "https://github.com/TruNcat3/ascend-fft"
+url: "https://github.com/TruNcat3/ascend-fft"
+version: 0.1.0
+date-released: 2026-10-03
+abstract: >-
+  An AscendC library and reproducible artifact implementing a radix-2
+  decimation-in-time complex fp32 FFT for the Ascend910_9382 SoC. The design
+  space, Context/Plan/Transform API shape, batch-parallel decomposition, and
+  cost-model-driven plan selection are ported from cuButterfly.
+keywords:
+  - FFT
+  - Ascend
+  - AscendC
+  - NPU
+  - radix-2
+  - batch folding
+  - cost model
+  - design space search
+  - space-time parallelism
+references:
+  - type: software
+    title: "cuButterfly: Hardware-Mapped Space-Time Parallelism for Butterfly Computations on GPUs"
+    authors:
+      - given-names: "Teng"
+        family-names: "Wang"
+    year: 2026
+    url: "https://github.com/TruNcat3/cuButterfly"
+    notes: "Upstream design from which this port derives; BSD 3-Clause."
+license: Apache-2.0
