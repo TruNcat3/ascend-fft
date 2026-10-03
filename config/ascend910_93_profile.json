@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "profile_id": "ascend910_93",
+  "evidence": "measured",
+  "soc": "Ascend910_9382",
+  "cann_version": "1.17.0",
+  "device_index": 0,
+  "aicore_num": 24,
+  "vector_core_num": 48,
+  "l2_bytes": 201326592,
+  "global_mem_total_bytes": 65787658240,
+  "global_mem_free_bytes": 65387237376,
+  "ub_bytes_per_core": 196608,
+  "ub_bytes_evidence": "MAX_UB_SIZE=192*1024 in shipped AscendC op sim_thread_exponential.h",
+  "vec_lane_fp32": 128,
+  "vec_lane_fp32_evidence": "placeholder, confirmed by Phase 0.2 lane probe",
+  "warp_size_simt": 32,
+  "warp_size_evidence": "THREAD_GROUP_SIZE in simt_api/cpp/dav_c310 (gated to __NPU_ARCH__ 3510/5102)",
+  "hierarchy": ["lane", "aiv", "die", "device"],
+  "shared_memory_analogue": "UB (per-AIV private, no cross-core sharing)",
+  "cross_core_data_path": "GM only; CrossCoreSetFlag is sync-only",
+  "aib_role": "AIC holds L0A/L0B/L1/L0C; GetSubBlockIdx()/GetSubBlockNum() exposes the AIC:AIV pair"
+}

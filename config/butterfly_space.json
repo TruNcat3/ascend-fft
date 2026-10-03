@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "space_id": "fft_complex_fp32_ascend910_93",
+  "target": "complex-fp32-fft",
+  "target_reference": "torch.fft.rfft / native aclRfft1D",
+
+  "objects": ["H", "G", "A", "P", "L", "F", "Q"],
+
+  "A": {
+    "ud_core": [1, 8, 24, 48],
+    "td": [1],
+    "tb": [1, 4, 16],
+    "ub": [1, "auto"],
+    "ts": [1, 0],
+    "us": [1],
+    "local_exchange": ["shared", "register", "shuffle"],
+    "local_exchange_feasibility": {
+      "shared":   "feasible",
+      "register": "feasible",
+      "shuffle":  "hardware-infeasible",
+      "shuffle_reason": "--enable-simt / -cce-enable-puresimt rejected for every --npu-soc value on ccec 9.0.0; no SIMT programming model on Ascend910_9382"
+    }
+  },
+
+  "P": {
+    "radix": [2, 4, 8],
+    "coefficient_residency": [true],
+    "fusion_level": [1, 2, 3],
+    "bit_reverse_input": [true],
+    "stage_vectorize_min_h": 8,
+    "stage_vectorize_reason": "measured: fp32 vector op UB offset must be a multiple of 8 floats (32B) or vector core raises 507035; butterfly halves are 8-aligned only when h is a multiple of 8"
+  },
+
+  "L": {
+    "in": ["interleaved", "planar"],
+    "out": ["interleaved", "planar"]
+  },
+
+  "F": {
+    "butterfly_count": [1, 2, 4],
+    "stage_count": [1, 2, 3],
+    "dft_matrix": [false],
+    "dft_matrix_note": "native aclRfft1D uses a matmul/DFT-matrix path up to DFT_BORDER_VALUE=4096; matrix unit (Mmad) is currently unreachable from an AIV kernel on this toolchain"
+  },
+
+  "H": {
+    "profile": "config/ascend910_93_profile.json",
+    "simt": false,
+    "sub_block_num": 1,
+    "ub_offset_align_floats": 8,
+    "min_block_output_bytes": 64,
+    "matrix_unit_usable": false,
+    "matrix_unit_evidence": "Mmad<float,float,float,float> compiles (arch 2201 dtype list allows it) and does not fault, but with B=0 the L0C output is still garbage under default/AIC/AIV engineType; Fixpipe(L0C->GM) raises 507035, Fixpipe(L0C->UB) runs but reads an uninitialised tile"
+  },
+
+  "G": {
+    "twiddle_layout": "per-stage align8(h) slot, entry j = exp(-i*pi*j/h)",
+    "twiddle_table_len": "n + 16",
+    "bit_reverse": "host-generated uint32 offsets, dst[j] = 2*bitrev(j)"
+  },
+
+  "Q": {
+    "acceptance": { "max_rel_err": 1e-4 },
+    "timing_metric": "aclrtSynchronizeStream wall time, best of N reps",
+    "baseline_ids": ["native_aclRfft1D", "torch.fft.rfft"]
+  }
+}

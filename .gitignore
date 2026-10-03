@@ -1,0 +1,30 @@
+# ---- 构建产物 ----
+/build/
+*.o
+*.a
+*.so
+*.out
+*.bin
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---- 一次性测试 / profile 输出 ----
+/results/
+/tmp/
+/mindstudio_profiler_output/
+profile*/
+*.log
+!docs/**/*.log
+
+# ---- IDE / 系统 ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ---- 本仓库以外的外部源树（见 THIRD_PARTY_NOTICES.md）----
+/external/
