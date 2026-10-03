@@ -293,6 +293,48 @@ def fig_e2e(rows, out):
     save(fig, out, "fig6_end_to_end.png")
 
 
+# ------------------------------------------------------------------ fig7
+C_BARE = "#ff7f0e"
+
+
+def fig_e2e_three(e2e, out):
+    """三路端到端/device 延迟 vs batch（两组 n）。裸 CANN 是实->复、搬运量减半，
+    只作为「调用路径固定开销」参照，不与前两路算胜负。"""
+    want_n = [64, 4096]
+    series = [("Ours kfft_fwd", "ours", C_OURS),
+              ("CANN native (torch)", "nat", C_NAT),
+              ("bare CANN aclRfft1D*", "bare", C_BARE)]
+    fig, axes = plt.subplots(2, 2, figsize=(11.6, 7.4))
+    for i, (metric, ttl) in enumerate(
+            (("dev", "Device-only  (kernel / op call)"),
+             ("e2e", "End-to-end  (H2D + transform + D2H)"))):
+        for j, n in enumerate(want_n):
+            ax = axes[i][j]
+            for lab, pre, c in series:
+                pts = [(r["batch"], r.get(f"{pre}_{metric}")) for r in e2e
+                       if r["n"] == n and r.get(f"{pre}_{metric}") == r.get(f"{pre}_{metric}")]
+                if not pts:
+                    continue
+                pts.sort()
+                ax.plot([p[0] for p in pts], [p[1] for p in pts], marker="o", ms=4,
+                        lw=1.6, color=c, label=lab)
+            ax.set_xscale("log", base=2)
+            ax.set_yscale("log")
+            bs = sorted({r["batch"] for r in e2e if r["n"] == n})
+            ax.set_xticks(bs, [f"{b:,}" for b in bs])
+            ax.set_xlabel("batch")
+            ax.set_ylabel("us (log)")
+            ax.grid(alpha=.3, which="both")
+            ax.set_title(f"{ttl}   n={n:,}", fontsize=10.5)
+            if i == 0 and j == 0:
+                ax.legend(fontsize=8.5)
+    fig.suptitle("Three-way latency: ours vs torch_npu vs bare CANN C API\n"
+                 "* aclRfft1D is real->complex, onesided, half the transfer bytes: "
+                 "reference only, no win/loss counted", fontsize=11.5, y=1.0)
+    fig.tight_layout()
+    save(fig, out, "fig7_three_way_e2e.png")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--matrix", default="docs/matrix_test_a7.md")
@@ -342,6 +384,10 @@ def main():
         if er:
             print(f"e2e: {len(er)} points")
             made.append("fig6_end_to_end.png"); fig_e2e(er, ap_(a.out))
+            if any(r.get("bare_e2e") == r.get("bare_e2e") for r in er):
+                made.append("fig7_three_way_e2e.png"); fig_e2e_three(er, ap_(a.out))
+            else:
+                print("e2e.json 无 bare_* 字段，跳过 fig7", file=sys.stderr)
         else:
             print("e2e.json 为空，跳过 fig6", file=sys.stderr)
     except FileNotFoundError:

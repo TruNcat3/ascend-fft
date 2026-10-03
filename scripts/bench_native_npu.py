@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""华为 NPU 原生复数 FFT 基准：torch.fft.fft（NPU 后端，走 CANN FFT 算子）。
+"""华为 NPU 原生复数 FFT 基准：torch.fft.fft（NPU 后端）。
+
+实现归属：`_fft_c2c` 由 **torch_npu 自带的 op-plugin** 提供
+（`FFTc2cKernelNpuOpApi.cpp` / `FFTPlanNpuOpApi.cpp`），带 fft plan cache，
+**不是** CANN 算子库条目 —— CANN 9.0.0 的公开头文件里没有复数->复数 FFT 的 C API
+（只有 `aclRfft1D` 实->复、`aclSTFT`）。因此本文档/图里沿用的「CANN 原生」一词
+指「本卡原生复数 FFT 路径」；裸 CANN C API 一路见 `baseline_rfft --e2e`。
 
   python3 scripts/bench_native_npu.py --ns 256,1024,4096 --bs 1,64,4096 --reps 20
 输出每行：NATIVE n=<n> b=<b> native_us=<us> maxRel=<rel>

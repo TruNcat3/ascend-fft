@@ -13,7 +13,7 @@ test:       ## test_framework + test_limits
 	$(AB) test
 limits:     ## test_limits（18 项硬件/ABI 门禁）
 	$(AB) limits
-rfft:       ## aclRfft1D 基线
+rfft:       ## aclRfft1D 基线（--e2e 为裸 CANN 端到端口径）
 	$(AB) rfft
 probe:      ## probe_hw / probe_simt
 	$(AB) probe

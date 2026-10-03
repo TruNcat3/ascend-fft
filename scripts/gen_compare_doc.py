@@ -90,7 +90,11 @@ def main():
                 od=d, oe=g, nd=r.get("nat_dev"), ne=r.get("nat_e2e"),
                 plan=r.get("ours_plan_us"), first=r.get("nat_first_us"),
                 share=(1 - d / g) if (d and g and g > 0) else float("nan"),
-                maxRel=r.get("maxRel"), ok=r.get("ok"))
+                maxRel=r.get("maxRel"), ok=r.get("ok"),
+                bare_dev=r.get("bare_dev"), bare_e2e=r.get("bare_e2e"),
+                bare_ok=r.get("bare_ok"),
+                nat_vs_bare=r.get("nat_vs_bare_dev"),
+                ours_vs_bare=r.get("ours_vs_bare_e2e"))
         e2meta = j.get("meta", {})
     except FileNotFoundError:
         e2meta = {}
@@ -118,6 +122,7 @@ def main():
     A("| 和 numpy/torch 等比 | [图4](#图4-六基线同场对比) |")
     A("| 成本模型准不准 | [图5](#图5-成本模型--vs-实测) |")
     A("| 真实搬运数据后还快吗 | [图6](#图6-端到端测试) |")
+    A("| 和裸 CANN C API 比 | [图7](#图7-三路端到端自研--torch--裸-cann) |")
     A("")
 
     # ---------------- 0 设置 ----------------
@@ -247,16 +252,28 @@ def main():
         A(f"| 内核外时间占比 | 中位 **{sorted(sh)[len(sh) // 2] * 100:.0f}%**，"
           f"最大 **{max(sh) * 100:.0f}%** |")
         A("")
+        geo_dev_e2e = geo([v["dev"] for v in dw]) if dw else float("nan")
         A("> ⚠️ 上表的 `device-only` 是 **e2e_test 自己那一轮**（`reps=10`）顺带测的，"
           "与 [图1/表1](#表149-点详表含迷你条条越长越快) 的 `matrix_test`（`reps=20`、"
-          "另一时段）是两次独立测量，几何均值 3.19× vs 3.01× —— 差异在本机负载抖动范围内，"
+          f"另一时段）是两次独立测量，几何均值 {geo_dev_e2e:.2f}× vs "
+          f"{geo([r['ratio'] for r in mx]):.2f}× —— 差异在本机负载抖动范围内，"
           "**两列都各自与同轮的对手同口径**，跨表不要混引。\n")
+
+        # §6.1 的口径随数据现算，避免写死过期数字
+        small_win = [(k, v) for k, v in e2.items() if k[1] <= 256 and k[0] <= 1024]
+        nsw = sum(1 for _, v in small_win if v["e2e"] > 1)
+        bigsh = [v["share"] for k, v in e2.items()
+                 if k[0] >= 512 and k[1] >= 256 and v["share"] == v["share"]]
+        e2w = sum(1 for v in ew if v["e2e"] > 1)
+
         A("### 6.1　结果怎么读\n")
-        A("1. **小/中 batch（`B ≤ 256`）**：内核占大头，device-only 的优势基本传导到端到端，"
-          "多数点仍在 2~3.6×。")
-        A("2. **大 batch（`B ≥ 1024`）**：内核外时间占比升到 **97~98%**，"
-          "端到端被 PCIe 搬运封顶，两者一起变慢 —— 此时**比的不是 FFT，是数据搬运**。")
-        A("3. 因此端到端 **37/49** 而不是 49/49 是**预期行为**，"
+        A(f"1. **中小尺寸（`B ≤ 256` 且 `n ≤ 1024`，{len(small_win)} 点）**：内核占大头，"
+          f"device-only 的优势基本传导到端到端，**{nsw}/{len(small_win)} 更快**。")
+        if bigsh:
+            A(f"2. **传输量大（`n ≥ 512` 且 `B ≥ 256`，{len(bigsh)} 点）**：内核外时间占比 "
+              f"**{min(bigsh) * 100:.0f}~{max(bigsh) * 100:.0f}%**，"
+              "端到端被 PCIe 搬运封顶，两者一起变慢 —— 此时**比的不是 FFT，是数据搬运**。")
+        A(f"3. 因此端到端 **{e2w}/{len(ew)}** 而不是 49/49 是**预期行为**，"
           "不是内核退化：device-only 一列仍然 49/49。\n")
         A("### 6.2　口径\n")
         A("| | 自研 | CANN 原生 |")
@@ -274,10 +291,106 @@ def main():
           "本仓库 `aclrtMemcpyAsync` 路径 41~63 ms —— **差约 2×，是主机侧数据搬运路径的问题，"
           "不是 kernel**（device-only 一列不受影响）。已试过 `AB_E2E_MODE=sync`"
           "（阻塞 `aclrtMemcpy`）与合并同步，均无稳定改善。")
+        # 用第三路把上面这条定位：裸 CANN 与自研共用同一条 aclrtMemcpyAsync。
+        bigx = [(k, v) for k, v in e2.items()
+                if k[1] >= 1024 and v.get("bare_e2e") == v.get("bare_e2e")]
+        if len(bigx) >= 4:
+            def _bw(nb, us):
+                return nb / (us * 1e-6) / 1e9 if (us == us and us > 0) else float("nan")
+            bw_ours = geo([_bw(16 * k[0] * k[1], v["oe"]) for k, v in bigx])
+            bw_bare = geo([_bw(4 * k[0] * k[1] + 8 * (k[0] // 2 + 1) * k[1],
+                               v["bare_e2e"]) for k, v in bigx])
+            bw_nat = geo([_bw(16 * k[0] * k[1], v["ne"]) for k, v in bigx])
+            kmax = max(bigx, key=lambda kv: kv[0][0] * kv[0][1])
+            km, kv = kmax
+            o_t = _bw(16 * km[0] * km[1], kv["oe"])
+            b_t = _bw(4 * km[0] * km[1] + 8 * (km[0] // 2 + 1) * km[1], kv["bare_e2e"])
+            n_t = _bw(16 * km[0] * km[1], kv["ne"])
+            A(f"- **上面那条已用第三路定位**：裸 CANN 与自研走的是**同一条 "
+              f"`aclrtMemcpyAsync`**（pageable 主机缓冲）。`B ≥ 1024` 的 {len(bigx)} 个点上，"
+              f"按「传输字节 ÷ E2E」算有效带宽（几何均值）：**自研 {bw_ours:.1f}、"
+              f"裸 {bw_bare:.1f}、torch_npu {bw_nat:.1f} GB/s**；最大点 "
+              f"`n={km[0]}/B={km[1]}` 分别 **{o_t:.1f} / {b_t:.1f} / {n_t:.1f} GB/s**。"
+              f"两条 `aclrtMemcpyAsync` 路径落在同一量级、torch 快约 "
+              f"**{bw_nat / bw_ours:.1f}×** —— 差距在 **CANN 运行时的主机侧 staging 路径**，"
+              "既不在我们的 kernel，也不在 E2E 计时代码（`device-only` 一列完全不受影响）。"
+              "注：裸一路 E2E 里算子占比更大，带宽被摊薄，故只作量级参照。")
         A("- **抖动**：传输量大时单轮 E2E 的 `mean/min` 可差 1.5×，所以必须看 min-of-means。")
         A("- **公平性**：两侧都在计时区外剔除了一次性开销；原生的输出 tensor 由 "
           "`torch.fft.fft` 每次分配，但 torch_npu 的 caching allocator 使其在 warmup 后"
           "接近常数开销，与自研的预分配 `dOut` 量级相当。\n")
+
+        # ---- 6.4 裸 CANN C API 参照 ----
+        bare = [(k, v) for k, v in e2.items()
+                if v.get("bare_dev") == v.get("bare_dev")
+                and v.get("bare_e2e") == v.get("bare_e2e")]
+        if bare:
+            A("---\n")
+            A("## 图7　三路端到端：自研 / torch / 裸 CANN\n")
+            A("![three-way](figures/fig7_three_way_e2e.png)\n")
+            A("为什么要第三路：**CANN 9.0.0 的公开头文件里没有复数→复数的 FFT C API**"
+              "（`include/` 全量扫描只有 `aclnnop/acl_rfft1d.h` 与 `acl_stft.h`，"
+              "`libopapi.so` 也没有 `Dft`/`Aclfft` 导出符号）。"
+              "我们一路叫「CANN 原生」的 `torch.fft.fft`，其 `_fft_c2c` 实际由 **torch_npu "
+              "自带的 op-plugin** 实现（`FFTc2cKernelNpuOpApi.cpp` / `FFTPlanNpuOpApi.cpp`，"
+              "并暴露 `torch_npu.npu` 的 fft plan cache），**不是 CANN 算子库条目**"
+              "（已实测确认它确实在设备上跑：`n=4096/B=4096` 时 NPU 2,356 µs vs "
+              "CPU 740,191 µs）。所以补一路 `aclRfft1D`，把「CANN 算子调用路径本身的"
+              "固定开销」和「torch 层」分开。\n")
+            A("| | 自研 | CANN 原生（表1/图6） | 裸 CANN（本节） |")
+            A("|---|---|---|---|")
+            A("| 实现 | AscendC `kfft_fwd` | torch_npu op-plugin | CANN `aclRfft1D`（aclNN） |")
+            A("| 变换 | 复→复 | 复→复 | **实→复、单边** |")
+            A("| 搬运量 (H2D+D2H) | `16n·B` | `16n·B` | **`8n·B`（一半）** |")
+            A("| 调用约定 | 自带 plan，一次性 | plan cache 跨调用复用 | "
+              "两段式，**每轮重新 `GetWorkspaceSize`**（executor 不可复用） |")
+            A("| workspace | 无 | 由框架管理 | **固定 ~2.06 GB**（与 shape 无关） |")
+            A("")
+            bd = [v["bare_dev"] for v in e2.values() if v.get("bare_dev") == v.get("bare_dev")]
+            be = [v["bare_e2e"] for v in e2.values() if v.get("bare_e2e") == v.get("bare_e2e")]
+            small = [(k, v) for k, v in bare if k[1] <= 64]
+            tiny = [(k, v) for k, v in bare if k[1] <= 64 and k[0] <= 256]
+            A("| 指标（几何均值） | 结果 |")
+            A("|---|---|")
+            A(f"| 裸 device-only（49 点） | **{geo(bd):.1f} µs** |")
+            A(f"| 裸 E2E（49 点） | **{geo(be):.1f} µs** |")
+            if small:
+                A(f"| `B≤64`（28 点，传输占比小）device | 裸 **{geo([v['bare_dev'] for _, v in small]):.1f} µs**"
+                  f" ｜ 原生 **{geo([v['nd'] for _, v in small]):.1f} µs**"
+                  f" ｜ 自研 **{geo([v['od'] for _, v in small]):.1f} µs** |")
+            if tiny:
+                A(f"| `n≤256 且 B≤64`（12 点，传输 < 1 MB）device | 裸 **{geo([v['bare_dev'] for _, v in tiny]):.1f} µs**"
+                  f" ｜ 原生 **{geo([v['nd'] for _, v in tiny]):.1f} µs**"
+                  f" ｜ 自研 **{geo([v['od'] for _, v in tiny]):.1f} µs** |")
+            nv = [v["nat_vs_bare"] for v in e2.values()
+                  if v.get("nat_vs_bare") == v.get("nat_vs_bare")]
+            if nv:
+                A(f"| 原生 device ÷ 裸 device（49 点） | **{geo(nv):.2f}×**（两路变换不同，"
+                  "只看固定开销量级） |")
+            okb = sum(1 for _, v in bare if v.get("bare_ok"))
+            A(f"| 裸一路正确性 | **{okb}/{len(bare)} PASS**（与 `numpy.fft.rfft` 同义，"
+              "`norm=1` 实测 = 前向不缩放） |")
+            A("")
+            A("**怎么读**：\n")
+            if tiny:
+                A(f"1. 传输可忽略的 `{len(tiny)}` 个点上，裸 CANN device **"
+                  f"{geo([v['bare_dev'] for _, v in tiny]):.0f} µs**、torch 原生 **"
+                  f"{geo([v['nd'] for _, v in tiny]):.0f} µs**、自研 **"
+                  f"{geo([v['od'] for _, v in tiny]):.0f} µs** —— 那 ~100 µs 的固定开销"
+                  "**在 CANN 算子调用路径本身**，不是 torch 那一层的额外包装。")
+            A("2. 但裸 CANN 反而**比 torch 略慢**：两段式约定要求每轮 "
+              "`GetWorkspaceSize`，而 torch 侧有 plan cache —— 「裸」不等于「快」。"
+              "裸一路在 `n` 变大时 `GetWorkspaceSize` 成本随之上升（`B=1` 时 "
+              "`n=64`→`n=4096` 由 ~99 µs 涨到 ~708 µs），而 torch 原生全程压在 "
+              "~80~112 µs。")
+            A("3. E2E 一列**不能直接比胜负**：`aclRfft1D` 是实→复、搬运量只有一半，"
+              "大 batch 下它的 E2E 天然占优；本节只用来定位固定开销的来源。")
+            A("4. 裸一路是**单进程单 shape**，每个 shape 都从零建图，"
+              "所以 `bare_first_us`（0.4~2 s）与原生的 `first_us`（单进程跑全网格、"
+              "plan cache 跨 shape 复用）**口径不同，不可直接比**，故不出现在正文表里。\n")
+        else:
+            A("> 本轮没有裸 CANN 数据（`--no-bare` 或 `build/baseline_rfft` 缺失），"
+              "跳过图7。补跑：`python3 scripts/e2e_test.py --reps 10 --rounds 3`\n")
     else:
         A(f"> `{a.e2e}` 不存在，跳过。先跑："
           "`python3 scripts/e2e_test.py --reps 10 --rounds 3`\n")
