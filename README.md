@@ -11,6 +11,11 @@ device kernel 用 AscendC 写，host 侧带一层「枚举 → 计费 → 实测
 在 Ascend910_9382（48 AIV）全网格 49 个 `(n, batch)` 点上，**device-only 对 CANN 原生复数 FFT 49 : 0**。
 设计移植自 [**cuButterfly**](https://github.com/TruNcat3/cuButterfly)（BSD-3-Clause）。
 
+**一句话总结。** 相较于 CANN 原生复数 FFT：**device-only 计算口径快 1.04× ~ 6.86×**
+（几何均值 **3.01×**，全网格 **49 : 0**）；把 H2D / D2H 搬运也算进来的**端到端口径，
+在 37/49 个点上提升 1.10× ~ 3.65×**（几何均值 **1.58×**，其中小批量 `B ≤ 64` 一档
+**28 / 28 全胜**），其余 12 点被 PCIe 搬运封顶 —— 两种口径的逐点数据与拆分原因见下文 `结果`。
+
 > **English.** Ascend-FFT is a radix-2 DIT complex fp32 FFT library for Huawei Ascend NPUs,
 > written in AscendC, with a host-side framework that enumerates a design space, prices each
 > candidate with a cost model, and back-fills real measurements. Its object set (`H/G/A/P/L/F/Q`),
