@@ -1,5 +1,7 @@
 # 性能对比：标准库 vs CANN 原生算子 vs 自研 kernel（全网格 49 点）
 
+> **复现脚本**：[`scripts/gen_stdlib_doc.py`](../scripts/gen_stdlib_doc.py)（本文是它的输出）· [`scripts/bench_stdlib.py`](../scripts/bench_stdlib.py) · [`scripts/bench_native_npu.py`](../scripts/bench_native_npu.py) · [`scripts/repro.sh sixway`](../scripts/repro.sh)。
+> **全量索引**：[`scripts/repro.sh --doc <文档名片段>`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。
 > **NPU = Ascend910_9382（48 AIV）**；numpy/torch 跑在 x86 CPU 上（`numpy 1.26.4`, `torch 2.10.0+cpu`）。所有时间单位 µs，**reps=20**。
 
 > * **numpy / torch(CPU)**、**`aclRfft1D`**、**自研 v1** 三列本轮同场实测：`scripts/bench_stdlib.py perf`、`build/baseline_rfft <n> <b> 1`（内部 reps=50）、`AB_FFT_O=build/fft_radix2_v1.o ./build/fft_check <n> <b> 20`（3 轮取 min-of-means）。
@@ -151,6 +153,6 @@
 # 一键：编译 → 门禁（limits/framework/stride/fft_check）→ 49 点矩阵 → 结论
 scripts/one_click_test.sh                    # 结果落在 results/<UTC 时间戳>/
 # 本文档的全部六列（numpy/torch + rfft + v1 同场重测，原生/自研取自 matrix）
-/usr/local/python3.11.15/bin/python3 scripts/gen_stdlib_doc.py \
+python3 scripts/gen_stdlib_doc.py \
   --matrix docs/matrix_test_a7.md --out docs/性能对比-标准库vs自研.md
 ```

@@ -18,8 +18,10 @@
 """
 import argparse, os, re, subprocess, sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PY = "/usr/local/python3.11.15/bin/python3"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
+PY = abenv.python_bin()
 
 
 def sh(cmd, env=None, cwd=ROOT, timeout=3600):
@@ -122,6 +124,9 @@ def main():
     lines = []
     L = lines.append
     L("# 矩阵测试：n × batch 全网格（自研 kfft_fwd vs CANN 原生复数 FFT）\n")
+    L("> **复现脚本**：[`scripts/matrix_test.py`](../scripts/matrix_test.py)"
+      "（本文是它的输出）· [`scripts/one_click_test.sh`](../scripts/one_click_test.sh)"
+      "（编译+门禁+矩阵一键）· [`scripts/calib_eta.py`](../scripts/calib_eta.py)（η 列）。\n")
     L(f"> 硬件 Ascend910_9382（48 AIV）；reps={a.reps}；"
       f"`自研 mean` 与 `原生 mean` 同口径、`自研 min` 与 `原生 min` 同口径。\n")
     L("> **η** 来自框架选型闭环（`test_framework`），同一行的 `η/实测` 列给出模型相对"

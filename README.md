@@ -18,25 +18,6 @@
 
 ---
 
-## 设计来源
-
-本项目的**设计来源是 [cuButterfly](https://github.com/TruNcat3/cuButterfly)** ——
-一份 GPU 上的硬件映射时空并行 FFT / NTT / FWHT 库。移植关系如下：
-
-| cuButterfly | 本仓库 | 说明 |
-|---|---|---|
-| `plan.hpp` 对象集 | `include/butterfly/objects.hpp` | `H`(硬件) `G`(生成) `A`(映射) `P`(分段) `L`(布局) `F`(融合) `Q`(质量) |
-| `Context` / `Plan` / `Transform` | `include/butterfly/plan.hpp` | C++ API（**不提供稳定 C ABI**） |
-| `Ub·Tb` 批并行循环 | `foldDFor(n, batch)` 批折叠 | 一次 Level-0 repeat 覆盖 D 个连续 batch |
-| 旋转因子表 + `kBitReverseInput` | `Generator::genTwiddles` / `genBitReverse` / `genInterleave` | host 生成、随 plan 上传 |
-| 设计空间 + 搜索 + 计分 | `DesignSpace` + `enumerate` + `estimate` + `rank` | `config/*.json` 为唯一真源 |
-| `local_exchange = shuffle/warp` | ⛔ 不可用 | 本 SoC 无 SIMT（`--enable-simt` 被 ccec 拒绝） |
-
-**未复制任何上游源文件**：本仓库每个翻译单元都是面向 Ascend 的 AscendC / host C++ 重写。
-上游仅作为设计出处引用，完整声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
----
-
 ## 结果
 
 49 点全网格（`n ∈ {64…4096}` × `batch ∈ {1…4096}`），`--reps 20 --rounds 3`、逐点取 min-of-means：
@@ -50,8 +31,8 @@
 | vs numpy / torch (CPU) | **36 / 49**、**38 / 49**；`B≥1024` 各 **14 / 14** |
 | 最佳 / 最紧倍率 | **6.86×** @ `n=128/B=4` ｜ **1.04×** @ `n=1024/B=4096` |
 | 头条点 `n=4096/B=4096` | 1,492.7 vs 2,444.7 µs = **1.64×**，吞吐 **674 GFLOP/s** |
-| **端到端**（H2D + 变换 + D2H） | **37/49** 更快，几何均值 **1.58×**（大 batch 被 PCIe 封顶，见 `docs/实验对比.md` 图6） |
-| 裸 CANN C API 参照（`aclRfft1D`，实→复、仅参照） | `n≤256 且 B≤64` 的 12 个点 device：**裸 104 µs** ｜ torch 原生 **93 µs** ｜ 自研 **17 µs** → 那 ~100 µs 固定开销在 CANN 调用路径本身，不在 torch 层（`docs/实验对比.md` 图7） |
+| **端到端**（H2D + 变换 + D2H） | **37/49** 更快，几何均值 **1.58×**（大 batch 被 PCIe 封顶，[图6](docs/实验对比.md#图6-端到端测试)） |
+| 裸 CANN C API 参照（`aclRfft1D`，实→复、仅参照） | `n≤256 且 B≤64` 的 12 个点 device：**裸 104 µs** ｜ torch 原生 **93 µs** ｜ 自研 **17 µs** → 那 ~100 µs 固定开销在 CANN 调用路径本身，不在 torch 层（[图7](docs/实验对比.md#图7-三路端到端自研--torch--裸-cann)） |
 | η 成本模型偏差 | mean **7.7%**、max 26.6% |
 
 完整逐点表格见 [`docs/matrix_test_a7.md`](docs/matrix_test_a7.md)，
@@ -72,6 +53,54 @@
 
 ---
 
+## 导航
+
+**从零到能跑**：`scripts/init.sh`（环境体检 → 编译 → 4 道门禁）。
+**全仓实验清单**：`scripts/repro.sh --list` —— 每个实验都对应一份文档与一条命令。
+
+### 实验 ↔ 脚本 ↔ 文档
+
+| 实验 | 命令 | 产物 | 文档 |
+|---|---|---|---|
+| 环境体检 | `scripts/init.sh --check` | 终端 | 本文 · [docs/README.md](docs/README.md) |
+| 4 道门禁 + 编译 | `scripts/one_click_test.sh --no-matrix` | `results/<UTC>/` | [docs/实验对比.md](docs/实验对比.md) §7 |
+| 49 点性能矩阵 | `scripts/repro.sh matrix` | [docs/matrix_test_a7.md](docs/matrix_test_a7.md) | 同左（本文摘录的来源） |
+| 批折叠前基线存档 | `scripts/repro.sh matrix-archive` | [docs/matrix_test_raw.md](docs/matrix_test_raw.md) | 同左（**勿覆盖**） |
+| 六基线 49 点 | `scripts/repro.sh sixway` | [docs/性能对比-标准库vs自研.md](docs/性能对比-标准库vs自研.md) | 同左 |
+| 端到端三路（自研 / torch / 裸 CANN） | `scripts/repro.sh e2e` | `results/e2e.{md,json}` | [docs/实验对比.md](docs/实验对比.md) 图6·图7 |
+| 出图（图1~7） | `scripts/repro.sh figures` | [docs/figures/](docs/figures/) | [docs/实验对比.md](docs/实验对比.md) |
+| 出对比文档 | `scripts/repro.sh doc` | [docs/实验对比.md](docs/实验对比.md) | 同左（生成物） |
+| η 成本模型标定 | `scripts/repro.sh eta` | 回写 `estimate()` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §3·§11.5 |
+| **A/B 消融** | `python3 scripts/ab_test.py --base <.o> --cand build/fft_radix2.o …` | 终端 / `--json` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §7·§9·§11 |
+| 从提交重建历史基线 `.o` | `scripts/baseline_o.sh <rev>` | `build/baseline_<rev>_*.o` | 同上 §7 |
+| **硬件能力探针** | `scripts/hw_probe.sh` | 终端 | [docs/阶段0-1-发现与结果.md](docs/阶段0-1-发现与结果.md) §1 · 优化文档 §10.2 |
+| **msprof 采集 + 汇总** | `scripts/profile_test.sh` | `results/profiles/<UTC>/` | [docs/trace与profile诊断-小尺寸与大尺寸.md](docs/trace与profile诊断-小尺寸与大尺寸.md) §0·§7 |
+| 汇总已有 profile | `python3 scripts/sum_prof.py <dir>` | 终端 | 同上 |
+| CANN 原生 NPU 基线 | `scripts/repro.sh native` | 终端 | [docs/性能对比-标准库vs自研.md](docs/性能对比-标准库vs自研.md) |
+| CPU 标准库基线 | `scripts/repro.sh stdlib` | 终端 | 同左 |
+| 裸 CANN `aclRfft1D` | `scripts/repro.sh rfft` / `rfft-e2e` | 终端 | [docs/阶段0-1-发现与结果.md](docs/阶段0-1-发现与结果.md) §2 · 实验对比 图7 |
+| Cube（矩阵单元）探针 | `scripts/hw_probe.sh --only cube` | 终端 | [docs/Cube张量化探针.md](docs/Cube张量化探针.md) |
+| 传输带宽探针 | `scripts/hw_probe.sh --only bw` | 终端 | [docs/实验对比.md](docs/实验对比.md) §6.3 |
+| 与公开 GPU 结果对照 | `scripts/repro.sh gpu-compare` | `results/gpu_compare.md` | [docs/矩阵测试与GPU绝对性能对比.md](docs/矩阵测试与GPU绝对性能对比.md) |
+
+### 文档地图
+
+| 分组 | 文档 | 内容 |
+|---|---|---|
+| **结果（先看）** | [`docs/实验对比.md`](docs/实验对比.md) | **图1~7 + 详表**：热力图、batch 缩放、六基线、η 散点、端到端、三路端到端 |
+| | [`docs/matrix_test_a7.md`](docs/matrix_test_a7.md) | 当前权威矩阵（49:0，逐点） |
+| | [`docs/性能对比-标准库vs自研.md`](docs/性能对比-标准库vs自研.md) | 六基线 49 点同场 |
+| **过程** | [`docs/阶段0-1-发现与结果.md`](docs/阶段0-1-发现与结果.md) | 环境/硬件能力探测、`aclRfft1D` 基线、从 0 到可跑通 |
+| | [`docs/性能优化-C2b与K择优.md`](docs/性能优化-C2b与K择优.md) | 5 轮 A/B 优化全记录（C2b、K 择优、radix-4、批折叠、η 标定） |
+| **诊断** | [`docs/trace与profile诊断-小尺寸与大尺寸.md`](docs/trace与profile诊断-小尺寸与大尺寸.md) | `msprof` 诊断、管线占用率、屏障份额 |
+| **对照** | [`docs/矩阵测试与GPU绝对性能对比.md`](docs/矩阵测试与GPU绝对性能对比.md) | 与公开 GPU 工作的绝对性能对照 |
+| **探针** | [`docs/Cube张量化探针.md`](docs/Cube张量化探针.md) | fp32 Cube 可行性 |
+| **存档** | [`docs/matrix_test_raw.md`](docs/matrix_test_raw.md) | 批折叠前的 44:5 基线（**表不改**） |
+
+更细的阅读顺序、术语速查与「哪份文档由哪个脚本生成」见 [`docs/README.md`](docs/README.md)。
+
+---
+
 ## 快速开始
 
 ### 环境要求
@@ -79,11 +108,32 @@
 | 项 | 要求 |
 |---|---|
 | SoC | `Ascend910_9382`（48 AIV / 196608 B UB），改 SoC 需同步 `AB_SOC` 与 `config/*.json` |
-| CANN | 9.0.0（`ccec` + `libascendcl`），路径默认 `/usr/local/Ascend/cann-9.0.0` |
+| CANN | 9.0.0（`ccec` + `libascendcl`），路径由 `AB_CANN` 指定、默认自动探测 |
 | 编译器 | host `g++ -std=c++17` |
-| Python | 3.11（`/usr/local/python3.11.15/bin/python3`），矩阵测试需 `torch_npu` |
+| Python | 任意带 `torch` + `torch_npu` 的 `python3`，解释器由 `AB_PY` 指定、默认自动探测 |
 
-环境统一由 [`scripts/env.sh`](scripts/env.sh) 提供（`AB_SOC` / `AB_INC` / `ab_ccec` / `ab_cxx`）。
+**所有路径都统一由 [`scripts/env.sh`](scripts/env.sh) 探测并导出**，不再硬编码：
+
+| 变量 | 含义 | 默认 |
+|---|---|---|
+| `AB_CANN` | CANN 工具包根 | `ASCEND_TOOLKIT_HOME` → `PATH` 里的 `ccec` → 最新 `/usr/local/Ascend/cann-*` |
+| `AB_PY` | 带 torch_npu 的 python | `python3` → 逐个试 import（结果缓存到 `.ab_py`） |
+| `AB_MSPROF` | msprof 路径 | `$AB_CANN/bin/msprof` → `PATH` |
+| `AB_WORK` | 临时工作区（profile 等） | `<仓库>/.tmp` |
+| `AB_SOC` | SoC 名 | `Ascend910_9382` |
+| `AB_ROOT` / `AB_BUILD` | 仓库根 / `build/` | 自动 |
+
+用法：`source scripts/env.sh`（所有脚本已自动 source），或直接
+`AB_CANN=/opt/cann/8.0.0 AB_PY=/usr/bin/python3.10 scripts/build.sh all` 覆盖。
+Python 侧同一套规则在 [`scripts/abenv.py`](scripts/abenv.py)。
+
+### 从零初始化
+
+```bash
+scripts/init.sh            # 环境体检 → 编译 → 4 道门禁
+scripts/init.sh --check    # 只体检，不编译
+scripts/init.sh --quick    # 体检 + 编译 + 门禁 + 12 点抽样矩阵（约 5 min）
+```
 
 ### 一键测试（编译 → 4 道门禁 → 49 点性能矩阵 → 结论）
 
@@ -100,8 +150,8 @@ scripts/one_click_test.sh --no-matrix     # 只编译 + 门禁
 ### 手动构建
 
 ```bash
-./scripts/build.sh all stride      # kernel + host + 测试；target: kernel|check|test|limits|rfft|probe|bw|stride|cube|all
-make                                # 等价于上面（根目录 Makefile）
+./scripts/build.sh all stride      # kernel + host + 测试；target 见 scripts/build.sh 头部
+make                                # 等价（根目录 Makefile），make help 列全部目标
 ```
 
 ### 单点运行
@@ -111,6 +161,25 @@ make                                # 等价于上面（根目录 Makefile）
 AB_FOLD_D=4 AB_PLANE_K=16 ./build/fft_check 1024 4096 30   # 强制批折叠系数 D / 平面级 K
 AB_FFT_O=build/fft_radix2_v1.o ./build/fft_check 64 1 20   # 指定 kernel .o
 ```
+
+---
+
+## 设计来源
+
+本项目的**设计来源是 [cuButterfly](https://github.com/TruNcat3/cuButterfly)** ——
+一份 GPU 上的硬件映射时空并行 FFT / NTT / FWHT 库。移植关系如下：
+
+| cuButterfly | 本仓库 | 说明 |
+|---|---|---|
+| `plan.hpp` 对象集 | `include/butterfly/objects.hpp` | `H`(硬件) `G`(生成) `A`(映射) `P`(分段) `L`(布局) `F`(融合) `Q`(质量) |
+| `Context` / `Plan` / `Transform` | `include/butterfly/plan.hpp` | C++ API（**不提供稳定 C ABI**） |
+| `Ub·Tb` 批并行循环 | `foldDFor(n, batch)` 批折叠 | 一次 Level-0 repeat 覆盖 D 个连续 batch |
+| 旋转因子表 + `kBitReverseInput` | `Generator::genTwiddles` / `genBitReverse` / `genInterleave` | host 生成、随 plan 上传 |
+| 设计空间 + 搜索 + 计分 | `DesignSpace` + `enumerate` + `estimate` + `rank` | `config/*.json` 为唯一真源 |
+| `local_exchange = shuffle/warp` | ⛔ 不可用 | 本 SoC 无 SIMT（`--enable-simt` 被 ccec 拒绝） |
+
+**未复制任何上游源文件**：本仓库每个翻译单元都是面向 Ascend 的 AscendC / host C++ 重写。
+上游仅作为设计出处引用，完整声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ---
 
@@ -163,16 +232,35 @@ ascend-fft/
 │   │   ├── fft_radix2_v1.cpp    v1 基线（标量旋转因子）
 │   │   └── *_probe.cpp          硬件/Stride/Cube/Gather 探针
 │   ├── framework/             host 框架（选型、计费、索引生成、launch）
-│   └── host/                  可执行入口（fft_check / stride_probe / 基线）
+│   └── host/                  可执行入口（fft_check / stride_probe / 基线 / launch）
 ├── tests/                    test_limits(18) / test_framework
 ├── config/                   硬件 profile + 设计空间 JSON（唯一真源）
-├── scripts/                  构建 / 一键测试 / 基准 / η 标定 / 文档生成
+├── scripts/                  构建 / 初始化 / 实验运行器（详见下表）
 ├── docs/                     设计与实验文档（索引见 docs/README.md）
-├── results/                  一键测试输出（git 忽略）
+├── results/                  一键测试与 profile 输出（git 忽略）
 ├── CITATION.cff              GitHub「Cite this repository」引用元数据
 ├── LICENSE                   Apache-2.0
 └── THIRD_PARTY_NOTICES.md    cuButterfly 出处与 BSD-3-Clause 文本
 ```
+
+### `scripts/` 一览
+
+| 脚本 | 职责 |
+|---|---|
+| [`env.sh`](scripts/env.sh) | **路径与环境的单一真源**（`AB_CANN`/`AB_PY`/`AB_MSPROF`/`AB_WORK` + 编译函数） |
+| [`abenv.py`](scripts/abenv.py) | 上面这套规则的 Python 侧（同一份 `.ab_py` 缓存） |
+| [`init.sh`](scripts/init.sh) | 环境体检 → 编译 → 门禁（从零跑通用这条） |
+| [`build.sh`](scripts/build.sh) / [`Makefile`](Makefile) | 编译 target：kernel/check/test/limits/rfft/probe/simt/bw/stride/cube/all |
+| [`one_click_test.sh`](scripts/one_click_test.sh) | 门禁 + 49 点矩阵一键，判据不过则 exit 1 |
+| [`repro.sh`](scripts/repro.sh) | **实验 ↔ 文档 ↔ 脚本 注册表**：`--list` / `--doc` / `<名字>` / `all` |
+| [`matrix_test.py`](scripts/matrix_test.py) | 49 点矩阵（正确性 + 实测 + η + vs 原生） |
+| [`e2e_test.py`](scripts/e2e_test.py) | 端到端三路（自研 / torch / 裸 CANN） |
+| [`gen_stdlib_doc.py`](scripts/gen_stdlib_doc.py) · [`bench_stdlib.py`](scripts/bench_stdlib.py) · [`bench_native_npu.py`](scripts/bench_native_npu.py) | 六基线同场与两份基线 |
+| [`plot_results.py`](scripts/plot_results.py) · [`gen_compare_doc.py`](scripts/gen_compare_doc.py) | 出图 + 出 `docs/实验对比.md` |
+| [`calib_eta.py`](scripts/calib_eta.py) | η 成本模型最小二乘标定 |
+| [`ab_test.py`](scripts/ab_test.py) · [`baseline_o.sh`](scripts/baseline_o.sh) | 批量 A/B 消融 + 从提交重建历史基线 `.o` |
+| [`hw_probe.sh`](scripts/hw_probe.sh) | 硬件能力探针串联（核数/子核/mask 上限/Gather/带宽/SIMT） |
+| [`profile_test.sh`](scripts/profile_test.sh) · [`sum_prof.py`](scripts/sum_prof.py) · [`native_fft.py`](scripts/native_fft.py) · [`time_native.py`](scripts/time_native.py) | msprof 采集、汇总、原生用例与墙钟对照 |
 
 ---
 
@@ -188,24 +276,7 @@ ascend-fft/
 4. **实测回填** —— `measure()` 真跑一次并把结果写回候选，`rank()` 按 `Measured > Feasible` 分层。
 5. **硬件事实优先于推断** —— 所有上限（UB 196608 B、`mask ≤ 64`、`repeat ≤ 255`、
    32 B 对齐、无 SIMT、单 sub-block）都由 `*_probe` 实测得出，不是猜的。
-
----
-
-## 文档
-
-索引见 [`docs/README.md`](docs/README.md)。主要文档：
-
-| 文档 | 内容 |
-|---|---|
-| [`docs/实验对比.md`](docs/实验对比.md) | **图 + 详表**（推荐先看）：speedup 热力图、延迟热力图、batch 缩放曲线、六基线柱状、η 散点、**端到端测试**、**三路端到端（含裸 CANN C API）** |
-| [`docs/阶段0-1-发现与结果.md`](docs/阶段0-1-发现与结果.md) | 环境/硬件能力探测、原生 `aclRfft1D` 基线、从 0 到可跑通的全过程 |
-| [`docs/性能优化-C2b与K择优.md`](docs/性能优化-C2b与K择优.md) | 5 轮 A/B 优化全记录：C2b、K 择优、radix-4 融合、批折叠、屏障、η 标定 |
-| [`docs/trace与profile诊断-小尺寸与大尺寸.md`](docs/trace与profile诊断-小尺寸与大尺寸.md) | `msprof` 诊断：小尺寸 vs GPU、大尺寸 vs 原生、管线占用率 |
-| [`docs/性能对比-标准库vs自研.md`](docs/性能对比-标准库vs自研.md) | 六基线 49 点同场对比（numpy/torch/`aclRfft1D`/v1/原生/自研） |
-| [`docs/matrix_test_a7.md`](docs/matrix_test_a7.md) | 当前 49:0 矩阵（逐点） |
-| [`docs/matrix_test_raw.md`](docs/matrix_test_raw.md) | 批折叠前的 44:5 基线存档（表不改，用于对照） |
-| [`docs/矩阵测试与GPU绝对性能对比.md`](docs/矩阵测试与GPU绝对性能对比.md) | 与网上公开 GPU 工作的绝对性能对照 |
-| [`docs/Cube张量化探针.md`](docs/Cube张量化探针.md) | fp32 Cube（矩阵单元）可行性探针 |
+   换 SoC 后先跑 `scripts/hw_probe.sh` 再读文档里的数字。
 
 ---
 

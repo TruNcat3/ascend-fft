@@ -1,5 +1,7 @@
 # 矩阵测试 + 绝对性能：自研 `kfft_fwd` vs CANN 原生 vs 网上的 GPU 工作
 
+> **复现脚本**：[`scripts/repro.sh gpu-compare`](../scripts/repro.sh) 56 点矩阵 · [`scripts/hw_probe.sh --only bw`](../scripts/hw_probe.sh) 带宽 · [`scripts/matrix_test.py`](../scripts/matrix_test.py)。GPU 侧数据为第三方公开来源，见 §2.1。
+> **全量索引**：[`scripts/repro.sh --doc <文档名片段>`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。
 > **硬件**：Ascend910_9382（48 AIV，`npu-smi` 显示单卡 64 GB HBM，板卡名 `Ascend910`）。
 > **正确性判据**：`maxRel ≤ 1e-4`（全局 scale 归一，参考为双精度 CPU DIT）。
 > **复现**：

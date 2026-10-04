@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 全量编译。用法: source scripts/env.sh && scripts/build.sh [target...]
-# target: kernel | check | test | limits | rfft | probe | bw | stride | cube | all   (默认 all)
+# target: kernel | check | test | limits | rfft | probe | simt | bw | stride | cube | all   (默认 all)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
@@ -8,7 +8,8 @@ mkdir -p build
 
 KERN=(fft_radix2 fft_radix2_v1 fft_radix2_v2)
 HOST=(fft_check test_framework test_limits baseline_rfft)
-PROBE=(probe_hw probe_simt gather_probe)
+# 本 SoC 可编译的探针 kernel（probe_simt 单独放 simt 目标：无 SIMT，预期编译失败）
+PROBE=(probe_hw gather_probe)
 
 do_kernel() { # kernel [.cpp...]（.cpp 同名生成 build/*.o）
   local s; for s in "$@"; do
@@ -35,8 +36,16 @@ for t in "${targets[@]}"; do
     rfft)   echo "  cxx   src/host/baseline_rfft.cpp"
             ab_cxx src/host/baseline_rfft.cpp -o build/baseline_rfft -lopapi -lnnopbase ;;
     probe)  do_kernel "${PROBE[@]}"
-            echo "  cxx   src/host/probe_hw.cpp"
-            ab_cxx src/host/probe_hw.cpp -o build/probe_hw ;;
+            echo "  cxx   src/host/launch.cpp"
+            ab_cxx src/host/launch.cpp -o build/launch ;;
+    simt)   echo "  ccec  src/ascendc/probe_simt.cpp"
+            if ab_ccec src/ascendc/probe_simt.cpp -o build/probe_simt.o; then
+              echo "  [ warn ] probe_simt 编译通过 —— 本 SoC 可能支持 SIMT，"
+              echo "           docs/阶段0-1-发现与结果.md §1.1 的「SIMT 不可用」需复核"
+            else
+              echo "  [ ok  ] probe_simt 编译失败（预期）：本 SoC 无 SIMT"
+              echo "           见 docs/阶段0-1-发现与结果.md §1.1"
+            fi ;;
     bw)     echo "  cxx   src/host/bw_probe.cpp"
             ab_cxx src/host/bw_probe.cpp -o build/bw_probe ;;
     stride) echo "  ccec  src/ascendc/stride_probe.cpp"

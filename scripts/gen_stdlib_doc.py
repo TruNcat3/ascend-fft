@@ -11,8 +11,11 @@
 """
 import argparse, os, re, subprocess, sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PY = "/usr/local/python3.11.15/bin/python3"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
+from abenv import root, work  # noqa: E402
+PY = abenv.python_bin()
 NS = [64, 128, 256, 512, 1024, 2048, 4096]
 BS = [1, 4, 16, 64, 256, 1024, 4096]
 ROUNDS = 3
@@ -60,10 +63,11 @@ def bench_stdlib():
 
 
 def bench_rfft():
+    _rfft_bin = os.path.join(work(), "rfft_doc.bin")
     d = {}
     for n in NS:
         for b in BS:
-            s = sh(f"./build/baseline_rfft {n} {b} 1 /tmp/op/rfft_doc.bin")
+            s = sh(f"./build/baseline_rfft {n} {b} 1 {_rfft_bin}")
             d[(n, b)] = num(r"aclRfft1D n=\d+ b=\d+ : ([\d.]+) us/call", s)
             print(f"  rfft n={n:<5} b={b:<5} {d[(n,b)]:.1f} us", file=sys.stderr)
     return d
@@ -129,6 +133,10 @@ def main():
     L = []
     A = L.append
     A("# 性能对比：标准库 vs CANN 原生算子 vs 自研 kernel（全网格 49 点）\n")
+    A("> **复现脚本**：[`scripts/gen_stdlib_doc.py`](../scripts/gen_stdlib_doc.py)"
+      "（本文是它的输出）· [`scripts/bench_stdlib.py`](../scripts/bench_stdlib.py) "
+      "· [`scripts/bench_native_npu.py`](../scripts/bench_native_npu.py) "
+      "· [`scripts/repro.sh sixway`](../scripts/repro.sh)。\n")
     A("> **NPU = Ascend910_9382（48 AIV）**；numpy/torch 跑在 x86 CPU 上"
       "（`numpy 1.26.4`, `torch 2.10.0+cpu`）。所有时间单位 µs，**reps=20**。\n")
     A("> * **numpy / torch(CPU)**、**`aclRfft1D`**、**自研 v1** 三列本轮同场实测："
@@ -225,7 +233,7 @@ def main():
     A("# 一键：编译 → 门禁（limits/framework/stride/fft_check）→ 49 点矩阵 → 结论")
     A("scripts/one_click_test.sh                    # 结果落在 results/<UTC 时间戳>/")
     A("# 本文档的全部六列（numpy/torch + rfft + v1 同场重测，原生/自研取自 matrix）")
-    A("/usr/local/python3.11.15/bin/python3 scripts/gen_stdlib_doc.py \\")
+    A("python3 scripts/gen_stdlib_doc.py \\")
     A(f"  --matrix {a.matrix} --out {a.out}")
     A("```")
     body = "\n".join(L) + "\n"

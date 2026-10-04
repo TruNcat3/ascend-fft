@@ -1,5 +1,7 @@
 # 性能优化（第二、三批）：C2b + K 择优 + merge 放宽 + MTE 重叠 + η 重标定 ／ 平面级 radix-4
 
+> **复现脚本**：[`scripts/ab_test.py`](../scripts/ab_test.py) 批量 A/B 消融（§7/§9/§11）· [`scripts/baseline_o.sh`](../scripts/baseline_o.sh) 从提交重建历史基线 `.o` · [`scripts/calib_eta.py`](../scripts/calib_eta.py) η 标定 · [`scripts/hw_probe.sh`](../scripts/hw_probe.sh) §10 硬件探针 · [`scripts/one_click_test.sh`](../scripts/one_click_test.sh) 门禁+矩阵。
+> **全量索引**：[`scripts/repro.sh --doc <文档名片段>`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。
 > 全部为 A/B 实测（每轮各 50 reps 取 **min**，3 轮取最优），交替运行以抵消共租户噪声。
 > 背景：机器 `nproc=1`、load 常年 22~30，且 NPU 上有其他租户（`npu-smi` 可见 HBM/功耗非空），
 > 单次运行会出现 **双峰**（~2100 µs / ~4100 µs，后者是共租户抢占），
@@ -247,12 +249,15 @@ bash scripts/build.sh all
 
 # A/B（关键：交替 + min/50reps；.o 用 AB_FFT_O 指定，不要重新编译）
 AB_FFT_O=<o> ./build/fft_check <n> 4096 50
+# 多点批量版（同样交替 + 3 轮 min）：
+python3 scripts/ab_test.py --base <基线.o> --cand build/fft_radix2.o \
+    --points 4096x4096,64x4096 --reps 50 --rounds 3
 
 # η 标定（拟合常量要回写 estimate()）
-/usr/local/python3.11.15/bin/python3 scripts/calib_eta.py
+python3 scripts/calib_eta.py
 
 # 全网格
-/usr/local/python3.11.15/bin/python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test_raw.md
+python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test_raw.md
 ```
 
 ---
@@ -276,7 +281,8 @@ AB_FFT_O=<o> ./build/fft_check <n> 4096 50
 
 ## 9. 第三批：平面级 radix-4 融合（−5.3%）
 
-> A/B 口径与 §0 相同：**插队 3 轮 × min/50 reps**。基线 `.o` = `/tmp/op/overlap.o`。
+> A/B 口径与 §0 相同：**插队 3 轮 × min/50 reps**。基线 `.o` = 第二批结束时的临时产物
+> `overlap.o`（仓库不保留；用 `scripts/baseline_o.sh <当时提交>` 重建，或用 `scripts/ab_test.py --base <.o>`）。
 
 ### 9.1 先修正一个被写进文档的错误估计
 
@@ -391,7 +397,7 @@ K=32 平面级 454 太贵 → 16（307 次）胜。
 
 **A/B（插队 3 轮 × min/50 reps）**
 
-| 轮 | 基线 `overlap.o` | radix-4 |
+| 轮 | 基线（第二批 `.o`） | radix-4 |
 |---|---:|---:|
 | 1 | 1574.1 | 1481.3 |
 | 2 | 1564.2 | 1481.3 |
@@ -461,11 +467,20 @@ bash scripts/build.sh all                      # 必须 all（kernel+host 同源
 # 正确性（49 格）
 for n in 64 128 256 512 1024 2048 4096; do for b in 1 4 16 64 256 1024 4096; do
   ./build/fft_check $n $b 10; done; done
-# A/B（基线 .o 用 AB_FFT_O 指定，不要重编）
-AB_FFT_O=/tmp/op/overlap.o ./build/fft_check 4096 4096 50   # 1564.7
+# A/B（插队 3 轮 × min/50 reps；基线 .o 用 AB_FFT_O 指定，**不要为了 A/B 去重编译**）
+python3 scripts/ab_test.py --base <基线.o> --cand build/fft_radix2.o \
+    --points 4096x4096,64x4096,128x4 --reps 50 --rounds 3
+
+# 手工单点（口径与 ab_test 相同）：
+AB_FFT_O=<基线.o> ./build/fft_check 4096 4096 50   # 本文旧值 1564.7
 AB_FFT_O=build/fft_radix2.o ./build/fft_check 4096 4096 50  # 1481.3
-/usr/local/python3.11.15/bin/python3 scripts/calib_eta.py    # 结果回写 estimate()
-/usr/local/python3.11.15/bin/python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test_raw.md
+
+# 历史基线 .o：本文出现过的 overlap.o 是第二批结束时的临时产物、已不再保留，
+# 用 baseline_o.sh 从对应提交重建（不切分支、不动工作区）：
+scripts/baseline_o.sh <当时提交>          # -> build/baseline_<rev>_fft_radix2.o
+
+python3 scripts/calib_eta.py    # 结果回写 estimate()
+python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test_raw.md
 ```
 
 ### 9.9 下一步（按性价比）—— 已在 §10 逐项核查
@@ -733,5 +748,5 @@ scripts/one_click_test.sh --rounds 5       # 每点 5 轮，进一步压噪声
 # 单点复核（D / K 可强制）
 AB_FOLD_D=4 AB_FFT_O=build/fft_radix2.o ./build/fft_check 64 4096 30
 # η 标定（系数回写 estimate()）
-/usr/local/python3.11.15/bin/python3 scripts/calib_eta.py
+python3 scripts/calib_eta.py
 ```

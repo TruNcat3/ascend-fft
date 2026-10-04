@@ -20,6 +20,10 @@ profile*/
 *.log
 !docs/**/*.log
 
+# ---- scripts/env.sh 与 scripts/abenv.py 的本机探测结果 ----
+/.ab_py
+/.tmp/
+
 # ---- IDE / 系统 ----
 .vscode/
 .idea/

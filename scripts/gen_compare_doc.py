@@ -114,6 +114,13 @@ def main():
       "[`matrix_test_a7.md`](matrix_test_a7.md)、"
       "[`性能对比-标准库vs自研.md`](性能对比-标准库vs自研.md)、"
       "`results/e2e.json` 完全一致。\n")
+    A("> **复现脚本**：[`scripts/matrix_test.py`](../scripts/matrix_test.py) 图1~3 的矩阵 · "
+      "[`scripts/e2e_test.py`](../scripts/e2e_test.py) 图6/图7 端到端三路 · "
+      "[`scripts/gen_stdlib_doc.py`](../scripts/gen_stdlib_doc.py) 图4 六基线 · "
+      "[`scripts/calib_eta.py`](../scripts/calib_eta.py) 图5 η 标定 · "
+      "[`scripts/plot_results.py`](../scripts/plot_results.py) + "
+      "[`scripts/gen_compare_doc.py`](../scripts/gen_compare_doc.py) 生成图与本文 · "
+      "[`scripts/repro.sh`](../scripts/repro.sh) 全仓实验清单。")
     A("| 想看什么 | 直接跳 |")
     A("|---|---|")
     A("| 一眼看谁快 | [图1](#图1-49-点-speedup-热力图) |")
@@ -399,15 +406,30 @@ def main():
     A("---\n")
     A("## 7　一键复现\n")
     A("```bash")
+    A("# 0) 从零初始化：环境体检 → 编译 → 4 道门禁")
+    A("scripts/init.sh")
+    A("")
     A("# 1) 门禁 + 49 点 device-only 矩阵（生成 docs/matrix_test_a7.md 同构数据）")
     A("scripts/one_click_test.sh")
     A("")
-    A("# 2) 端到端测试（生成 results/e2e.{md,json}）")
+    A("# 2) 端到端测试（生成 results/e2e.{md,json}，含裸 CANN 第三路）")
     A("python3 scripts/e2e_test.py --reps 10 --rounds 3")
     A("")
     A("# 3) 出图 + 出本文档")
     A("python3 scripts/plot_results.py")
     A("python3 scripts/gen_compare_doc.py")
+    A("```")
+    A("")
+    A("本文件涉及的实验都能按名字跑（`scripts/repro.sh --list` 看全仓清单）：\n")
+    A("```bash")
+    A("scripts/repro.sh gate        # 4 道门禁")
+    A("scripts/repro.sh matrix      # 49 点矩阵")
+    A("scripts/repro.sh e2e         # 端到端三路（图6/图7）")
+    A("scripts/repro.sh figures     # 出图")
+    A("scripts/repro.sh doc         # 出本文档")
+    A("scripts/hw_probe.sh          # 硬件能力探针（换 SoC 后先跑）")
+    A("scripts/profile_test.sh      # msprof 采集 + 汇总（管线占用率表的出处）")
+    A("python3 scripts/ab_test.py --base <基线.o> --cand build/fft_radix2.o  # A/B 消融")
     A("```")
     A("")
     A("> 图用英文标签是刻意的：仓库外的机器不一定有 CJK 字体，"

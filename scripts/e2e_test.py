@@ -31,8 +31,10 @@ op-plugin 实现（`FFTc2cKernelNpuOpApi.cpp`），并非 CANN 算子库条目�
 """
 import argparse, json, os, re, subprocess, sys, time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PY = "/usr/local/python3.11.15/bin/python3"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
+PY = abenv.python_bin()
 
 
 def sh(cmd, env=None, cwd=ROOT, timeout=3600):

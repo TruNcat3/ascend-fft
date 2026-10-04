@@ -1,5 +1,7 @@
 # Cube（矩阵单元）张量化探针
 
+> **复现脚本**：[`scripts/hw_probe.sh --only cube`](../scripts/hw_probe.sh) 正确性+吞吐 · [`scripts/profile_test.sh`](../scripts/profile_test.sh) / [`scripts/sum_prof.py`](../scripts/sum_prof.py) msprof 采集与汇总。
+> **全量索引**：[`scripts/repro.sh --doc <文档名片段>`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。
 > 结论先行：**fp32 Cube 在本 SoC（Ascend910_9382, `__NPU_ARCH__=2201`）上可用且已跑通全链路**，
 > 纯 `Mmad` 下界 **109.4 GMAC/s ≈ 218.8 GFLOPS(fp32)**。
 > 但它**必须跑在独立的 `__cube__`（AIC）内核里**，与现有纯矢量内核是**两套核**——
@@ -21,10 +23,10 @@ bash scripts/build.sh cube
 ./build/cube_probe build/cube_probe.o 1 1 16 2 0 1 65536 5   # LoadData + Mmad
 ./build/cube_probe build/cube_probe.o 2 1 16 2 0 1 65536 5   # 全链路（含 Fixpipe）
 
-# profile
-MSPROF=/usr/local/Ascend/cann-9.0.0/bin/msprof
-$MSPROF --output=/tmp/op/cube --task-time=on --aic-metrics=PipeUtilization \
+# profile（$AB_MSPROF 由 scripts/env.sh 探测；$AB_WORK 默认 <仓库>/.tmp）
+"$AB_MSPROF" --output="$AB_WORK/cube" --task-time=on --aic-metrics=PipeUtilization \
         ./build/cube_probe build/cube_probe.o 3 1 16 2 0 1 65536 5
+python3 scripts/sum_prof.py "$AB_WORK/cube"        # 出占用率与耗时汇总
 ```
 
 文件：`src/ascendc/cube_probe.cpp`（内核 `kcube`）、`src/host/cube_probe.cpp`、build target `cube`。

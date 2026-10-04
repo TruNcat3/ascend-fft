@@ -10,8 +10,10 @@ CANN 原生算子有两套：
 """
 import argparse, os, re, subprocess, sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PY = "/usr/local/python3.11.15/bin/python3"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
+PY = abenv.python_bin()
 
 
 def sh(cmd, env=None, cwd=ROOT, timeout=3600):
@@ -69,7 +71,9 @@ def main():
             ok = 'PASS' if re.search(r'^PASS$', cur, re.M) and re.search(r'^PASS$', v1, re.M) else 'FAIL'
             us_rf = float('nan')
             if not a.no_rfft:
-                rf = sh(f"./build/baseline_rfft {n} {b} 1 /tmp/op/t/r.bin", timeout=600)
+                _tmpdir = os.path.join(abenv.work(), "bench_cmp")
+                os.makedirs(_tmpdir, exist_ok=True)
+                rf = sh(f"./build/baseline_rfft {n} {b} 1 {_tmpdir}/r.bin", timeout=600)
                 us_rf = num(r"aclRfft1D n=\d+ b=\d+ : ([\d.]+) us/call", rf)
             nu, th = std.get((n, b), (float('nan'), float('nan')))
             us_na = nat.get((n, b), float('nan'))

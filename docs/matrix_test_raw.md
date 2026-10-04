@@ -5,6 +5,8 @@
 
 # 矩阵测试：n × batch 全网格（自研 kfft_fwd vs CANN 原生复数 FFT）
 
+> **复现脚本**：`python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test_raw.md` [`scripts/repro.sh matrix-archive`](../scripts/repro.sh)。**存档，勿覆盖**。
+> **全量索引**：[`scripts/repro.sh --doc <文档名片段>`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。
 > 硬件 Ascend910_9382（48 AIV）；reps=20；`自研 mean` 与 `原生 mean` 同口径、`自研 min` 与 `原生 min` 同口径。
 
 > **η** 来自框架选型闭环（`test_framework`），同一行的 `η/实测` 列给出模型相对`自研 mean` 的偏差；`自研/原生` > 1 表示自研更快。

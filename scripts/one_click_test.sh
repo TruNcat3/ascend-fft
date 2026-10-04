@@ -12,6 +12,7 @@
 # 退出码：0 = 全部门禁 + 矩阵判据通过；1 = 有失败项。
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source scripts/env.sh
 
 ROUND_ARG=3; REPS_ARG=20; DO_MATRIX=1; QUICK=0; OUT=""
 while [ $# -gt 0 ]; do
@@ -87,7 +88,7 @@ if [ "$DO_MATRIX" -eq 1 ]; then
   NS=64,128,256,512,1024,2048,4096
   BS=1,4,16,64,256,1024,4096
   if [ "$QUICK" -eq 1 ]; then NS=64,1024,4096; BS=1,64,4096; fi
-  /usr/local/python3.11.15/bin/python3 scripts/matrix_test.py \
+  "$AB_PY" scripts/matrix_test.py \
       --ns "$NS" --bs "$BS" --reps "$REPS_ARG" --rounds "$ROUND_ARG" \
       --out "$OUT/matrix.md" > /dev/null
   M="$OUT/matrix.md"
@@ -99,7 +100,7 @@ if [ "$DO_MATRIX" -eq 1 ]; then
   SCORE="$BOLD/$TOTAL"
   [ "$CORRECT" = "$ROWS" ] || FAIL "矩阵正确性 $CORRECT_STR（应 $ROWS/$ROWS）"
   [ "$BOLD" = "$TOTAL" ]   || FAIL "矩阵比值 $SCORE（应全 ≥1×，自研不慢于原生）"
-  ETA_OVER=$(/usr/local/python3.11.15/bin/python3 - "$M" <<'PY'
+  ETA_OVER=$("$AB_PY" - "$M" <<'PY'
 import re,sys
 pat=re.compile(r"\| (\d+) \| (\d+) \| ([\d,.]+) \| ([\d,.]+) \| ([\d,.]+) \| ([\d,.]+) \| (?:\*\*([\d.]+)×\*\*|([\d.]+)×) \| ([\d,.]+) \| ([+-][\d.]+)% \|")
 f=lambda s: float(s.replace(',',''))

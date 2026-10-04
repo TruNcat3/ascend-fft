@@ -3,29 +3,44 @@
 > 手段：`msprof`（CANN 9.0.0）打 `fft_check` 与 `torch.fft.fft(torch_npu)` 两份 profile，
 > 取 `AscendTask.duration`（设备侧任务时长）、`op_summary`（每 op 管线占用率）、
 > `api_statistic`（host 侧 API 耗时）。
-> 复现命令见 §0。
+>
+> **复现脚本**：[`scripts/profile_test.sh`](../scripts/profile_test.sh)（采集+汇总）
+> · [`scripts/sum_prof.py`](../scripts/sum_prof.py)（读已有 profile）
+> · [`scripts/native_fft.py`](../scripts/native_fft.py) / [`scripts/time_native.py`](../scripts/time_native.py)（原生用例）
+> · [`scripts/repro.sh --doc trace`](../scripts/repro.sh)（本文件涉及的全部实验）
+> 全部路径由 [`scripts/env.sh`](../scripts/env.sh) 探测：`$AB_CANN` / `$AB_MSPROF` / `$AB_PY` / `$AB_WORK`。
 
 ---
 
 ## 0. 复现
 
 ```bash
-source scripts/env.sh
-MSPROF=/usr/local/Ascend/cann-9.0.0/bin/msprof
+source scripts/env.sh                 # 导出 $AB_MSPROF / $AB_PY / $AB_WORK
 
+# 一键：5 个用例采集 + 汇总（最省事，等价于下面的手工命令）
+scripts/profile_test.sh
+scripts/profile_test.sh --only ours_b1,ours_b64,ours_b4k,nat
+scripts/profile_test.sh --out results/profiles/p_a6_after
+
+# 等价的手工命令（本文档里所有 msprof 调用的写法）：
 # 自研 kernel，三个 batch
-$MSPROF --output=/tmp/op/p_b1    --task-time=on ./build/fft_check 4096 1     10
-$MSPROF --output=/tmp/op/p_b64   --task-time=on ./build/fft_check 4096 64    10
-$MSPROF --output=/tmp/op/p_b4k   --task-time=on --aic-metrics=PipeUtilization \
-                                 ./build/fft_check 4096 4096 10
+"$AB_MSPROF" --output="$AB_WORK/p_b1"  --task-time=on ./build/fft_check 4096 1    10
+"$AB_MSPROF" --output="$AB_WORK/p_b64" --task-time=on ./build/fft_check 4096 64   10
+"$AB_MSPROF" --output="$AB_WORK/p_b4k" --task-time=on --aic-metrics=PipeUtilization \
+                             ./build/fft_check 4096 4096 10
 
-# CANN 原生（torch_npu）—— /tmp/op/native_fft.py 即 13 次 torch.fft.fft(4096x4096 c64)
-$MSPROF --output=/tmp/op/p_nat   --task-time=on --aic-metrics=PipeUtilization \
-                                 /usr/local/python3.11.15/bin/python3 /tmp/op/native_fft.py
+# CANN 原生（torch_npu）—— scripts/native_fft.py 即 warmup 3 + 10 次 torch.fft.fft(4096x4096 c64)
+"$AB_MSPROF" --output="$AB_WORK/p_nat" --task-time=on --aic-metrics=PipeUtilization \
+                             "$AB_PY" scripts/native_fft.py --n 4096 --b 4096 --reps 10
 ```
 
-取数：
+取数（`scripts/sum_prof.py` 一次出齐，下面的 python 片段是它的数据来源）：
 ```bash
+python3 scripts/sum_prof.py results/profiles/p_b4k            # 单份详表
+python3 scripts/sum_prof.py results/profiles/p_a6_before \
+                           results/profiles/p_a6_after         # 前后对照
+python3 scripts/sum_prof.py <dir> --per 13 --drop 13           # 原生（每迭代 13 个 op）
+
 python3 -c "import sqlite3,sys;c=sqlite3.connect('$P/device_0/sqlite/ascend_task.db');
 [print(r) for r in c.execute('select host_task_type,duration from AscendTask')]"
 # 管线占用率在 mindstudio_profiler_output/op_summary_*.csv 的
@@ -241,7 +256,7 @@ msprof 最新（n=4096/B=4096，`--aic-metrics=PipeUtilization`）：
 
 | 改动 | n=4096/B=4096 | 说明 |
 |---|---:|:---|
-| 基线（第二批） | 1,564.7 µs（A/B 中位） | `/tmp/op/overlap.o` |
+| 基线（第二批） | 1,564.7 µs（A/B 中位） | 第二批结束时的 `fft_radix2.o`（临时产物已不保留，`scripts/baseline_o.sh <当时提交>` 可重建） |
 | + **平面级 radix-4 融合** | **1,481.3 µs（−5.3%）** | stage `(h,2h)` 代数消元成 4 点变换 |
 | 平面级算子数 | 226 → **164**（−27.4%） | 平凡 16、非平凡 28（基线 26 / 32） |
 | 元素流量 | 233,968 → **218,096**（−6.8%） | 模型 Δ = −9.6%，实测 −5.3% |
@@ -330,13 +345,15 @@ n=64 只有 **1** 个 matmul（DFT 实矩阵 128×128），n≥256 是 2 个。
 复现：
 ```bash
 source scripts/env.sh
-MSPROF=/usr/local/Ascend/cann-9.0.0/bin/msprof
+
+# 4 个原生失分点各采一份 profile（等价于 scripts/profile_test.sh --only nat 的参数化版）
 for N in 64 256 512 1024; do
-  $MSPROF --output=/tmp/op/p_nat$N --task-time=on --aic-metrics=PipeUtilization \
-    /usr/local/python3.11.15/bin/python3 /tmp/op/native_fft.py $N 4096 10
+  "$AB_MSPROF" --output="$AB_WORK/p_nat$N" --task-time=on --aic-metrics=PipeUtilization \
+    "$AB_PY" scripts/native_fft.py --n $N --b 4096 --reps 10
 done
-/usr/local/python3.11.15/bin/python3 /tmp/op/time_native.py   # 墙钟对照
-# 汇总脚本：/tmp/op/sum_prof.py
+"$AB_PY" scripts/time_native.py --ns 64,256,512,1024 --bs 4096 --reps 10   # 墙钟对照
+# 汇总：python3 scripts/sum_prof.py $AB_WORK/p_nat64 ... （或 scripts/profile_test.sh 自动出）
+python3 scripts/sum_prof.py "$AB_WORK"/p_nat{64,256,512,1024} --per 13 --drop 13
 ```
 
 ---
@@ -371,22 +388,25 @@ done
 > 本轮 3 次采样是 `vec≈0.82 / scalar≈0.168`。两者的 `vec+scalar` 都≈1.0，
 > 结论一致 —— **发射饱和，屏障不是瓶颈**。
 
-**profile 目录**：`/tmp/op/p_a6_before`、`/tmp/op/p_a6_after`。
+**profile 目录**：`$AB_WORK/p_a6_before`、`$AB_WORK/p_a6_after`
+（默认 `$AB_WORK` = `<仓库>/.tmp`，可用 `AB_WORK=` 覆盖；本文写就时的历史目录在 `/tmp/op/`）。
 
 ---
 
 ## 7. 数据出处
 
-| 数据 | 文件 |
+| 数据 | 文件 / 取法 |
 |:---|:---|
-| 设备任务时长 | `device_0/sqlite/ascend_task.db` → `AscendTask.duration`（ns） |
+| 设备任务时长 | `device_0/sqlite/ascend_task.db` → `AscendTask.duration`（**ns**，`sum_prof.py` 已 /1000） |
 | 管线占用率 | `mindstudio_profiler_output/op_summary_*.csv` → `aiv_vec_ratio` 等 |
 | host API 耗时 | `mindstudio_profiler_output/api_statistic_*.csv` |
 | op 聚合统计 | `mindstudio_profiler_output/op_statistic_*.csv` |
-| 原始 profile 目录 | `/tmp/op/prof_ours`、`/tmp/op/prof_b1`、`/tmp/op/prof_b64`、`/tmp/op/prof_pipe`、`/tmp/op/prof_nat`、`/tmp/op/prof_nat2` |
-| 原生失分点 profile（§6.3） | `/tmp/op/p_nat64`、`/tmp/op/p_nat256`、`/tmp/op/p_nat512`、`/tmp/op/p_nat1024` |
-| 原生墙钟对照（§6.3.3） | `/tmp/op/native_fft.py`（参数化）、`/tmp/op/time_native.py`、汇总 `/tmp/op/sum_prof.py` |
-| **A6 屏障前后（§6.4）** | `/tmp/op/p_a6_before`、`/tmp/op/p_a6_after` |
+| **采集** | `scripts/profile_test.sh`（5 个用例，落 `results/profiles/<UTC>/`） |
+| **汇总** | `scripts/sum_prof.py <dir> [--per N] [--drop N] [--csv]` |
+| 原始 profile 目录 | 本文写就时在 `/tmp/op/prof_ours`、`prof_b1`、`prof_b64`、`prof_pipe`、`prof_nat`、`prof_nat2`；重跑落在 `results/profiles/` |
+| 原生失分点 profile（§6.3） | `scripts/profile_test.sh` 的 `--only nat` + `--n` 参数化，或 `$AB_WORK/p_nat{64,256,512,1024}` |
+| 原生墙钟对照（§6.3.3） | `scripts/native_fft.py`（单形状）、`scripts/time_native.py`（多形状）、汇总 `scripts/sum_prof.py` |
+| **A6 屏障前后（§6.4）** | `$AB_WORK/p_a6_before`、`$AB_WORK/p_a6_after` |
 
 > 注：`--aic-metrics=Memory` 拿到的 `aiv_main_mem_read_bw ≈ 0.013 GB/s` 明显无效
 > （本核实际 GM 流量 82 GB/s），**该组计数器在纯 AIV kernel 上不可用**，
