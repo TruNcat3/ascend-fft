@@ -18,7 +18,7 @@
 trace与profile诊断-*.md         ③ 手段：msprof 诊断、管线占用率、对照 GPU 的假设评估
 性能对比-标准库vs自研.md        ④ 结果：六基线 49 点同场对比（自动生成）
 matrix_test_a7.md               ⑤ 结果：当前 49:0 逐点矩阵（权威）
-矩阵测试与GPU绝对性能对比.md     ⑥ 展望：与网上公开 GPU 工作的绝对性能对照
+矩阵测试与GPU绝对性能对比.md     ⑥ 展望：与网上公开 GPU 工作的绝对性能对照（正文=历史基线）
 Cube张量化探针.md               ⑦ 探针：fp32 Cube（矩阵单元）可行性
 matrix_test_raw.md              ⑧ 存档：批折叠前的 44:5 基线（表格一字不改）
 ```
@@ -39,7 +39,7 @@ matrix_test_raw.md              ⑧ 存档：批折叠前的 44:5 基线（表�
 | [性能对比-标准库vs自研.md](性能对比-标准库vs自研.md) | numpy / torch / `aclRfft1D` / 自研 v1 / CANN 原生 / 自研 六列 49 点 | `gen_stdlib_doc.py`（本文是生成物）· `bench_stdlib.py` · `bench_native_npu.py` | **自动重生成** |
 | [matrix_test_a7.md](matrix_test_a7.md) | **当前权威矩阵**（49:0，`--rounds 3` min-of-means，η 均值 7.7%） | `repro.sh matrix` · `one_click_test.sh` · `calib_eta.py` | 结果 |
 | [matrix_test_raw.md](matrix_test_raw.md) | 批折叠 A3~A5 之前的 44:5 基线存档 | `repro.sh matrix-archive`（**勿覆盖**） | 存档 |
-| [矩阵测试与GPU绝对性能对比.md](矩阵测试与GPU绝对性能对比.md) | 与 cuButterfly / cuFFT 等公开 GPU 结果的绝对性能对照 | `repro.sh gpu-compare` · `hw_probe.sh --only bw` | 对外对照 |
+| [矩阵测试与GPU绝对性能对比.md](矩阵测试与GPU绝对性能对比.md) | 与 cuButterfly / cuFFT 等公开 GPU 结果的绝对性能对照（**正文为历史基线**，比分现状 49:0） | `repro.sh gpu-compare` · `hw_probe.sh --only bw` | 对外对照 |
 | [Cube张量化探针.md](Cube张量化探针.md) | `Mmad` 可编译但结果读不出的实测结论 | `hw_probe.sh --only cube` · `profile_test.sh` · `sum_prof.py` | 探针 |
 
 ---

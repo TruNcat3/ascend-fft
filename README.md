@@ -72,7 +72,7 @@
 | 出对比文档 | `scripts/repro.sh doc` | [docs/实验对比.md](docs/实验对比.md) | 同左（生成物） |
 | η 成本模型标定 | `scripts/repro.sh eta` | 回写 `estimate()` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §3·§11.5 |
 | **A/B 消融** | `python3 scripts/ab_test.py --base <.o> --cand build/fft_radix2.o …` | 终端 / `--json` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §7·§9·§11 |
-| 从提交重建历史基线 `.o` | `scripts/baseline_o.sh <rev>` | `build/baseline_<rev>_*.o` | 同上 §7 |
+| 从提交重建历史基线 `.o` | `scripts/baseline_o.sh <rev>` | `build/baseline_<rev>_*.o` | 同上 §8·§9.8 |
 | **硬件能力探针** | `scripts/hw_probe.sh` | 终端 | [docs/阶段0-1-发现与结果.md](docs/阶段0-1-发现与结果.md) §1 · 优化文档 §10.2 |
 | **msprof 采集 + 汇总** | `scripts/profile_test.sh` | `results/profiles/<UTC>/` | [docs/trace与profile诊断-小尺寸与大尺寸.md](docs/trace与profile诊断-小尺寸与大尺寸.md) §0·§7 |
 | 汇总已有 profile | `python3 scripts/sum_prof.py <dir>` | 终端 | 同上 |
@@ -93,7 +93,7 @@
 | **过程** | [`docs/阶段0-1-发现与结果.md`](docs/阶段0-1-发现与结果.md) | 环境/硬件能力探测、`aclRfft1D` 基线、从 0 到可跑通 |
 | | [`docs/性能优化-C2b与K择优.md`](docs/性能优化-C2b与K择优.md) | 5 轮 A/B 优化全记录（C2b、K 择优、radix-4、批折叠、η 标定） |
 | **诊断** | [`docs/trace与profile诊断-小尺寸与大尺寸.md`](docs/trace与profile诊断-小尺寸与大尺寸.md) | `msprof` 诊断、管线占用率、屏障份额 |
-| **对照** | [`docs/矩阵测试与GPU绝对性能对比.md`](docs/矩阵测试与GPU绝对性能对比.md) | 与公开 GPU 工作的绝对性能对照 |
+| **对照** | [`docs/矩阵测试与GPU绝对性能对比.md`](docs/矩阵测试与GPU绝对性能对比.md) | 与公开 GPU 工作的绝对性能对照（**正文为历史基线**，比分现状 49:0） |
 | **探针** | [`docs/Cube张量化探针.md`](docs/Cube张量化探针.md) | fp32 Cube 可行性 |
 | **存档** | [`docs/matrix_test_raw.md`](docs/matrix_test_raw.md) | 批折叠前的 44:5 基线（**表不改**） |
 

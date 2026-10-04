@@ -1,25 +1,28 @@
 # 矩阵测试 + 绝对性能：自研 `kfft_fwd` vs CANN 原生 vs 网上的 GPU 工作
 
-> **复现脚本**：[`scripts/repro.sh gpu-compare`](../scripts/repro.sh) 56 点矩阵 · [`scripts/hw_probe.sh --only bw`](../scripts/hw_probe.sh) 带宽 · [`scripts/matrix_test.py`](../scripts/matrix_test.py)。GPU 侧数据为第三方公开来源，见 §2.1。
+> **复现脚本**：[`scripts/repro.sh gpu-compare`](../scripts/repro.sh) 49 点矩阵 · [`scripts/hw_probe.sh --only bw`](../scripts/hw_probe.sh) 带宽 · [`scripts/matrix_test.py`](../scripts/matrix_test.py)。GPU 侧数据为第三方公开来源，见 §2.1。
 > **全量索引**：[`scripts/repro.sh --doc <文档名片段>`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。
 > **硬件**：Ascend910_9382（48 AIV，`npu-smi` 显示单卡 64 GB HBM，板卡名 `Ascend910`）。
 > **正确性判据**：`maxRel ≤ 1e-4`（全局 scale 归一，参考为双精度 CPU DIT）。
+> ⚠️ **本文正文是历史基线**（第三批及之前），带宽/GPU 对照部分仍然有效，但比分与逐点数据
+> 已被 A4~A7 取代：**现状 49:0 见 [`docs/matrix_test_a7.md`](matrix_test_a7.md)**，
+> 44:5 存档见 [`docs/matrix_test_raw.md`](matrix_test_raw.md)。
 > **复现**：
 > ```bash
 > scripts/build.sh all bw
 > python3 scripts/matrix_test.py --ns 64,128,256,512,1024,2048,4096 \
->         --bs 1,4,16,64,256,1024,4096,10000 --reps 30 --out docs/matrix_test_raw.md
+>         --bs 1,4,16,64,256,1024,4096,10000 --reps 30 --out results/gpu_compare.md
 > ```
-> 原始逐点数据见 `docs/matrix_test_raw.md`（**56/56 PASS**）。
+> 逐点数据落在 `results/gpu_compare.md`（49 点 + `batch=10000`，**勿写 `docs/matrix_test_raw.md`，那是 44:5 存档**）。
 
 ---
 
-## ⚠️ 更新：第三批优化后的现状（2026-09-30）
+## ⚠️ 历史快照：第三批优化后（2026-09-30，**下表比分已过期，现状 49:0**）
 
 下文的数字是 **C1+C2 阶段的基线**（`#op = 2012`、实测 3288 µs、比分 35:21）。
 第二、三批共做了 6 项改动（详见 `docs/性能优化-C2b与K择优.md`），**关键数字已变**：
 
-| 项 | 基线 | 第二批 | **第三批（现在）** |
+| 项 | 基线 | 第二批 | **第三批（当时）** |
 |---|---:|---:|---:|
 | `#op`（n=4096, K 择优） | 2012 | 369 | **307** |
 | n=4096 / B=4096 实测 | 3,288 µs | 1,573 µs | **1,492 µs（−5.2%）** |
@@ -29,6 +32,10 @@
 | msprof `aiv_vec_ratio` | — | 0.822 | **0.853** |
 | msprof `aiv_scalar_ratio` | — | 0.140 | **0.075** |
 | 累计增益（相对 3288 µs） | — | −52% | **−54.6%** |
+
+**现状（A4~A7 批折叠之后，`docs/matrix_test_a7.md`，`--rounds 3` min-of-means）**：
+n=4096/B=4096 = **1,492.7 µs vs 2,444.7 µs = 1.64×**、该点 η/实测 **−5.7%**、
+**网格比分 49 : 0**、全网格 η 平均偏差 **7.7%**。msprof 占空比列在 A7 之后未重采，仍为上表值。
 
 第二批 5 项（过程见 `docs/性能优化-C2b与K择优.md` §1–§7）：C2b 复数乘 6→4、**K 择优公式修正
 （最大项 −15.1%）**、merge 条件放宽、去掉矢量管内冗余屏障、**批间 MTE3⊗MTE2 重叠（−4.5%）**
@@ -40,12 +47,13 @@
 
 **§3.2 的耗时拆解表请按 `#op = 307`、`13.25 ns/op`、`launchUs = 21.3`、`elemNs = 0.0597` 重读**：
 `307 × 13.252 ns × 86 = 347 µs`（24%），`elems × 0.0597 ns × 86 ≈ 1116 µs` 仍是主体。
-msprof 显示 `aiv_vec_ratio = 0.853` 是当前的墙（scalar 已从 0.140 压到 0.075）——
+msprof 显示 `aiv_vec_ratio = 0.853` 是**当时的**墙（scalar 已从 0.140 压到 0.075）——
 **剩下的杠杆是 I/O 的 Stockham 化 / 布局合同**（`idxB`+`idxT` = 4n = elems 的 7.5%，
 同时腾出 32 KB UB 供 MTE2 预取），见 §9.9。
 
-当前 7×7 网格逐点数据见 `docs/matrix_test_raw.md`（**49/49 PASS**，44 胜 5 负）；
+第三批当时的 7×7 网格逐点数据见 `docs/matrix_test_raw.md`（**49/49 PASS**，44 胜 5 负）；
 5 个负点全部是 `B=4096` 的小 n（n ≤ 1024）。
+**现状已变成 49 : 0**（批折叠 A4~A7），权威逐点数据见 `docs/matrix_test_a7.md`。
 
 以下正文保留为**历史基线**，用于对照当时的诊断过程。
 

@@ -8,7 +8,7 @@
       --points 4096x4096,64x4096,128x4 --reps 50 --rounds 3
 
   # 只看某几个形状 + 输出 JSON
-  python3 scripts/ab_test.py --base a.o --b b.o ... --json results/ab.json
+  python3 scripts/ab_test.py --base a.o --cand b.o --points 64x1 --json results/ab.json
 
 输出每行：
   AB n=<n> b=<b> base=<us> cand=<us> speedup=<x> rel=<maxRel> PASS|FAIL

@@ -233,7 +233,7 @@ msprof（`--aic-metrics=PipeUtilization`, n=4096/B=4096）前后对比：
 | `aiv_mte3_ratio` | 0.084 | 0.093 |
 | 设备任务时长 | ~1630 µs | **~1560 µs** |
 
-**结论：`vec 0.822` 是当前的墙**；MTE 与 scalar 仍是可压项，但已经没有"删一个屏障"这种免费午餐了。
+**结论：`vec 0.822` 是当时的墙**（第二批口径；A7 之后见 §11.6）；MTE 与 scalar 仍是可压项，但已经没有"删一个屏障"这种免费午餐了。
 
 ---
 
@@ -257,7 +257,7 @@ python3 scripts/ab_test.py --base <基线.o> --cand build/fft_radix2.o \
 python3 scripts/calib_eta.py
 
 # 全网格
-python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test_raw.md
+python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test.md
 ```
 
 ---
@@ -428,7 +428,7 @@ scalar 几乎腰斩的原因：平面级从 32 次蝶形降到 8 次，`twr.GetV
 `wr != 1.0f` 浮点比较随之减少；而 W³ 的 4 条标量乘加只在 7 次非平凡蝶形里做。
 
 **网格（7×7 = 49 点，reps=20，`docs/matrix_test_raw.md`）**
-- **49/49 PASS**，比分 **44 胜 5 负**（不变，5 个负点仍是 `B=4096` 的 n≤1024）
+- **49/49 PASS**，比分 **44 胜 5 负**（第三批当时不变，5 个负点仍是 `B=4096` 的 n≤1024；**A4~A7 之后 49:0**，见 §11.6）
 - 几何均值 **2.87×**；n=4096/B=4096 **1,492.0 µs vs 原生 2,568.8 µs = 1.72×**（第二批 1.53×）
   > 注：原生这轮读到 2568.8（第二批是 2408.2），共租户噪声；**自研自身 1573→1492 = −5.2%** 是干净的。
 
@@ -480,7 +480,7 @@ AB_FFT_O=build/fft_radix2.o ./build/fft_check 4096 4096 50  # 1481.3
 scripts/baseline_o.sh <当时提交>          # -> build/baseline_<rev>_fft_radix2.o
 
 python3 scripts/calib_eta.py    # 结果回写 estimate()
-python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test_raw.md
+python3 scripts/matrix_test.py --reps 20 --out docs/matrix_test.md
 ```
 
 ### 9.9 下一步（按性价比）—— 已在 §10 逐项核查
