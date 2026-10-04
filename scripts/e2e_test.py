@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """端到端对比测试：H2D + 变换 + D2H，自研 kfft_fwd vs CANN 原生复数 FFT vs 裸 CANN C API。
 
-口径（三路逐段对应，详见 docs/实验对比.md §4）：
+口径（三路逐段对应，详见 docs/实验对比.md §6）：
 
   自研   :  aclrtMemcpyAsync(H2D) -> kfft_fwd -> aclrtMemcpyAsync(D2H)   （fft_check AB_E2E=1）
-  CANN 原生:  xd.copy_(x_cpu)      -> torch.fft.fft(xd) -> y.cpu()        （bench_native_npu.py --e2e）
+  CANN 原生:  xd.copy_(x_cpu)      -> torch.fft.fft(xd) -> yd.copy_(out)  （bench_native_npu.py --e2e）
   裸 CANN :  aclrtMemcpyAsync(H2D) -> aclRfft1D -> aclrtMemcpyAsync(D2H)  （baseline_rfft --e2e）
+
+三路的主机缓冲默认都是 **pinned**（`AB_E2E_HOST`，见 docs/实验对比.md §6.3）：
+自研/裸用 `aclrtMallocHost`，torch 用 `.pin_memory()` 源张量 + 预分配 pinned 目的张量；
+`AB_E2E_HOST=pageable` 切回受限口径做 A/B。
 
 第三路是**唯一可用的裸 CANN C API FFT**：CANN 9.0.0 公开头里只有 `aclRfft1D`（实->复）
 与 `aclSTFT`，**没有复数->复数的 C API**，所以它与前两路变换不同（实->复、单边），
@@ -117,7 +121,7 @@ def main():
                r"maxRel=([\d.eE+-]+) (\w+)")
         for n in ns:
             for b in bs:
-                cmd = (f"./build/baseline_rfft {n} {b} 1 /tmp/ab_bare.bin "
+                cmd = (f"./build/baseline_rfft {n} {b} 1 {abenv.work()}/ab_bare.bin "
                        f"--e2e --reps={max(a.reps, 10)}")
                 d = bare.setdefault((n, b), {})
                 for _ in range(rounds):
@@ -183,7 +187,7 @@ def main():
              f"逐点 min-of-means（与 `matrix_test.py` 同口径）。\n")
     L.append("> **口径**（三路逐段对应，计时区外均剔除进程/框架启动与输入生成）：\n"
              "> 1. `自研` = H2D → `kfft_fwd` → D2H（复数→复数，`fft_check AB_E2E=1`）\n"
-             "> 2. `原生` = `xd.copy_(x_cpu)` → `torch.fft.fft(xd)` → `y.cpu()`"
+             "> 2. `原生` = `xd.copy_(x_cpu)` → `torch.fft.fft(xd)` → `yd.copy_(out)`（源/目的均 pinned）"
              "（复数→复数，torch_npu op-plugin 内核）\n"
              "> 3. `裸 CANN` = H2D → `aclRfft1D` → D2H（**实→复、单边**，唯一可用的裸 "
              "CANN C API FFT —— CANN 9.0.0 没有复数→复数 C API）\n"

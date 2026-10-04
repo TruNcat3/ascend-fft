@@ -51,9 +51,9 @@ reg native      "docs/性能对比-标准库vs自研.md"                 "CANN �
 reg stdlib      "docs/性能对比-标准库vs自研.md"                 "CPU 标准库（numpy/torch）基线" \
     "python3 scripts/bench_stdlib.py perf --ns 64,256,1024,4096 --bs 1,64,4096 --reps 20"
 reg rfft        "docs/阶段0-1-发现与结果.md §2"                 "裸 CANN aclRfft1D 基线（device-only）" \
-    "./build/baseline_rfft 4096 4096 50"
+    "./build/baseline_rfft 4096 4096 1 ${AB_WORK:-build}/bare_4096.bin --reps=50"
 reg rfft-e2e    "docs/实验对比.md · 图7"                        "裸 CANN aclRfft1D 端到端口径" \
-    "./build/baseline_rfft 4096 4096 20 --e2e"
+    "./build/baseline_rfft 4096 4096 1 ${AB_WORK:-build}/bare_4096.bin --e2e --reps=20"
 reg cube        "docs/Cube张量化探针.md"                        "fp32 Cube（矩阵单元）探针" \
     "./build/cube_probe build/cube_probe.o 3 1 16 2 0 1 65536 5"
 reg bwprobe     "docs/实验对比.md §6.3"                         "传输带宽探针（H2D/D2H/GM）" \

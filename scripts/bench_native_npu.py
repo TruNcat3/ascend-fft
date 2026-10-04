@@ -11,7 +11,7 @@
 输出每行：NATIVE n=<n> b=<b> native_us=<us> maxRel=<rel>
 maxRel 为 NPU 输出与 torch CPU 双精度参考的相对误差（判据 1e-4）。
 """
-import argparse, sys, time, warnings
+import argparse, os, sys, time, warnings
 
 import numpy as np
 import torch
@@ -76,13 +76,24 @@ def main():
 
             # ---- 端到端（H2D + 变换 + D2H）：必须排在 device-only 之前，
             #      这样 first_us 才是该 shape 的冷调用（CANN plan 尚未构建）。
+            #      主机缓冲默认 pinned（与 fft_check / baseline_rfft 的
+            #      AB_E2E_HOST=pinned 同口径）：pageable 的 H2D/D2H 走主机侧
+            #      staging + 缺页，带宽随 loadavg 摆 2~4×，会把「拷贝路径没选对」
+            #      记成 kernel 的账。AB_E2E_HOST=pageable 可复现受限口径。
             if a.e2e:
+                pinned = os.environ.get("AB_E2E_HOST", "pinned") != "pageable"
+                xc = x_cpu.pin_memory() if pinned else x_cpu
                 xd = torch.empty((b, n), dtype=torch.complex64, device="npu")
+                yd = (torch.empty((b, n), dtype=torch.complex64, pin_memory=True)
+                      if pinned else None)
 
-                def e2e_once(xc=x_cpu, dev=xd):
+                def e2e_once(xc=xc, dev=xd, dst=yd):
                     dev.copy_(xc)                      # H2D
                     out = torch.fft.fft(dev, dim=-1)   # 变换
-                    return out.cpu()                   # D2H（隐式同步）
+                    if dst is None:
+                        return out.cpu()               # D2H（隐式同步）
+                    dst.copy_(out)                     # D2H 到预分配 pinned 缓冲
+                    return dst
 
                 torch.npu.synchronize()
                 t0 = time.perf_counter_ns()

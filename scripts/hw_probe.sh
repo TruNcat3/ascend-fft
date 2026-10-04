@@ -118,7 +118,7 @@ for k in "${SEL[@]}"; do
     step "bw —— 传输带宽（src/host/bw_probe.cpp）"
     need bw_probe bw || continue
     ./build/bw_probe 256 20 2>&1 | sed 's/^/  /'
-    PASS "bw_probe 运行完成（数值用于 docs/实验对比.md §6 传输实现差异的量级参照）"
+    PASS "bw_probe 运行完成（数值用于 docs/实验对比.md §6.3 主机缓冲口径的量级参照）"
     ;;
 
   cube)

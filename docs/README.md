@@ -61,7 +61,7 @@ scripts/repro.sh <实验名>          # 跑一个实验（如 repro.sh e2e）
 |---|---|---|
 | 环境与门禁 | `init` `gate` | README · 实验对比 §7 |
 | 性能矩阵 | `matrix` `matrix-archive` `sixway` `gpu-compare` | matrix_test_a7 · matrix_test_raw · 性能对比-标准库 · GPU 对照 |
-| 端到端 | `e2e` `rfft-e2e` | 实验对比 图6 / 图7 |
+| 端到端（三路均 **pinned** 主机缓冲） | `e2e` `rfft-e2e` | 实验对比 图6 / 图7 · §6.2口径 |
 | 图与文档 | `figures` `doc` | 实验对比 · figures/ |
 | 模型与选型 | `eta` `ab` `baseline-o` | 性能优化 §3·§7·§9·§11 |
 | 硬件与探针 | `hwprobe` `cube` `bwprobe` | 阶段0-1 §1 · 优化 §10.2 · Cube 探针 |
@@ -77,7 +77,7 @@ scripts/init.sh                            # 从零：体检 + 编译 + 门禁
 scripts/one_click_test.sh                  # 门禁 + 49 点矩阵，结果落 results/<UTC>/
 scripts/hw_probe.sh                        # 硬件能力探针（换 SoC 后先跑这个）
 scripts/profile_test.sh                    # msprof 采集 + 汇总 -> results/profiles/
-python3 scripts/e2e_test.py --reps 10 --rounds 3   # 端到端（H2D+变换+D2H，三路）
+python3 scripts/e2e_test.py --reps 10 --rounds 3   # 端到端（H2D+变换+D2H，三路，pinned）
 python3 scripts/plot_results.py                   # 出图 -> docs/figures/
 python3 scripts/gen_compare_doc.py                # 出 docs/实验对比.md
 python3 scripts/gen_stdlib_doc.py                 # 出 性能对比-标准库vs自研.md
@@ -119,5 +119,7 @@ scripts/baseline_o.sh <git-rev>             # 从提交重建历史基线 .o
 | **裸 CANN** | `aclRfft1D` 直接调用（aclNN），实→复、单边，仅作参照 |
 | **v1** | 本仓库 `fft_radix2_v1.o`（标量旋转因子基线） |
 | **自研** | 本仓库 `fft_radix2.o`（当前主 kernel） |
+| **pinned** | `aclrtMallocHost` / `pin_memory()` 申请的主机内存，H2D/D2H 不走主机侧 staging；**端到端三路的默认口径**（开关 `AB_E2E_HOST`，`pageable` 仅为受限对照，见 [实验对比 §6.3](实验对比.md#63-已知局限必须一起读) |
+| **E2E** | 端到端口径：H2D → 变换 → D2H 全程计时；`device-only` 只算 kernel，两者不可混引（见 [实验对比 §6.2](实验对比.md#62-口径)） |
 | **min-of-means** | `--rounds R` 轮各算均值、再取 R 轮最小值（双方同口径） |
 | **A/B** | 交替运行基线与候选、每轮取 min（共租户噪声下唯一可比的口径） |

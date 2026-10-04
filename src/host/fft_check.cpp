@@ -204,35 +204,59 @@ int main(int argc, char** argv){
 
     // ---- 端到端口径（AB_E2E=1，默认关闭，不影响矩阵/门禁解析）----
     // 每次重复：H2D(输入) -> kfft_fwd -> D2H(输出)，与 bench_native_npu.py --e2e 的
-    //   xd.copy_(x_cpu) -> torch.fft.fft(xd) -> y.cpu() 逐段对应（见 docs/实验对比.md）。
+    //   xd.copy_(x_cpu) -> torch.fft.fft(xd) -> yd.copy_(out) 逐段对应，
+    //   三路主机缓冲同为 pinned（见 docs/实验对比.md §6.2/§6.3）。
     // 计时边界含传输与同步，不含一次性 setup。
     if(const char* ee=getenv("AB_E2E")){
         int ereps = atoi(ee); if(ereps<=0) ereps = reps;
         // AB_E2E_MODE: async（默认，带流 memcpy + 显式同步）| sync（阻塞 aclrtMemcpy）
         //              | xfer（只做 H2D+D2H，不发射 kernel，用来隔离纯传输带宽）。
+        // AB_E2E_HOST: pinned（默认，aclrtMallocHost）| pageable（受限口径，仅 A/B 对照）。
+        //              pageable 的 H2D/D2H 走主机侧 staging + 缺页，带宽随 loadavg 摆
+        //              2~4×（最大点 E2E 7.2 ms -> 27.2 ms，见 docs/实验对比.md §6.3），
+        //              会让端到端口径把「我们没用最优拷贝路径」记成 kernel 的账。
         const char* mode = getenv("AB_E2E_MODE");
         // async = H2D 后同步 + D2H 后同步（默认）
         // sync  = 阻塞 aclrtMemcpy（等价语义，两种实测带宽无稳定差异）
         // xfer  = 不发射 kernel，隔离纯 H2D+D2H 带宽（用于定位 E2E 中的传输占比）
         const bool useAsync = !(mode && strcmp(mode,"sync")==0);
         const bool xferOnly = (mode && strcmp(mode,"xfer")==0);
+        const char* hostMode = getenv("AB_E2E_HOST");
+        const bool wantPinned = !(hostMode && strcmp(hostMode,"pageable")==0);
+        float* pIn = nullptr; float* pOut = nullptr;
+        if(wantPinned){
+            void *a=nullptr, *b=nullptr;
+            const size_t nb=(size_t)elements*4u;
+            const int ei=aclrtMallocHost(&a, nb), eo=aclrtMallocHost(&b, nb);
+            if(ei==ACL_SUCCESS && eo==ACL_SUCCESS){
+                pIn=(float*)a; pOut=(float*)b;
+                memcpy(pIn, hIn.data(), nb);
+            }else{
+                if(ei==ACL_SUCCESS) aclrtFreeHost(a);
+                if(eo==ACL_SUCCESS) aclrtFreeHost(b);
+                printf("E2E host=pinned alloc failed (%d/%d) -> pageable\n", ei, eo);
+            }
+        }
+        const float* src = pIn ? pIn : hIn.data();
+        float*       dst = pOut ? pOut : hOut.data();
+        const char*  hostTag = pIn ? "pinned" : "pageable";
         double sumE=0, minE=0, firstE=0;
         const auto t0e=std::chrono::steady_clock::now();
         for(int i=0;i<ereps;i++){
             auto a0=std::chrono::steady_clock::now();
             if(useAsync){
-                CK(aclrtMemcpyAsync(dIn, elements*4u, hIn.data(), elements*4u,
+                CK(aclrtMemcpyAsync(dIn, elements*4u, src, elements*4u,
                                     ACL_MEMCPY_HOST_TO_DEVICE, s));
                 CK(aclrtSynchronizeStream(s));
                 if(!xferOnly && !launch()) return 1;
-                CK(aclrtMemcpyAsync(hOut.data(), elements*4u, dOut, elements*4u,
+                CK(aclrtMemcpyAsync(dst, elements*4u, dOut, elements*4u,
                                     ACL_MEMCPY_DEVICE_TO_HOST, s));
                 CK(aclrtSynchronizeStream(s));
             }else{
-                CK(aclrtMemcpy(dIn, elements*4u, hIn.data(), elements*4u,
+                CK(aclrtMemcpy(dIn, elements*4u, src, elements*4u,
                                ACL_MEMCPY_HOST_TO_DEVICE));
                 if(!xferOnly && !launch()) return 1;
-                CK(aclrtMemcpy(hOut.data(), elements*4u, dOut, elements*4u,
+                CK(aclrtMemcpy(dst, elements*4u, dOut, elements*4u,
                                ACL_MEMCPY_DEVICE_TO_HOST));
             }
             auto a1=std::chrono::steady_clock::now();
@@ -244,9 +268,11 @@ int main(int argc, char** argv){
         double planUs=std::chrono::duration<double,std::micro>(tSetup1-tPlan0).count();
         double spanUs=std::chrono::duration<double,std::micro>(t0e-tSetup1).count();
         printf("E2E n=%u batch=%u reps=%d e2e_us=%.1f e2e_min_us=%.1f first_us=%.1f "
-               "boot_us=%.1f plan_us=%.1f warmup_us=%.1f mode=%s\n",
-               n,batch,ereps,e,minE,firstE,bootUs,planUs,spanUs,useAsync?"async":"sync");
+               "boot_us=%.1f plan_us=%.1f warmup_us=%.1f mode=%s host=%s\n",
+               n,batch,ereps,e,minE,firstE,bootUs,planUs,spanUs,
+               useAsync?"async":"sync", hostTag);
         fflush(stdout);
+        if(pIn){ aclrtFreeHost(pIn); aclrtFreeHost(pOut); }
     }
 
     // 逐次 launch 计时：均值与最小值都报。均值与 §8.5 的 η 标定同口径，

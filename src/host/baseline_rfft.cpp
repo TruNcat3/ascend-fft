@@ -115,17 +115,37 @@ int main(int argc, char** argv){
 
     if(doE2E){
         // 一轮 = H2D -> aclRfft1D -> D2H。与 bench_native_npu.py --e2e 的
-        //   xd.copy_() -> torch.fft.fft(xd) -> y.cpu() 逐段对应。
+        //   xd.copy_(x_cpu) -> torch.fft.fft(xd) -> yd.copy_(out) 逐段对应。
+        // AB_E2E_HOST: pinned（默认，aclrtMallocHost）| pageable（受限口径，仅 A/B 对照）。
+        //   pageable 带宽随 loadavg 摆 2~4×，会把「没用最优拷贝路径」记成这一路的账。
+        const char* hostMode = getenv("AB_E2E_HOST");
+        const bool wantPinned = !(hostMode && strcmp(hostMode,"pageable")==0);
+        float *pIn=nullptr, *pOut=nullptr;
+        if(wantPinned){
+            void *a=nullptr, *b=nullptr;
+            const size_t ni=h.size()*4, no=ho.size()*4;
+            const int ei=aclrtMallocHost(&a, ni), eo=aclrtMallocHost(&b, no);
+            if(ei==ACL_SUCCESS && eo==ACL_SUCCESS){
+                pIn=(float*)a; pOut=(float*)b; memcpy(pIn, h.data(), ni);
+            }else{
+                if(ei==ACL_SUCCESS) aclrtFreeHost(a);
+                if(eo==ACL_SUCCESS) aclrtFreeHost(b);
+                printf("BARE host=pinned alloc failed (%d/%d) -> pageable\n", ei, eo);
+            }
+        }
+        const float* src = pIn ? pIn : h.data();
+        float*       dst = pOut ? pOut : ho.data();
+        const char*  hostTag = pIn ? "pinned" : "pageable";
         auto e2eOnce=[&](){
             const auto a0 = clk::now();
-            CKL(aclrtMemcpyAsync(dx, h.size()*4, h.data(), h.size()*4, ACL_MEMCPY_HOST_TO_DEVICE, s));
+            CKL(aclrtMemcpyAsync(dx, h.size()*4, src, h.size()*4, ACL_MEMCPY_HOST_TO_DEVICE, s));
             CKL(aclrtSynchronizeStream(s));
             // aclRfft1D 两段式约定：executor 不可复用，每轮必须重新 GetWorkspaceSize。
             uint64_t ws=0; aclOpExecutor* ex=nullptr;
             if(aclRfft1DGetWorkspaceSize(x,n,1,1,y,&ws,&ex)!=0 || ensureWs(ws)) return -1.0;
             if(aclRfft1D(dws, ws, ex, s)!=0) return -1.0;
             CKL(aclrtSynchronizeStream(s));
-            CKL(aclrtMemcpyAsync(ho.data(), ho.size()*4, dy, ho.size()*4, ACL_MEMCPY_DEVICE_TO_HOST, s));
+            CKL(aclrtMemcpyAsync(dst, ho.size()*4, dy, ho.size()*4, ACL_MEMCPY_DEVICE_TO_HOST, s));
             CKL(aclrtSynchronizeStream(s));
             return since(a0);
         };
@@ -162,10 +182,11 @@ int main(int argc, char** argv){
         const double rel = rfftMaxRel(h, ho, n, modes);
 
         printf("BARE n=%lld b=%lld dev_us=%.1f dev_mean_us=%.1f e2e_us=%.1f e2e_mean_us=%.1f "
-               "first_us=%.1f boot_us=%.1f setup_us=%.1f ws_mb=%.1f maxRel=%.3e %s\n",
+               "first_us=%.1f boot_us=%.1f setup_us=%.1f ws_mb=%.1f maxRel=%.3e %s host=%s\n",
                (long long)n,(long long)b, minD,dMean, minE,eMean, firstE, bootUs, setupUs,
-               wsCap/1048576.0, rel, rel<=1e-4?"PASS":"FAIL");
+               wsCap/1048576.0, rel, rel<=1e-4?"PASS":"FAIL", hostTag);
         fflush(stdout);
+        if(pIn){ aclrtFreeHost(pIn); aclrtFreeHost(pOut); }
         FILE* f=fopen(dump,"wb");
         if(f){ fwrite(ho.data(),4,ho.size(),f); fclose(f); }
         return rel<=1e-4?0:1;

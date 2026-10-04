@@ -12,9 +12,10 @@ device kernel 用 AscendC 写，host 侧带一层「枚举 → 计费 → 实测
 设计移植自 [**cuButterfly**](https://github.com/TruNcat3/cuButterfly)（BSD-3-Clause）。
 
 **一句话总结。** 相较于 CANN 原生复数 FFT：**device-only 计算口径快 1.04× ~ 6.86×**
-（几何均值 **3.01×**，全网格 **49 : 0**）；把 H2D / D2H 搬运也算进来的**端到端口径，
-在 37/49 个点上提升 1.10× ~ 3.65×**（几何均值 **1.58×**，其中小批量 `B ≤ 64` 一档
-**28 / 28 全胜**），其余 12 点被 PCIe 搬运封顶 —— 两种口径的逐点数据与拆分原因见下文 `结果`。
+（几何均值 **3.01×**，全网格 **49 : 0**）；把 H2D / D2H 搬运也算进来的**端到端口径**
+（三方主机缓冲统一 **pinned**）**46 / 49 个点更快、1.02× ~ 2.70×**（几何均值 **1.66×**，
+小批量 `B ≤ 64` 一档 **28 / 28 全胜**、几何均值 2.01×），另外 3 个大 batch 点是
+0.95× ~ 0.99× 的持平档 —— 两种口径的逐点数据与拆分原因见下文 `结果`。
 
 > **English.** Ascend-FFT is a radix-2 DIT complex fp32 FFT library for Huawei Ascend NPUs,
 > written in AscendC, with a host-side framework that enumerates a design space, prices each
@@ -43,7 +44,8 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 - **改动的证据链**——4 道门禁 + 49 点矩阵 + 交替 A/B，加上能从任意历史提交重建基线 `.o`
   的脚本，文档里每个数字都指向一条命令。
 
-**边界也照写。** device-only 全胜，但端到端被 PCIe 封顶（37/49，几何均值 1.58×）；
+**边界也照写。** device-only 全胜，但端到端仍有 3 个大 batch 点跌到 1.0× 以下
+（0.95×~0.99×，被 PCIe 搬运封顶；46/49，几何均值 1.66×）；
 小 batch 输给 CPU 单核（NPU 要付固定的发射开销）；本 SoC 没有 SIMT，设计空间里
 `local_exchange = shuffle` 直接判 `Infeasible`；Cube 探针的结论是「矢量发射墙，不是算力墙」。
 这些都躺在各自文档里，不藏。
@@ -68,7 +70,7 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 | **vs CANN 原生复数 FFT**（同卡同变换） | **49 : 0**，几何均值 **3.01×** |
 | 最好 / 最紧倍率 | **6.86×** @ `n=128,B=4` ｜ **1.04×** @ `n=1024,B=4096` |
 | 头条点 `n=4096,B=4096` | 1,492.7 vs 2,444.7 µs = **1.64×**（674 GFLOP/s） |
-| 端到端（H2D + 变换 + D2H） | **37 / 49** 更快，几何均值 **1.58×** |
+| 端到端（H2D + 变换 + D2H，pinned 主机缓冲） | **46 / 49** 更快，几何均值 **1.66×**（`B≤64` **28 / 28**、2.01×） |
 | η 成本模型偏差 | 平均 **7.7%**，47/49 落在 ±15% 内 |
 | vs numpy / torch (CPU) | **36 / 49**、**38 / 49**（`B≥1024` 各 **14 / 14**） |
 | vs 自研 v1（标量旋转因子版） | **49 / 49**，中位 **11.2×**、最好 **38.8×** |
@@ -87,18 +89,20 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 
 ![end-to-end vs device-only speedup, and share of time outside the kernel](docs/figures/fig6_end_to_end.png)
 
-**图 6** —— 把数据搬运算进来之后的真实读数。上半：灰柱 device-only（**49/49、几何均值 3.37×**），
-彩色柱端到端（**37/49、几何均值 1.58×**，绿=更快、红=更慢）；下半是一张 `n × batch` 热力图，
-标的是**内核之外的时间占比**（H2D + D2H + 同步），`B≥1024` 一档普遍 **81~98%** ——
-那一档比的不是 FFT，是 PCIe。端到端掉到 37/49 是**预期行为**，不是内核退化。
-口径与已知局限见 [实验对比 §6](docs/实验对比.md#62-口径)。
+**图 6** —— 把数据搬运算进来之后的真实读数（三方主机缓冲统一 **pinned**，口径见
+[§6.3](docs/实验对比.md#63-已知局限必须一起读)）。上半：灰柱 device-only（**49/49**，
+这一轮几何均值 **3.17×**，与图 1 的 3.01× 是两个时段的两次测量），彩色柱端到端
+（**46/49、几何均值 1.66×**，绿=更快、红=更慢）；下半是一张 `n × batch` 热力图，
+标的是**内核之外的时间占比**（H2D + D2H + 同步），`B≥1024` 一档 **69~83%** ——
+那一档比的不是 FFT，是 PCIe。端到端没做到 49/49 是**预期行为**：输掉的 3 个点是
+0.95×~0.99× 的持平档，不是内核退化。
 
 > 另外三张图放在这里太长，留给 [`docs/实验对比.md`](docs/实验对比.md)：
 > [图2 延迟热力图](docs/实验对比.md#图2-延迟热力图) ·
 > [图4 六基线同场](docs/实验对比.md#图4-六基线同场对比) ·
 > [图7 自研 / torch / 裸 CANN 三路端到端](docs/实验对比.md#图7-三路端到端自研--torch--裸-cann)
-> （后者的结论很有意思：`n≤256 且 B≤64` 的 12 个点上，**裸 CANN C API 104 µs、
-> torch 原生 93 µs、自研 17 µs** —— 那 ~100 µs 的固定开销在 CANN 调用路径本身，不在 torch 层）。
+> （后者的结论很有意思：`n≤256 且 B≤64` 的 12 个点上，**裸 CANN C API 103 µs、
+> torch 原生 92 µs、自研 19 µs** —— 那 ~100 µs 的固定开销在 CANN 调用路径本身，不在 torch 层）。
 
 ---
 
@@ -204,6 +208,17 @@ launch 参数（`AB_FOLD_D` / `AB_PLANE_K`）—— 这是选型闭环能跑起�
 `AB_CANN=/opt/cann/8.0.0 AB_PY=/usr/bin/python3.10 scripts/build.sh all` 覆盖。
 Python 侧同一套规则在 [`scripts/abenv.py`](scripts/abenv.py)。
 
+**实验口径开关**（不参与路径探测；默认值就是本文全部数字所用的口径）：
+
+| 变量 | 含义 | 默认 |
+|---|---|---|
+| `AB_E2E` | 打开端到端计时区（H2D + 变换 + D2H），值为重复次数 | 关 |
+| `AB_E2E_HOST` | 端到端的主机缓冲：`pinned`（三方同口径）\| `pageable`（受限对照） | `pinned` |
+| `AB_E2E_MODE` | `async`（带流 memcpy + 显式同步）\| `sync`（阻塞 memcpy）\| `xfer`（只搬不算，隔离纯传输带宽） | `async` |
+
+端到端一律用 **pinned** 主机缓冲：pageable 会把「拷贝路径没选对」记进结果，
+`device-only` 一列不受影响，详见 [实验对比 §6.3](docs/实验对比.md#63-已知局限必须一起读)。
+
 ### 三条命令
 
 ```bash
@@ -280,7 +295,7 @@ uint32_t foldDFor(uint32_t n, uint32_t batch,
 | 49 点性能矩阵 | `scripts/repro.sh matrix` | [docs/matrix_test_a7.md](docs/matrix_test_a7.md) | 同左（本文图1 的数据源） |
 | 批折叠前基线存档 | `scripts/repro.sh matrix-archive` | [docs/matrix_test_raw.md](docs/matrix_test_raw.md) | 同左（**勿覆盖**） |
 | 六基线 49 点 | `scripts/repro.sh sixway` | [docs/性能对比-标准库vs自研.md](docs/性能对比-标准库vs自研.md) | 同左 |
-| 端到端三路（自研 / torch / 裸 CANN） | `scripts/repro.sh e2e` | `results/e2e.{md,json}` | [docs/实验对比.md](docs/实验对比.md) 图6·图7 |
+| 端到端三路（自研 / torch / 裸 CANN，**三路均 pinned 主机缓冲**） | `scripts/repro.sh e2e` | `results/e2e.{md,json}` | [docs/实验对比.md](docs/实验对比.md) 图6·图7 · §6.2口径 |
 | 出图（图1~7） | `scripts/repro.sh figures` | [docs/figures/](docs/figures/) | [docs/实验对比.md](docs/实验对比.md) |
 | 出对比文档 | `scripts/repro.sh doc` | [docs/实验对比.md](docs/实验对比.md) | 同左（生成物） |
 | η 成本模型标定 | `scripts/repro.sh eta` | 回写 `estimate()` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §3·§11.5 |

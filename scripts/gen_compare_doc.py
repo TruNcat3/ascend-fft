@@ -286,18 +286,25 @@ def main():
         A("| | 自研 | CANN 原生 |")
         A("|---|---|---|")
         A("| 计时区 | `aclrtMemcpyAsync`(H2D) → `kfft_fwd` → `aclrtMemcpyAsync`(D2H) | "
-          "`xd.copy_(x_cpu)` → `torch.fft.fft(xd)` → `y.cpu()` |")
+          "`xd.copy_(x_cpu)` → `torch.fft.fft(xd)` → `yd.copy_(out)` |")
+        A("| 主机缓冲 | `aclrtMallocHost`（pinned，`AB_E2E_HOST` 默认） | "
+          "源 `.pin_memory()` + 预分配 pinned 目的张量 |")
         A("| 计时区外 | 进程启动(`boot`)、plan 准备(`plan`)、输入生成 | "
           "框架启动、该 shape 冷 `first` 单列 |")
         A("| 统计 | `--rounds 3` min-of-means，reps=10 | 同 |")
         A("")
-        A("复现：`python3 scripts/e2e_test.py --reps 10 --rounds 3`\n")
+        A("复现：`python3 scripts/e2e_test.py --reps 10 --rounds 3`（默认 `AB_E2E_HOST=pinned`，"
+          "`AB_E2E_HOST=pageable` 切回受限口径）\n")
         A("### 6.3　已知局限（必须一起读）\n")
-        A("- **传输实现差异**：本机 `nproc=1`、`loadavg≈24`，H2D/D2H 的主机端 staging "
-          "是 CPU 活。交错复测（134 MB 往返）显示 torch_npu 稳定 20~27 ms、"
-          "本仓库 `aclrtMemcpyAsync` 路径 41~63 ms —— **差约 2×，是主机侧数据搬运路径的问题，"
-          "不是 kernel**（device-only 一列不受影响）。已试过 `AB_E2E_MODE=sync`"
-          "（阻塞 `aclrtMemcpy`）与合并同步，均无稳定改善。")
+        A("**主机缓冲口径（三方默认 pinned）**：H2D/D2H 的主机侧缓冲默认都是 "
+          "**pinned** —— 自研/裸 CANN 走 `aclrtMallocHost`，torch_npu 走 `.pin_memory()` "
+          "源张量 + 预分配 pinned 目的张量；换缓冲**只影响 E2E，`device-only` 一列完全不受影响**。"
+          "**早期三方全用 pageable 主机缓冲的那一版口径已作废**：pageable 的 H2D/D2H 走主机侧 "
+          "staging + 缺页，会把「拷贝路径没选对」记进端到端结果，本节数字全部为 pinned 口径。\n")
+        A("要自行核对这条边界，用受限口径复跑同一个点即可："
+          "`AB_E2E_HOST=pageable python3 scripts/e2e_test.py --ns 4096 --bs 4096 --rounds 3`"
+          "（与默认口径对比时只看 `E2E` 两列，`device` 列应几乎不动）。\n")
+
         # 用第三路把上面这条定位：裸 CANN 与自研共用同一条 aclrtMemcpyAsync。
         bigx = [(k, v) for k, v in e2.items()
                 if k[1] >= 1024 and v.get("bare_e2e") == v.get("bare_e2e")]
@@ -313,19 +320,20 @@ def main():
             o_t = _bw(16 * km[0] * km[1], kv["oe"])
             b_t = _bw(4 * km[0] * km[1] + 8 * (km[0] // 2 + 1) * km[1], kv["bare_e2e"])
             n_t = _bw(16 * km[0] * km[1], kv["ne"])
-            A(f"- **上面那条已用第三路定位**：裸 CANN 与自研走的是**同一条 "
-              f"`aclrtMemcpyAsync`**（pageable 主机缓冲）。`B ≥ 1024` 的 {len(bigx)} 个点上，"
-              f"按「传输字节 ÷ E2E」算有效带宽（几何均值）：**自研 {bw_ours:.1f}、"
+            A(f"- **有效带宽（三方都是 pinned）**：`B ≥ 1024` 的 {len(bigx)} 个点上，"
+              f"按「传输字节 ÷ E2E」算（含 kernel 与同步，几何均值）：**自研 {bw_ours:.1f}、"
               f"裸 {bw_bare:.1f}、torch_npu {bw_nat:.1f} GB/s**；最大点 "
               f"`n={km[0]}/B={km[1]}` 分别 **{o_t:.1f} / {b_t:.1f} / {n_t:.1f} GB/s**。"
-              f"两条 `aclrtMemcpyAsync` 路径落在同一量级、torch 快约 "
-              f"**{bw_nat / bw_ours:.1f}×** —— 差距在 **CANN 运行时的主机侧 staging 路径**，"
-              "既不在我们的 kernel，也不在 E2E 计时代码（`device-only` 一列完全不受影响）。"
-              "注：裸一路 E2E 里算子占比更大，带宽被摊薄，故只作量级参照。")
-        A("- **抖动**：传输量大时单轮 E2E 的 `mean/min` 可差 1.5×，所以必须看 min-of-means。")
-        A("- **公平性**：两侧都在计时区外剔除了一次性开销；原生的输出 tensor 由 "
-          "`torch.fft.fft` 每次分配，但 torch_npu 的 caching allocator 使其在 warmup 后"
-          "接近常数开销，与自研的预分配 `dOut` 量级相当。\n")
+              f"两条 `aclrtMemcpyAsync` 路径与 torch 落在同一量级"
+              f"（自研/torch = **{bw_ours / bw_nat:.2f}**），说明拷贝通路不再是瓶颈，"
+              "剩下的差额在 kernel 与 launch（`device-only` 一列不受主机缓冲影响）。"
+              "注：裸一路 E2E 里算子占比更大、搬运量只有 8nB（实部输入），带宽被摊薄，只作量级参照。")
+        A("- **抖动**：传输量大时单轮 E2E 的 `mean/min` 可差 1.5×，所以必须看 min-of-means；"
+          "本机 `nproc=1`、`loadavg` 常年 20+，跨时段的绝对值不可直接比，只能同轮比。")
+        A("- **公平性**：两侧都在计时区外剔除了一次性开销（`boot`/`plan` vs 框架启动/冷 `first`），"
+          "主机缓冲口径一致（pinned），自研的 H2D/D2H 与 torch 的 `copy_` 都计入计时区；"
+          "原生的输出张量由 `torch.fft.fft` 每次分配，但 torch_npu 的 caching allocator 使其在 "
+          "warmup 后接近常数开销，与自研的预分配 `dOut` 量级相当。\n")
 
         # ---- 6.4 裸 CANN C API 参照 ----
         bare = [(k, v) for k, v in e2.items()
