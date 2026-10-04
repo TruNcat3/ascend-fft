@@ -3,7 +3,7 @@
 #
 # 用法:
 #   scripts/one_click_test.sh                 # 完整：build + 门禁 + 49 点矩阵
-#   scripts/one_click_test.sh --quick         # 只 build + 门禁 + 4 点抽样矩阵
+#   scripts/one_click_test.sh --quick         # 只 build + 门禁 + 9 点抽样矩阵
 #   scripts/one_click_test.sh --no-matrix     # 只 build + 门禁（最快）
 #   scripts/one_click_test.sh --rounds 5      # 矩阵每点测几遍、逐点取 min（默认 3）
 #   scripts/one_click_test.sh --reps 20       # 每遍内部 reps（默认 20）

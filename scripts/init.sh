@@ -3,7 +3,7 @@
 #
 #   scripts/init.sh             # 体检 + 编译 + 门禁（不跑性能矩阵，最快）
 #   scripts/init.sh --check     # 只体检，不编译不跑门禁
-#   scripts/init.sh --quick     # 体检 + 编译 + 门禁 + 12 点抽样矩阵（约 5 min）
+#   scripts/init.sh --quick     # 体检 + 编译 + 门禁 + 9 点抽样矩阵（约 5 min）
 #   scripts/init.sh --matrix    # 体检 + 编译 + 门禁 + 49 点全网格（最慢）
 #
 # 退出码：0 = 体检与门禁全过；1 = 有失败项。

@@ -35,7 +35,7 @@ profile:    ## msprof 采集 + 汇总
 	scripts/profile_test.sh
 repro:      ## 列出全部实验 ↔ 文档 ↔ 脚本
 	scripts/repro.sh --list
-quick:      ## 一键快速自检（编译 + 12 点抽样矩阵）
+quick:      ## 一键快速自检（编译 + 4 道门禁 + 9 点抽样矩阵）
 	scripts/one_click_test.sh --quick
 matrix:     ## 一键完整自检（编译 + 4 道门禁 + 49 点矩阵）
 	scripts/one_click_test.sh

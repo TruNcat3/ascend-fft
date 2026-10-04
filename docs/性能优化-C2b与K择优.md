@@ -742,7 +742,7 @@ median 6.7%、max 26.6%**，`>15%` 的 **6/49**。这 6 点全部满足 `mean/mi
 ```bash
 # 一键：编译 → 门禁（limits / framework / stride / fft_check）→ 49 点矩阵 → 结论
 scripts/one_click_test.sh
-scripts/one_click_test.sh --quick          # 12 点抽样，约 5 min
+scripts/one_click_test.sh --quick          # 9 点抽样矩阵，约 5 min
 scripts/one_click_test.sh --rounds 5       # 每点 5 轮，进一步压噪声
 
 # 单点复核（D / K 可强制）
