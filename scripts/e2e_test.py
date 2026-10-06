@@ -30,8 +30,9 @@ op-plugin 实现（`FFTc2cKernelNpuOpApi.cpp`），并非 CANN 算子库条目�
                               [--out results/e2e.md] [--json results/e2e.json] [--no-bare]
 
 `--rounds K`：整套跑 K 遍、逐点取 min-of-means（与 matrix_test.py 同口径，
-宿主负载 20~30 下单次 mean 会被离群点污染）。输出 markdown 表（stdout/stdout 文件）
-与 JSON（供 scripts/plot_results.py 画图）。
+宿主负载 20~30 下单次 mean 会被离群点污染）。markdown 表打到 stdout 并同时写入
+`--out` 文件；JSON 写 `--json` 文件（供 scripts/plot_results.py 画图）。
+进度行（`[1/3] ...`、`    n=.. PASS ..`）与结尾的 `-> <out>` / `-> <json>` 两行打到 stderr。
 """
 import argparse, json, os, re, subprocess, sys, time
 

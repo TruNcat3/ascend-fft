@@ -12,9 +12,9 @@
 `--rounds K`（默认 3）：整套测量跑 K 遍，逐点取 **min of mean**（自研与原生同口径）。
 本机宿主负载 20~30，单次 mean 的瞬时离群点能把 19 µs 抬到 34 µs（min 仍是 10.7 µs），
 而 η 是「无噪声耗时」的模型值 —— 单次 mean 会让 η/实测 出现 ±40% 的假偏差。
-取 min-of-means 后自研/原生与 η 三者口径一致、可复现。
+取 min-of-means 后原生/自研与 η 三者口径一致、可复现。
 
-输出 markdown 表到 stdout（进度到 stderr）。`--eta` 关掉可省掉选型开销。
+输出 markdown 表到 stdout（进度到 stderr）。`--no-eta` 关掉可省掉选型开销。
 """
 import argparse, os, re, subprocess, sys
 
@@ -130,8 +130,8 @@ def main():
     L(f"> 硬件 Ascend910_9382（48 AIV）；reps={a.reps}；"
       f"`自研 mean` 与 `原生 mean` 同口径、`自研 min` 与 `原生 min` 同口径。\n")
     L("> **η** 来自框架选型闭环（`test_framework`），同一行的 `η/实测` 列给出模型相对"
-      "`自研 mean` 的偏差；`自研/原生` > 1 表示自研更快。\n")
-    L("| n | batch | 自研 mean | 自研 min | CANN 原生 mean | CANN 原生 min | 自研/原生(mean) "
+      "`自研 mean` 的偏差；`原生/自研` > 1 表示自研更快。\n")
+    L("| n | batch | 自研 mean | 自研 min | CANN 原生 mean | CANN 原生 min | 原生/自研(mean) "
       "| η | η/实测 | maxRel | 正确性 |")
     L("|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|")
     n_ok = 0

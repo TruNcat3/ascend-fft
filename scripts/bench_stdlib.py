@@ -2,9 +2,13 @@
 """标准库 FFT 基准 + 与 NPU kernel 的交叉验证。
 
   perf  [--ns n1,n2,...] [--bs b1,b2,...] [--reps K]
-        -> 每行: STDLIB n=<n> b=<b> numpy_us=<..> torch_us=<..>
+        -> 首行: # stdlib baseline: numpy.fft.fft / torch.fft.fft
+        -> 每行: STDLIB n=<n> b=<b> numpy_us=<mean> torch_us=<mean>
+                 numpy_min_us=<min> torch_min_us=<min>
+                 （torch 不可用时 torch_*_us = nan）
   check <in.bin> <out.bin> <n> <batch>
-        -> 与 torch.fft.fft / numpy.fft.fft 比 maxRel（判据 1e-4）
+        -> 每行: cross-check n=<n> b=<batch> maxRel(ours vs ref)
+                 numpy=<rel> torch=<rel>  PASS|FAIL（判据 1e-4；退出码 0/1）
 
 输入/输出布局与 kfft_fwd 一致：float32 交错复数 [batch][2*n]。
 """

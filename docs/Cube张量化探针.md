@@ -35,7 +35,7 @@ python3 scripts/sum_prof.py "$AB_WORK/cube"        # 出占用率与耗时汇总
 
 ## 1. 确定的语义（全部实证，非推断）
 
-### 1.1 内核核型必须是 AIC
+### 1.1 内核类型（AIC/AIV）必须是 AIC
 - `DataCopy GM→L1`（`DataCopyGM2L1Impl`）：`if ASCEND_IS_AIC {...} else if ASCEND_IS_AIV { ScmDataCopyMsg(...) /* 需 KFC */ }`
 - `FixpipeL0cToOut` / `FixpipeL0cToL1`：`if ASCEND_IS_AIV { return; }` → **AIV 直接空转**
 - 因此 `extern "C" __global__ __aicore__ __cube__ void kcube(...)`；
@@ -106,8 +106,10 @@ FixpipeParamsV220 fp(/*nSize*/16, /*mSize*/16, /*srcStride*/16,
 
 ## 3. 对 FFT 张量化的判断
 
-1. **原生已经用 Cube，但没有因此赢**：n=4096/B=4096 下原生 2461 µs，我们 2031 µs（**1.21× 领先**）。
-   原生 1 次调用 = 3×BatchMatMul(共 ~1325 µs) + 3×Transpose(**~1290 µs，纯矢量**)。
+1. **原生已经用 Cube，但没有因此赢**：n=4096/B=4096 下原生 2461 µs，我们 2031 µs（**1.21× 领先**）
+   （本探针时段的 msprof 口径；当前权威同点见 `docs/matrix_test_a7.md`：2 444.7 / 1 492.7 µs = 1.64×）。
+   原生 1 次调用 = 3×BatchMatMul（**1,455 µs**，Cube）+ 2×Transpose（**879 µs**，纯矢量）——
+   分解数取自 `docs/trace与profile诊断-小尺寸与大尺寸.md` §3.1 的 `op_summary` 实测（合计 2,334 µs）。
    → 原生的短板正是矢量 transpose；**只把 GEMM 搬上 Cube 是不够的**。
 2. **我们的瓶颈不是算力**：当前 kernel `aiv_vec_ratio 0.813`、`aiv_scalar 0.168`，
    代价模型 `≈12.1 ns/op/batch + ~1167 µs 下限` → **矢量发射墙 + 标量/收尾下限**。

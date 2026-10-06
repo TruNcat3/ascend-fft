@@ -105,10 +105,10 @@ scripts/one_click_test.sh "${ONE[@]+"${ONE[@]}"}" || fail=1
 step "4/4 下一步"
 cat <<'EOF'
   复现全部实验       scripts/repro.sh --list      # 看清单
-                       scripts/repro.sh all        # 跑全部（很慢）
+                       scripts/repro.sh all        # 跑全部非慢速实验（--list -v 看清单，慢速项需单独指定）
   单个实验           python3 scripts/e2e_test.py --reps 10 --rounds 3
   出图 / 出文档      python3 scripts/plot_results.py && python3 scripts/gen_compare_doc.py
-  文档导航           见 README.md「导航」与 docs/README.md
+  文档导航           见 README.md「文档与复现」与 docs/README.md
 EOF
 
 if [ "$fail" -eq 0 ]; then

@@ -12,7 +12,8 @@
 #   ours_b64  自研 kernel, n=4096 B=64
 #   ours_b4k  自研 kernel, n=4096 B=4096   + PipeUtilization
 #   nat       原生 torch.fft.fft, n=4096 B=4096 + PipeUtilization
-#   rfft      裸 CANN aclRfft1D, n=4096 B=1024
+#   rfft      裸 CANN aclRfft1D, n=4096 B=1024（norm=1，dump 到 $AB_WORK/rfft.bin）
+#   cube      fp32 Cube 探针（opt-in，只在 `--only cube` 时生效，不在默认清单 ALL 里）
 #
 # 采集不到 msprof 时直接报错退出（profile 实验不可用，其余实验不受影响）。
 set -uo pipefail
@@ -26,7 +27,7 @@ while [ $# -gt 0 ]; do
     --no-sum) NO_SUM=1 ;;
     --out)   OUT="$2"; shift ;;
     --only)  ONLY="$2"; shift ;;
-    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
   shift
@@ -41,7 +42,9 @@ case_cmd() { # case_cmd <name> -> 设置命令数组 CMD_ARR 与 msprof 额外�
     ours_b4k) CMD_ARR=(./build/fft_check 4096 4096 10)     PIPE_ARGS=(--aic-metrics=PipeUtilization) ;;
     nat)      CMD_ARR=("$AB_PY" scripts/native_fft.py --n 4096 --b 4096 --reps 10)
               PIPE_ARGS=(--aic-metrics=PipeUtilization) ;;
-    rfft)     CMD_ARR=(./build/baseline_rfft 4096 1024 10) PIPE_ARGS=() ;;
+    rfft)     CMD_ARR=(./build/baseline_rfft 4096 1024 1 "$AB_WORK/rfft.bin") PIPE_ARGS=() ;;
+    # 与 scripts/hw_probe.sh 的 cube 分支同参：mode=2(+Fixpipe) a0b0(lay=0) nrep=5
+    cube)     CMD_ARR=(./build/cube_probe build/cube_probe.o 2 1 16 2 0 5) PIPE_ARGS=() ;;
     *)        echo "unknown case: $1" >&2; return 2 ;;
   esac
 }

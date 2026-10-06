@@ -26,6 +26,50 @@ device kernel 用 AscendC 写，host 侧带一层「枚举 → 计费 → 实测
 
 ---
 
+## 怎么读这份 README
+
+按目的挑一条线，不用从头读到尾：
+
+1. **只想知道它是什么** → [架构](#架构)：一张图讲清四层选型闭环与端到端数据流。
+2. **想知道这些数字怎么来的** → [性能总阶段](#性能总阶段)：阶段 0 → 49 : 0 的每一次跳变。
+3. **要复现结果** → [结果](#结果) 的图 1 / 图 3 / 图 6，再进
+   [`docs/实验对比.md`](docs/实验对比.md)（7 张图的完整版 + 逐点详表）。
+4. **要改 kernel 或模型** → [思路](#思路) 4 条，再进
+   [`docs/性能优化-C2b与K择优.md`](docs/性能优化-C2b与K择优.md)（5 轮 A/B 全记录）。
+5. **要从零跑起来** → [快速开始](#快速开始)：一条 `scripts/init.sh`。
+6. **要全仓文档清单、术语表与「哪个脚本生成哪份文档」** → [`docs/README.md`](docs/README.md)。
+
+---
+
+## 架构
+
+<p align="center">
+  <img src="docs/figures/architecture.svg"
+       alt="选型闭环四层（硬件事实 → 设计空间 → 成本模型 η → Plan/kernel）与端到端数据流（H2D → kfft_fwd → D2H）"
+       width="100%">
+</p>
+
+图由 [`scripts/gen_arch_diagram.py`](scripts/gen_arch_diagram.py) 生成
+（`python3 scripts/gen_arch_diagram.py`，输出字节稳定、不写时间戳）。
+
+**怎么读这张图：**
+
+- **上半是选型闭环**，四层各管一件事：① `config/*.json` 存探针实测出来的硬件事实；
+  ② 设计空间把事实翻译成「可行 / 不可行 + 不可行的原因」的候选集合；
+  ③ `estimate()` 在 kernel **还没编译**时给每个候选算一笔账（η），`rank()` 按估算排序取 `topK`；
+  ④ 逐个 `prepare()` → `measure()` 实测并回填 ——
+  **量过的候选永远排在只是估过的前面**（`Measured > Feasible > Unverified`）。
+- **下半是端到端数据流**：`float32` 交错复数 `[batch][2n]` 进出，旋转因子与三张索引
+  由 host 预生成、随 plan 一次上传，设备上只跑变换本身。
+- **两个计时区不要混**：`device-only` 只框 kernel 的 launch + 同步；`端到端` 框住
+  H2D + 变换 + D2H，三方主机缓冲统一 **pinned**（`AB_E2E_HOST`）。
+- 图中每个数字都指得回命令：硬件事实 → [`scripts/hw_probe.sh`](scripts/hw_probe.sh)，
+  候选与四态 → `ctx.enumerate()`（[`tests/test_framework.cpp`](tests/test_framework.cpp)），
+  η → [`scripts/calib_eta.py`](scripts/calib_eta.py)，
+  比分 → [`docs/matrix_test_a7.md`](docs/matrix_test_a7.md)。
+
+---
+
 ## 为什么做这个
 
 **Ascend 上缺一个能直接调的复数 FFT。** CANN 9.0.0 的公开头文件里没有复数→复数的
@@ -35,11 +79,11 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 要么自己写 kernel。本仓库补上后者 —— 一个 AscendC 的 radix-2 DIT 复数 fp32 FFT，
 外加一层 `Context` / `Plan` 的 C++ 框架。
 
-**但比"能跑"更重要的是"知道为什么快、也知道什么时候不快"。** 所以这个仓库把三样东西
+**但比「能跑」更重要的是「知道为什么快、也知道什么时候不快」。** 所以这个仓库把三样东西
 做成了可测量的：
 
 - **硬件事实**——UB 上限、Level-0 `mask` 上限、`repeat` 上限、32B 对齐、有没有 SIMT，
-  全部由探针实测得出，写进 `config/*.json`，不靠推断；
+  全部由探针实测得出，人工回填 `config/*.json`，不靠推断；
 - **成本模型 η**——kernel 还没编译就能算出这一趟要多少 µs，选型闭环因此才跑得起来；
 - **改动的证据链**——4 道门禁 + 49 点矩阵 + 交替 A/B，加上能从任意历史提交重建基线 `.o`
   的脚本，文档里每个数字都指向一条命令。
@@ -71,7 +115,7 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 | 最好 / 最紧倍率 | **6.86×** @ `n=128,B=4` ｜ **1.04×** @ `n=1024,B=4096` |
 | 头条点 `n=4096,B=4096` | 1,492.7 vs 2,444.7 µs = **1.64×**（674 GFLOP/s） |
 | 端到端（H2D + 变换 + D2H，pinned 主机缓冲） | **46 / 49** 更快，几何均值 **1.66×**（`B≤64` **28 / 28**、2.01×） |
-| η 成本模型偏差 | 平均 **7.7%**，47/49 落在 ±15% 内 |
+| η 成本模型偏差 | 平均 **7.7%**，43/49 落在 ±15% 内（带外 6 点见 [实验对比 图5](docs/实验对比.md#图5-成本模型-η-vs-实测)） |
 | vs numpy / torch (CPU) | **36 / 49**、**38 / 49**（`B≥1024` 各 **14 / 14**） |
 | vs 自研 v1（标量旋转因子版） | **49 / 49**，中位 **11.2×**、最好 **38.8×** |
 
@@ -106,11 +150,40 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 
 ---
 
+## 性能总阶段
+
+整条路线是**先测硬件 → 再让每条指令多干点活 → 最后让模型替你选**，
+算法从头到尾都是 radix-2 DIT，变的是**每级发多少条指令、一批过几遍**。
+下表按时间顺序列出每个阶段留下的头条读数（除标注外，都是 `n=4096, B=4096` 这一点，
+reps 口径见各文档），最后一列是出处。
+
+| 阶段 | 做了什么 | 头条读数 | 出处 |
+|---|---|---|---|
+| 阶段 0 | 环境体检 + 硬件探针：48 AIV、UB 196608 B、Level-0 `mask ≤ 64`、`repeat ≤ 255`、**无 SIMT** | 7 个探针 → 结论人工回填 `config/*.json` | [阶段0-1 §1](docs/阶段0-1-发现与结果.md) |
+| 阶段 0.1 | 唯一公开的 C API `aclRfft1D` 打基线（**实→复、单边**） | 固定开销 ≈100 µs、workspace ≈2.16 GB | 同上 §2 |
+| 阶段 1 | `kfft_fwd` 首版（radix-2 DIT）+ 双精度参考验收 | 15/15 PASS，`maxRel ≤ 1.6e-7` | 同上 §3 |
+| 阶段 2 | 框架骨架：`H/G/A/P/L/F/Q` 对象 + 枚举 + 选型 + 实测回填 | `ctx.enumerate()` / `ctx.select()` 跑通 | 同上 §5 |
+| 阶段 3 → 3++ | 8-plane 布局（前 3 级矢量化）；标量散射改 host 预生成 + `Gather` | 49 336 → 27 938（1.77×）→ 17 351 → **7 607 µs** | 同上 §6·§7 |
+| 阶段 4 | K-plane 推广，`planeKFor(n)` 静态择优 | 7 607 → **3 765 µs**（2.02×） | 同上 §8 |
+| 阶段 5 | 蝶形就地写回 + 屏障消融（当时把平面级 radix-4 **否掉**） | 3 758.7 → **3 293.3 µs**（−12.4%） | 同上 §9 |
+| 阶段 6 | 设计空间真正生效：864 候选 → 四态枚举；η 带上 `F` 结构因子；选型闭环验收 | `n=4096`：816 Infeasible / **48 Feasible** | 同上 §11 |
+| 第 1 批 C1+C2 | 平面级 `Axpy` 合并、planar Level-0 折组（记作后续批次的基线） | **~2013 µs** | [性能优化 §0](docs/性能优化-C2b与K择优.md) |
+| 第 2~3 批 | C2b（复数乘 6→4）、**K 择优修正**、merge 放宽、MTE3⊗MTE2 重叠、**平面级 radix-4**（否极泰来） | 2013 → **1481 µs**（累计 −26.4%） | 同上 §0·§9 |
+| 第 4~5 批 | 候选可行性逐条核查（多为否决）+ **批折叠 A3~A5**（一次 repeat 过 D 个 batch） | 比分 **44 : 5 → 49 : 0** | 同上 §10·§11 |
+| **现在（A7）** | 权威 49 点矩阵 + 三方 pinned 端到端 | device-only **49 : 0、几何均值 3.01×**；端到端 **46 / 49、1.66×** | [matrix_test_a7](docs/matrix_test_a7.md) · [实验对比 §6](docs/实验对比.md#63-已知局限必须一起读) |
+
+**读法**：前六阶段把「跑不通」变成「跑得快」（同一点 49 336 → 3 293 µs），
+后面几批把「单点快」变成「全网格都不输」（44:5 → 49:0）；
+端到端那一列是把 PCIe 也算进来之后的诚实读数（46/49，输的 3 个点是 0.95×~0.99× 持平档）。
+每一步的取舍与被否掉的想法都在两份过程文档里，**没做的也写了为什么没做**。
+
+---
+
 ## 思路
 
 ### 1. 先测硬件，再写代码
 
-移植到一块新卡上，最容易犯的错是按产品文档的"标称值"写 kernel。这里反过来：
+移植到一块新卡上，最容易犯的错是按产品文档的「标称值」写 kernel。这里反过来：
 **所有上限都由探针实测，测出来的才进代码。**
 
 `scripts/hw_probe.sh` 一次跑完 7 个探针，结论是：48 个矢量核、每个核**只有 1 个 AIV**
@@ -157,8 +230,9 @@ planar 级 逐级 2h 蝶形，group 维不发标量循环，直接折进 Level-0
 
 ![eta cost model vs measured, 49 points, mean absolute deviation 7.7%](docs/figures/fig5_eta_scatter.png)
 
-**图 5** —— 49 个点全部贴在理想线上，平均 |偏差| **7.7%**，±15% 带内 47/49。
-带外那 2 个点的单轮 `mean/min` 比都在 1.3 以上，是宿主负载离群点，不是模型问题。
+**图 5** —— 49 个点全部贴在理想线上，平均 |偏差| **7.7%**，±15% 带内 **43/49**。
+带外 6 个点里 5 个的单轮 `mean/min` ≥ 1.28，是宿主负载离群点；
+只有 `n=1024,B=1024`（+16.2%）单轮很稳，是模型真实的高估点。
 
 η 的用处**不是事后解释**，而是它能在 **kernel 还没编译**的时候就排出生命周期里的
 launch 参数（`AB_FOLD_D` / `AB_PLANE_K`）—— 这是选型闭环能跑起来的前提。
@@ -168,7 +242,7 @@ launch 参数（`AB_FOLD_D` / `AB_PLANE_K`）—— 这是选型闭环能跑起�
 ### 4. 流程：每个数字都能点回一条命令
 
 ```
-探针  hw_probe.sh      → 硬件上限写进 config/*.json
+探针  hw_probe.sh      → 实测结论人工回填 config/*.json
 门禁  one_click_test.sh → test_limits(18) → test_framework(4) → stride_probe(23+7)
                           → fft_check(4) → 矩阵判据，任一不过 exit 1
 对比  matrix_test.py    → 49 点正确性 + 实测 + η + vs 原生
@@ -197,9 +271,9 @@ launch 参数（`AB_FOLD_D` / `AB_PLANE_K`）—— 这是选型闭环能跑起�
 
 | 变量 | 含义 | 默认 |
 |---|---|---|
-| `AB_CANN` | CANN 工具包根 | `ASCEND_TOOLKIT_HOME` → `PATH` 里的 `ccec` → 最新 `/usr/local/Ascend/cann-*` |
+| `AB_CANN` | CANN 工具包根 | `ASCEND_TOOLKIT_HOME` → 最新 `/usr/local/Ascend/cann-*` → `ascend-toolkit/latest` → `PATH` 里的 `ccec` |
 | `AB_PY` | 带 torch_npu 的 python | `python3` → 逐个试 import（结果缓存到 `.ab_py`） |
-| `AB_MSPROF` | msprof 路径 | `$AB_CANN/bin/msprof` → `PATH` |
+| `AB_MSPROF` | msprof 路径 | `PATH` → `$AB_CANN/bin` → `$AB_CANN/tools/profiler/bin` |
 | `AB_WORK` | 临时工作区（profile 等） | `<仓库>/.tmp` |
 | `AB_SOC` | SoC 名 | `Ascend910_9382` |
 | `AB_ROOT` / `AB_BUILD` | 仓库根 / `build/` | 自动 |
@@ -297,8 +371,9 @@ uint32_t foldDFor(uint32_t n, uint32_t batch,
 | 六基线 49 点 | `scripts/repro.sh sixway` | [docs/性能对比-标准库vs自研.md](docs/性能对比-标准库vs自研.md) | 同左 |
 | 端到端三路（自研 / torch / 裸 CANN，**三路均 pinned 主机缓冲**） | `scripts/repro.sh e2e` | `results/e2e.{md,json}` | [docs/实验对比.md](docs/实验对比.md) 图6·图7 · §6.2口径 |
 | 出图（图1~7） | `scripts/repro.sh figures` | [docs/figures/](docs/figures/) | [docs/实验对比.md](docs/实验对比.md) |
+| 出架构图 | `python3 scripts/gen_arch_diagram.py` | [docs/figures/architecture.svg](docs/figures/architecture.svg) | 本文 [架构](#架构) |
 | 出对比文档 | `scripts/repro.sh doc` | [docs/实验对比.md](docs/实验对比.md) | 同左（生成物） |
-| η 成本模型标定 | `scripts/repro.sh eta` | 回写 `estimate()` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §3·§11.5 |
+| η 成本模型标定 | `scripts/repro.sh eta` | 打印 3 个系数，人工回填 `estimate()` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §3·§11.5 |
 | **A/B 消融** | `python3 scripts/ab_test.py --base <.o> --cand build/fft_radix2.o …` | 终端 / `--json` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §7·§9·§11 |
 | 从提交重建历史基线 `.o` | `scripts/baseline_o.sh <rev>` | `build/baseline_<rev>_*.o` | 同上 §8·§9.8 |
 | **硬件能力探针** | `scripts/hw_probe.sh` | 终端 | [docs/阶段0-1-发现与结果.md](docs/阶段0-1-发现与结果.md) §1 · 优化文档 §10.2 |
@@ -370,8 +445,11 @@ ascend-fft/
 │   │   ├── probe_hw.cpp / probe_simt.cpp
 │   │   └── {stride,gather,cube}_probe.cpp
 │   ├── framework/             host 框架（`estimate()` 计费、选型、索引生成、launch）
+│   │   ├── butterfly.cpp        Context/Plan 实现 + `estimate()`/`rank()`/`Plan::measure()` 主体
 │   │   └── reference.cpp        参考实现 + 测试向量
 │   └── host/                  可执行入口（fft_check / stride_probe / 探针 / launch）
+│       ├── baseline_rfft.cpp    裸 CANN `aclRfft1D` 三路对照基线
+│       └── profile.cpp          msprof 用例入口
 ├── tests/                    test_limits(18) / test_framework
 ├── config/                   硬件 profile + 设计空间 JSON（唯一真源）
 ├── scripts/                  构建 / 初始化 / 实验运行器（详见下表）
@@ -396,6 +474,7 @@ ascend-fft/
 | [`e2e_test.py`](scripts/e2e_test.py) | 端到端三路（自研 / torch / 裸 CANN） |
 | [`gen_stdlib_doc.py`](scripts/gen_stdlib_doc.py) · [`bench_stdlib.py`](scripts/bench_stdlib.py) · [`bench_native_npu.py`](scripts/bench_native_npu.py) | 六基线同场与两份基线 |
 | [`plot_results.py`](scripts/plot_results.py) · [`gen_compare_doc.py`](scripts/gen_compare_doc.py) | 出图 + 出 `docs/实验对比.md` |
+| [`gen_arch_diagram.py`](scripts/gen_arch_diagram.py) | 出上面那张架构图（`docs/figures/architecture.svg`） |
 | [`calib_eta.py`](scripts/calib_eta.py) | η 成本模型最小二乘标定 |
 | [`ab_test.py`](scripts/ab_test.py) · [`baseline_o.sh`](scripts/baseline_o.sh) | 批量 A/B 消融 + 从提交重建历史基线 `.o` |
 | [`hw_probe.sh`](scripts/hw_probe.sh) | 硬件能力探针串联（核数/子核/mask 上限/Gather/带宽/SIMT） |

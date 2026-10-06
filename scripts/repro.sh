@@ -4,7 +4,7 @@
 #   scripts/repro.sh --list            # 列出全部实验：名字 | 文档 | 命令
 #   scripts/repro.sh <name> [参数...]  # 跑某个实验
 #   scripts/repro.sh --doc <文件>      # 列出某份文档涉及的实验
-#   scripts/repro.sh all               # 串行跑全部实验（很慢，逐个挑更实际）
+#   scripts/repro.sh all               # 串行跑全部非慢速实验（--list -v 看清单，慢速项需单独指定）
 #
 # 退出码：0 = 全部成功；1 = 有失败；2 = 用法错误。
 set -uo pipefail
@@ -35,10 +35,10 @@ reg figures     "docs/实验对比.md"                              "出 7 张�
 reg doc         "docs/实验对比.md"                              "出图 + 详表文档（本文档是生成物）" \
     "python3 scripts/gen_compare_doc.py"
 reg eta         "docs/性能优化-C2b与K择优.md §3/§11.5"          "η 成本模型最小二乘标定" \
-    "python3 scripts/calib_eta.py --fit"
+    "python3 scripts/calib_eta.py"
 reg ab          "docs/性能优化-C2b与K择优.md §7/§9/§11"         "批量 A/B 消融（默认 自研v1 vs 自研）" \
     "python3 scripts/ab_test.py --base build/fft_radix2_v1.o --cand build/fft_radix2.o --points 4096x4096,64x4096,128x4 --reps 50 --rounds 3"
-reg baseline-o  "docs/性能优化-C2b与K择优.md §7"                "从任意提交重新构建基线 kernel .o" \
+reg baseline-o  "docs/性能优化-C2b与K择优.md §9/§9.8"           "从任意提交重新构建基线 kernel .o" \
     "scripts/baseline_o.sh HEAD"
 reg hwprobe     "docs/阶段0-1-发现与结果.md §1 · 性能优化 §10.2" "硬件能力探针（核数/子核/mask 上限/Gather/带宽/SIMT）" \
     "scripts/hw_probe.sh"

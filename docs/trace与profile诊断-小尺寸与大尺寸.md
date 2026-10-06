@@ -7,7 +7,8 @@
 > **复现脚本**：[`scripts/profile_test.sh`](../scripts/profile_test.sh)（采集+汇总）
 > · [`scripts/sum_prof.py`](../scripts/sum_prof.py)（读已有 profile）
 > · [`scripts/native_fft.py`](../scripts/native_fft.py) / [`scripts/time_native.py`](../scripts/time_native.py)（原生用例）
-> · [`scripts/repro.sh --doc trace`](../scripts/repro.sh)（本文件涉及的全部实验）
+> · [`scripts/repro.sh --doc trace`](../scripts/repro.sh)（只列出 profile 类实验 `profile` / `profile-sum`；
+>   本文其余实验见各节给出的具体命令）
 > 全部路径由 [`scripts/env.sh`](../scripts/env.sh) 探测：`$AB_CANN` / `$AB_MSPROF` / `$AB_PY` / `$AB_WORK`。
 
 ---
@@ -36,9 +37,9 @@ scripts/profile_test.sh --out results/profiles/p_a6_after
 
 取数（`scripts/sum_prof.py` 一次出齐，下面的 python 片段是它的数据来源）：
 ```bash
-python3 scripts/sum_prof.py results/profiles/p_b4k            # 单份详表
-python3 scripts/sum_prof.py results/profiles/p_a6_before \
-                           results/profiles/p_a6_after         # 前后对照
+python3 scripts/sum_prof.py "$AB_WORK/p_b4k"           # 单份详表
+python3 scripts/sum_prof.py "$AB_WORK/p_a6_before" \
+                           "$AB_WORK/p_a6_after"        # 前后对照
 python3 scripts/sum_prof.py <dir> --per 13 --drop 13           # 原生（每迭代 13 个 op）
 
 python3 -c "import sqlite3,sys;c=sqlite3.connect('$P/device_0/sqlite/ascend_task.db');
@@ -55,8 +56,8 @@ python3 -c "import sqlite3,sys;c=sqlite3.connect('$P/device_0/sqlite/ascend_task
 |---|:---|:---|:---|
 | **A** | **小尺寸慢于 GPU** | ① **并行度**：`blocks = min(batch,48)`，**一个 transform 从不切分** → B=1 只有 **1/48 个 AIV 核**在干活；② **host** 每次 launch+sync ~13–28 µs（CUDA ~2–4 µs） | §2 |
 | **B** | **大尺寸慢于自研原生** | 原生 = **3×BatchMatMul（跑在矩阵单元 cube 上，cube 利用率 83%）+ 2×Transpose**，只 5 次提交；我们是**单个纯矢量 kernel，cube 利用率 0%** | §3 |
-| **B′** | **原生在失分点（n ≤ 1024）靠什么赢** | **不是 cube**：Transpose(AIV) 占设备时间 **55~84%**、cube 仅 16~45%；且原生 host 侧占墙钟 40~55%（我们单 launch 省 ~45 µs） | §6.3 |
-| **C** | **我们自己的瓶颈** | **Vector 管线占空 78.6%**、Scalar 19.6%、**MTE2 仅 5.5% / MTE3 4.3%** → **不是内存墙，是矢量发射墙**；同时 **cube 单元 100% 闲置** | §4 |
+| **B′** | **原生在失分点（n ≤ 1024）靠什么赢** | **不是 cube**：Transpose(AIV) 占设备时间 **55~84%**、cube 仅 16~45%；且原生 host 侧占墙钟 **20~63%**（n=64→1024 递减，mean 口径，见 §6.3.3；我们单 launch 省 ~45 µs） | §6.3 |
+| **C** | **我们自己的瓶颈** | **Vector 管线占空 78.6%**、Scalar 19.6%、**MTE2 仅 5.5% / MTE3 4.3%**（11 次采样的最不利单点；均值 81.5% / 20.3% / 4.0% / 2.7% 见 §4.1）→ **不是内存墙，是矢量发射墙**；同时 **cube 单元 100% 闲置** | §4 |
 
 ---
 
@@ -70,18 +71,18 @@ python3 -c "import sqlite3,sys;c=sqlite3.connect('$P/device_0/sqlite/ascend_task
 | host 侧（墙钟 − 设备） | **27.6 µs** | ~2–4 µs | `aclrtLaunchKernelWithHostArgs` min 8.1 µs / 非首调均值 12.1 µs；`LaunchKernelV2` min 4.25 µs |
 | **合计（矩阵测试 mean）** | **66.3 µs** | **11.99 µs** | 慢 **5.5×** |
 
-> 即：**5.5× 的差距里，设备侧占 3.2×，host 启动/回同步占 ~24 µs。**
+> 即：**5.5× 的差距里，设备侧占 3.2×，host 启动/回同步占 27.6 µs（CUDA 侧只需 ~2–4 µs，多出 ~24 µs）。**
 > GPU 那边是 kernel 时间；我们这边 66.3 µs 里有 27.6 µs 根本没碰到芯片。
 
 ### 2.2 设备侧为什么 38.7 µs：只有 1 个核在干活
 
-`src/host/fft_check.cpp:123`：
+`src/host/fft_check.cpp:168`：
 
 ```cpp
 uint32_t blocks = batch<48u ? batch : 48u;     // 并行度 = min(batch, 48)
 ```
 
-kernel 内层是 `for (b = blk; b < batch; b += nblk)`（`fft_radix2.cpp:85`）——
+kernel 内层是批折叠后的 `for (gk = blk; gk*D < batch; gk += nblk)`（`fft_radix2.cpp:136`）——
 **并行维只有 batch，单个 transform 内部（12 个 stage / 4096 点）完全串行**。
 
 实测三方印证（设备侧任务时长）：
@@ -113,10 +114,10 @@ cuFFT / cuButterfly 都会把**一个 transform 沿数据维切开**（cuButterf
 一次 `torch.fft.fft(4096, 4096, complex64)` = **5 个 kernel**（13 次调用 / 39+26 个 op）：
 
 | op | 类型 | 核 | 次数/次FFT | 设备时长/次FFT | 占比 |
-|:---|:---|:---|:---:|---:|---:|
-| `aclnnMatmul_..._BatchMatMulV2` | **AI_CORE（矩阵单元）** | 3 | **1,455 µs** | **62%** |
-| `aclnnInplaceCopy_Transpose` | AI_VECTOR_CORE | 2 | **879 µs** | **37%** |
-| **合计** | | **5** | **2,334 µs** | 100% |
+|:---|:---|:---:|:---:|---:|---:|
+| `aclnnMatmul_..._BatchMatMulV2` | **AI_CORE（矩阵单元）** | 3 | 3 | **1,455 µs** | **62%** |
+| `aclnnInplaceCopy_Transpose` | AI_VECTOR_CORE | 2 | 2 | **879 µs** | **37%** |
+| **合计** | | **5** | **5** | **2,334 µs** | 100% |
 
 对照：矩阵测试同点 **原生墙钟 2,357 µs**，**自研设备侧 3,252 µs / 墙钟 3,288 µs** → **自研慢 1.39×**。
 
@@ -177,7 +178,7 @@ cuButterfly README 里确实有这些（与我们设计空间一一对应）：
 | `D = Ud × Td`（数据维空间×时间） | `ud_core` / `ts` | **枚举了，未实现**（`blocks=min(batch,48)` 是纯 `Td`） |
 | `S = Us × Ts`（stage 维空间×时间） | `ts` / `fusion_level` | **枚举了，未实现** |
 | Runtime Selector + `confirmed-median` 实测格 | `select()` top-K 实测 | **已实现**（§11.4） |
-| 安装期跑标定写设备模型表 | `calib_eta.py` | **已实现**（§8.5） |
+| 安装期跑标定写设备模型表 | `calib_eta.py` | **已实现**（`阶段0-1` §8.5） |
 
 所以：**选型闭环我们不缺，缺的是 `Ud/Ts/Residence` 三种"物理映射"的 kernel 实现**。
 
@@ -205,7 +206,7 @@ README 原文：*"FFT reaches cuFFT parity or better for selected shapes,
 |---|:---|:---|:---|:---|
 | 1 | **`Ud>1`：单 transform 内部按 stage/数据维切到多核** | **A** | B=1 时 1/48 → 48 核，设备侧 38.7 µs 有望降到 ~2–4 µs 量级（受 `#op` 下限约束） | 高（新 kernel + 归约合并） |
 | 2 | **削 Scalar 管线 19.6%**：批循环展开 / 预计算步进 | **C** | `#op` 模型里没算的那 19.6% 归零 → 直接降 `device_time` | 低 |
-| 3 | **`D>1` 批折叠**：一次矢量算子覆盖 D 批，`#op` ÷ D | **C + B** | 唯一能动 78.6% Vector 占空的手段 | 中 |
+| 3 | **`D>1` 批折叠**：一次矢量算子覆盖 D 批，`#op` ÷ D | **C + B** | 唯一能动 Vector 占空（78.6%，11 次采样的最不利单点；均值 81.5% 见 §4.1）的手段 | 中 |
 | 4 | **把部分 stage 搬到 Cube（16 点 DFT = 16×16 复 matmul）** | **B** | 对齐原生的 83% cube 利用率 | 高（复数 matmul 分解） |
 | 5 | host 侧压 launch+sync 到 <5 µs（批内合并、减少同步） | **A** | 砍掉 B≤64 区间的 ~13–28 µs 固定开销 | 中 |
 
@@ -273,19 +274,20 @@ msprof（n=4096/B=4096）：
 **对上面行动项的影响**：
 - **`#2 削 Scalar` 已经做掉一大半**：平面级从 32 次蝶形降到 8 次，
   `GetValue`/浮点比较随之减少，scalar 0.140 → 0.075；剩余上限很小；
-- **`#4 搬到 Cube` 仍然是负 ROI**：见 §8.5 与 `Cube张量化探针.md` ——
+- **`#4 搬到 Cube` 仍然是负 ROI**：见 `docs/性能优化-C2b与K择优.md` §8 第 5 条
+  （683× / 628 ms 的推导在该文 §9.9 第 5 条）与 `Cube张量化探针.md` ——
   稠密 DFT 比 FFT 多 `2N/log2N = 683×` 算术，`Mmad` 下界 109.4 GMAC/s 代入
   是 628 ms vs 自研 1.48 ms（**慢 400×**），**批也救不了**（批只摊薄 F 的装载，
   而我们本来就在 UB 里复用 twiddle；算术比与 batch 无关）；
 - **新的首推：I/O 的 Stockham 化 / 布局合同** —— `10n` 收尾元素里 `idxB` 2n + `idxT` 2n
   = **4n = 全部 elems 的 7.5%（模型 ≈ −5%）**，且这两张索引占 8n 字节 UB
-  （n=4096 = 32 KB），**腾出来正好够 §6 行动项里的 MTE2 预取（≈ −5%）** —— 一个改动解锁两个收益；
+  （n=4096 = 32 KB），**腾出来正好够 `docs/性能优化-C2b与K择优.md` §8 第 1 条的 MTE2 预取（≈ −5%）** —— 一个改动解锁两个收益；
 - 平面级 `w = −i` 特判（`j2 = h/2`，4 算子 → 2）约 **−2.2%**、20 行，是下一个便宜项；
 - planar 级 radix-4 只净 **−2.1%** 且算子数反升 17%，**暂缓**。
 
 ---
 
-## 6.3 A2-1：原生在 5 个失分点的真实构成（2026-10-01）
+## 6.3 A2-1：原生在 4 个失分点的真实构成（2026-10-01，n=64/256/512/1024）
 
 **结论先行：原生在 n ≤ 1024 的失分点上不是 cube 主导，而是 Transpose（AIV）主导** ——
 Transpose 占设备时间 **55~84%**，cube 只占 **16~45%**。§3 那条"原生 = 3×BatchMatMul、cube 83%"
@@ -318,9 +320,10 @@ n=64 只有 **1** 个 matmul（DFT 实矩阵 128×128），n≥256 是 2 个。
 | 1024 | 0.373 | 0.359 | **0.321** | 0.251 | 0 |
 
 → **原生在失分点上是"搬"的墙，不是"算"的墙**；与 §4.2 我们的画像正好相反
-（我们 Vector 78.6% / MTE2 5.5% / MTE3 4.3% → 矢量发射墙）。
+（我们 Vector 78.6% / MTE2 5.5% / MTE3 4.3% → 矢量发射墙；三者同为 11 次采样的最不利单点，
+均值 81.5% / 4.0% / 2.7% 见 §4.1）。
 
-### 6.3.3 墙钟拆账：原生 host 侧占 40~55%
+### 6.3.3 墙钟拆账：原生 host 侧占 20~63%（n 越大越被摊薄）
 
 | n | 设备侧/迭代（msprof） | 墙钟·基线 `matrix_test_raw.md` | 墙钟·本次实测 mean / min | host ≈ |
 |---:|---:|---:|---:|---:|
@@ -328,6 +331,9 @@ n=64 只有 **1** 个 matmul（DFT 实矩阵 128×128），n≥256 是 2 个。
 | 256 | 78.0 | 152.5 | 136.7 / 130.5 | 59 |
 | 512 | 148.5 | 225.8 | 211.8 / 205.5 | 63 |
 | 1024 | 264.7 | 343.1 | 330.5 / 323.7 | 66 |
+
+host 占比（= host / 墙钟，按上表 mean 口径）：**63% / 43% / 30% / 20%**（n=64/256/512/1024）；
+min 口径为 **53% / 40% / 28% / 18%** —— 即全区间 **20~63%**，大 n 被设备时间摊薄。
 
 原生每迭代提交 **3~4 次 aclnn**；我们是**单次 launch**，η 模型 `launchUs = 21.26 µs`
 → 在 n=1024 上比原生省约 **45 µs host**。
@@ -382,13 +388,22 @@ python3 scripts/sum_prof.py "$AB_WORK"/p_nat{64,256,512,1024} --per 13 --drop 13
 
 三处 `PipeBarrier<PIPE_ALL>` 现状：`:123` prologue（**必须留**）、
 `:147` 每组 `DataCopy(plan)` 后、`:459` 每组 Gather 后 / 写回前。
-内核级矢量管内的 `PipeBarrier` 早在 §5 已去掉（实测≈0）。
+内核级矢量管内的 `PipeBarrier` 早在 `docs/性能优化-C2b与K择优.md` §5 已去掉（实测≈0）。
 
 > 与 §4.1 的关系：那份表是**更早的 11 次采样**（`prof_pipe`），`vec=0.815 / scalar=0.203`；
 > 本轮 3 次采样是 `vec≈0.82 / scalar≈0.168`。两者的 `vec+scalar` 都≈1.0，
 > 结论一致 —— **发射饱和，屏障不是瓶颈**。
 
-**profile 目录**：`$AB_WORK/p_a6_before`、`$AB_WORK/p_a6_after`
+**采集命令与 profile 目录**（`scripts/profile_test.sh` 没有这两份用例，须手工采）：
+```bash
+source scripts/env.sh
+# 下面两条各连跑 3 次，即表中的「并入前 / 并入后」两组
+"$AB_MSPROF" --output="$AB_WORK/p_a6_before" --task-time=on --aic-metrics=PipeUtilization \
+        ./build/fft_check 1024 4096 3          # 并入前
+"$AB_MSPROF" --output="$AB_WORK/p_a6_after"  --task-time=on --aic-metrics=PipeUtilization \
+        ./build/fft_check 1024 4096 3          # 并入后（改动已回退，仅存档）
+```
+目录为 `$AB_WORK/p_a6_before`、`$AB_WORK/p_a6_after`
 （默认 `$AB_WORK` = `<仓库>/.tmp`，可用 `AB_WORK=` 覆盖；本文写就时的历史目录在 `/tmp/op/`）。
 
 ---
@@ -401,10 +416,10 @@ python3 scripts/sum_prof.py "$AB_WORK"/p_nat{64,256,512,1024} --per 13 --drop 13
 | 管线占用率 | `mindstudio_profiler_output/op_summary_*.csv` → `aiv_vec_ratio` 等 |
 | host API 耗时 | `mindstudio_profiler_output/api_statistic_*.csv` |
 | op 聚合统计 | `mindstudio_profiler_output/op_statistic_*.csv` |
-| **采集** | `scripts/profile_test.sh`（5 个用例，落 `results/profiles/<UTC>/`） |
+| **采集** | `scripts/profile_test.sh`（5 个用例，落 `results/profiles/<UTC>/`；rfft 用例当前因 `baseline_rfft` 参数不全失败，另有人修） |
 | **汇总** | `scripts/sum_prof.py <dir> [--per N] [--drop N] [--csv]` |
 | 原始 profile 目录 | 本文写就时在 `/tmp/op/prof_ours`、`prof_b1`、`prof_b64`、`prof_pipe`、`prof_nat`、`prof_nat2`；重跑落在 `results/profiles/` |
-| 原生失分点 profile（§6.3） | `scripts/profile_test.sh` 的 `--only nat` + `--n` 参数化，或 `$AB_WORK/p_nat{64,256,512,1024}` |
+| 原生失分点 profile（§6.3） | `scripts/profile_test.sh --only nat` 只采 n=4096/B=4096（脚本无 `--n` 参数）；其余 n 用 §6.3 的手工循环，落 `$AB_WORK/p_nat{64,256,512,1024}` |
 | 原生墙钟对照（§6.3.3） | `scripts/native_fft.py`（单形状）、`scripts/time_native.py`（多形状）、汇总 `scripts/sum_prof.py` |
 | **A6 屏障前后（§6.4）** | `$AB_WORK/p_a6_before`、`$AB_WORK/p_a6_after` |
 

@@ -89,7 +89,7 @@ def main():
           "与自研 `kfft_fwd` 同一变换，可直接对比。")
     print("> **`aclRfft1D`** 是实->复 rfft（`norm=1` 唯一合法），变换不同，仅作参照。\n")
     print("| n | batch | numpy (CPU) | torch (CPU) | **CANN 原生复数 FFT** | aclRfft1D | "
-          "自研 v1 | **自研当前** | 自研/原生 | 正确性 |")
+          "自研 v1 | **自研当前** | 原生/自研 | 正确性 |")
     print("|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|")
     for n, b, nu, th, na, rf, v1, cur, ok in rows:
         f = lambda x: "—" if x != x else f"{x:,.1f}"
@@ -103,7 +103,7 @@ def main():
     bad = [r for r in rows if r[8] != 'PASS' or not nat_ok]
     print(f"\n**正确性：{len(rows)-len(bad)}/{len(rows)} PASS**（判据 maxRel ≤ 1e-4，"
           f"参考为双精度 CPU 基；numpy/torch/NPU 原生另经 `bench_stdlib.py check` 交叉验证）")
-    print("\n`自研/原生` > 1 表示自研更快。")
+    print("\n`原生/自研` > 1 表示自研更快。")
     return 1 if bad else 0
 
 

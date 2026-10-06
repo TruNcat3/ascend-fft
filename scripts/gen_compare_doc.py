@@ -120,7 +120,7 @@ def main():
       "[`scripts/calib_eta.py`](../scripts/calib_eta.py) 图5 η 标定 · "
       "[`scripts/plot_results.py`](../scripts/plot_results.py) + "
       "[`scripts/gen_compare_doc.py`](../scripts/gen_compare_doc.py) 生成图与本文 · "
-      "[`scripts/repro.sh`](../scripts/repro.sh) 全仓实验清单。")
+      "[`scripts/repro.sh`](../scripts/repro.sh) 全仓实验清单。\n")
     A("| 想看什么 | 直接跳 |")
     A("|---|---|")
     A("| 一眼看谁快 | [图1](#图1-49-点-speedup-热力图) |")
@@ -177,7 +177,7 @@ def main():
     A("## 图2　延迟热力图\n")
     A("![latency heatmap](figures/fig2_latency_heatmap.png)\n")
     A("同一份数据的**绝对值**视角：左图自研、右图原生，共用对数色标。"
-      "原生那一侧整片偏红且几乎不随 `n` 变（81→2445 µs 中，"
+      "原生那一侧整片偏红且几乎不随 `n` 变（77→2445 µs 中，"
       "`B=1` 一行稳定在 77~105 µs —— 是**固定 launch/调度开销**），"
       "自研那一侧 `B≤64` 全在 14~53 µs，说明自研把固定开销压下去了。\n")
 
@@ -217,19 +217,25 @@ def main():
           f"`batch ≥ 1024` 的 {len([r for r in big if r['ours'] < r['numpy']])}/{len(big)} 点赢 numpy、"
           f"{len([r for r in big if r['ours'] < r['torch']])}/{len(big)} 点赢 torch —— "
           "小 batch 输给 CPU 是因为 3~20 µs 的量级里 CPU 单核已经够快，"
-          "NPU 要付固定的发射开销。`aclRfft1D` 是实->复变换，仅作参照。\n")
+          "NPU 要付固定的发射开销。`aclRfft1D` 是实→复变换，仅作参照。\n")
 
     # ---------------- 5 图5 ----------------
     A("---\n")
     A("## 图5　成本模型 η vs 实测\n")
     A("![eta](figures/fig5_eta_scatter.png)\n")
     fdev = [abs(r["dev"]) for r in mx]
-    over = [r for r in mx if r["dev"] > 15]
+    over = [r for r in mx if abs(r["dev"]) > 15]
     over_txt = "、".join("`n=%d/B=%d`(%+.1f%%)" % (r["n"], r["b"], r["dev"]) for r in over)
-    A(f"49 个点全部贴在理想线附近：**平均 |偏差| {sum(fdev) / len(fdev):.1f}%**，"
+    stable = [r for r in over if r["ours"] / r["ours_min"] < 1.28]
+    if stable:
+        tail = ("其中 " + "、".join("`n=%d/B=%d`" % (r["n"], r["b"]) for r in stable) +
+                " 的单轮 `mean/min` < 1.28，是模型真实的高估点；其余 " +
+                f"{len(over) - len(stable)} 个的 `mean/min` ≥ 1.28，是宿主负载离群点。")
+    else:
+        tail = "它们的单轮 `mean/min` 都 ≥ 1.28 —— 是宿主负载离群点，不是模型问题。"
+    A(f"{len(mx)} 个点全部贴在理想线附近：**平均 |偏差| {sum(fdev) / len(fdev):.1f}%**，"
       f"落在 ±15% 带内的 {len(mx) - len(over)}/{len(mx)}。"
-      f"带外的 {len(over)} 个点是 {over_txt}，"
-      "它们的单轮 `mean/min` 比都在 1.3 以上 —— 是宿主负载离群点，不是模型问题。\n")
+      f"带外的 {len(over)} 个点是 {over_txt}；{tail}\n")
     A("η 的作用是在 **kernel 还没编译**时就排出生命周期里的 launch 参数"
       "（`AB_FOLD_D` / `AB_PLANE_K`），这是选型闭环能跑起来的前提。\n")
 
@@ -359,7 +365,7 @@ def main():
             A("| 搬运量 (H2D+D2H) | `16n·B` | `16n·B` | **`8n·B`（一半）** |")
             A("| 调用约定 | 自带 plan，一次性 | plan cache 跨调用复用 | "
               "两段式，**每轮重新 `GetWorkspaceSize`**（executor 不可复用） |")
-            A("| workspace | 无 | 由框架管理 | **固定 ~2.06 GB**（与 shape 无关） |")
+            A("| workspace | 无 | 由框架管理 | **固定 ~2.16 GB**（与 shape 无关） |")
             A("")
             bd = [v["bare_dev"] for v in e2.values() if v.get("bare_dev") == v.get("bare_dev")]
             be = [v["bare_e2e"] for v in e2.values() if v.get("bare_e2e") == v.get("bare_e2e")]
@@ -396,8 +402,8 @@ def main():
             A("2. 但裸 CANN 反而**比 torch 略慢**：两段式约定要求每轮 "
               "`GetWorkspaceSize`，而 torch 侧有 plan cache —— 「裸」不等于「快」。"
               "裸一路在 `n` 变大时 `GetWorkspaceSize` 成本随之上升（`B=1` 时 "
-              "`n=64`→`n=4096` 由 ~99 µs 涨到 ~708 µs），而 torch 原生全程压在 "
-              "~80~112 µs。")
+              "`n=64`→`n=4096` 由 ~103 µs 涨到 ~703 µs），而 torch 原生在 `B=1` 上"
+              "全程压在 ~78~99 µs。")
             A("3. E2E 一列**不能直接比胜负**：`aclRfft1D` 是实→复、搬运量只有一半，"
               "大 batch 下它的 E2E 天然占优；本节只用来定位固定开销的来源。")
             A("4. 裸一路是**单进程单 shape**，每个 shape 都从零建图，"

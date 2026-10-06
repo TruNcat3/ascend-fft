@@ -205,7 +205,7 @@ def main():
       "Level-0 repeat（`kFoldCap=4`），planar 段 `useL0` 下 `if (useL0) break;` 只走一遍 "
       "d 循环 —— 这是大 B 点相对原生拉开差距的主因（`n=64/B=4096` 由基线 44:5 时期的 "
       f"**0.69×** 反超到 **{ratio(fold_pt,'nat'):.2f}×**）。折叠只看 n 和 B、纯静态，"
-      "kernel/host/framework 三处共用 `foldDFor`，`AB_FOLD_D` 可强制 D 复现。")
+      "host 与 framework（含 η 标定）直接调 `foldDFor`，kernel 侧是 `fft_radix2.cpp` 中同式的两条判据复刻（`useL0`），三处结果一致；`AB_FOLD_D` 可强制 D 复现。")
     A(f"* **头条点 `n=4096/B=4096`**：自研 {fm(head['cur'])} µs vs 原生 {fm(head['nat'])} µs "
       f"= **{ratio(head,'nat'):.2f}×**；vs numpy {fm(head['nu'])} µs = "
       f"**{ratio(head,'nu'):.0f}×**；min 口径 {fm(head['curmin'])}；吞吐 "

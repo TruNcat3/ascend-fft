@@ -10,7 +10,7 @@ kernel:     ## 只编译 device kernel（.o）
 	$(AB) kernel
 check:      ## fft_check 正确性/计时器
 	$(AB) check
-test:       ## test_framework + test_limits
+test:       ## test_framework
 	$(AB) test
 limits:     ## test_limits（18 项硬件/ABI 门禁）
 	$(AB) limits

@@ -104,7 +104,8 @@ BFLY_AICORE inline uint32_t planeLogKFor(uint32_t n) {
 //   * 64 元素切片 + 任意 32B 对齐基址 PASS（pff_h16/h128/h256/h512、plf_r128_*）。
 // 结构约束（与 batch 无关）：n <= 1024（arRep 门槛）且 D * groups_max <= 255，
 //                          groups_max = n/(2K)（planar 最严的一级）——超限时**向下钳 D**，
-//                          不再整只关掉折叠（n=1024 时 groups_max=64 => D<=3）。
+//                          不再整只关掉折叠（当前 planeKFor 下 n<=1024 的 groups_max = n/(2K)
+//                          恒 <= 32、4*32 <= 255，本闸**不触发**，属防御性钳制）。
 //
 // 并发约束（与 batch 有关，同 session A/B 实测）：
 //   折叠把 ceil(batch/D) 个组摊到 min(nblk, batch) 个核上；组数一旦少于核数，
@@ -131,7 +132,8 @@ BFLY_AICORE inline uint32_t foldDFor(uint32_t n,
     const uint32_t groupsMax = n >> (logK + 1u);   // planar 最大 groups = n/(2K)
     if (groupsMax == 0u) return 1u;
     // D * groupsMax 是 planar 段的 repeatTime，必须 <= 255 —— 超了**递减钳**（不是右移，
-    // 右移会把 4 直接砍成 2、白丢一档；n=1024 groupsMax=64 => 4*64=256>255 => 钳到 3）。
+    // 右移会把 4 直接砍成 2、白丢一档；举例 groupsMax=64 时 4*64=256>255 => 钳到 3；
+// 当前 planeKFor 使 n<=1024 的 groupsMax <= 32，故正常路径不触发，仅作防御）。
     while (D > 1u && D * groupsMax > 255u) D--;
     // 并发：活跃组数 ceil(batch/D) 必须 >= nblk。batch >= 1，用 ((batch-1)/D+1) 做 ceil
     // —— 写成 (batch+D-1)/D 会在 batch=0xFFFFFFFF（"不施加约束"的哨兵值）时溢出回绕。

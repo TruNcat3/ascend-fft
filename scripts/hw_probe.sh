@@ -127,10 +127,17 @@ for k in "${SEL[@]}"; do
       WARN "cube_probe 未编译，跳过（scripts/build.sh cube）"
       continue
     fi
-    # 正确性：a0b0 布局，确定性 PASS 15/15
-    C=$(./build/cube_probe build/cube_probe.o 2 1 16 2 0 5 2>&1)
+    # 正确性：a0b0 布局连跑 nrep=5 次。src/host/cube_probe.cpp 只在 nrep<=3 时才打印
+    # `rep%d lay=%d -> PASS`，nrep=5 时全部通过只输出末尾 `OK lay=...` 行、
+    # 有错则逐行 `-> FAIL` 并以退出码 2 结束 —— 所以这里按「退出码 0 且有 OK lay= 行」判定，
+    # 不再找 `PASS`/`15/15`（那两个串在 nrep=5 的输出里根本不会出现）。
+    C=$(./build/cube_probe build/cube_probe.o 2 1 16 2 0 5 2>&1); rc=$?
     echo "$C" | tail -3 | sed 's/^/  /'
-    case "$C" in *"15/15"*|*"PASS"*) PASS "cube_probe 正确性" ;; *) WARN "cube_probe 正确性输出未匹配 PASS：$(echo "$C" | tail -1)" ;; esac
+    if [ "$rc" -eq 0 ] && printf '%s\n' "$C" | grep -q "OK lay="; then
+      PASS "cube_probe 正确性（a0b0，nrep=5 全对 → OK lay= 行）"
+    else
+      WARN "cube_probe 正确性未拿到 OK 行（rc=$rc）：$(printf '%s\n' "$C" | tail -1)"
+    fi
     ;;
 
   simt)

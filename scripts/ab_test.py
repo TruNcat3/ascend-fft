@@ -10,9 +10,13 @@
   # 只看某几个形状 + 输出 JSON
   python3 scripts/ab_test.py --base a.o --cand b.o --points 64x1 --json results/ab.json
 
-输出每行：
-  AB n=<n> b=<b> base=<us> cand=<us> speedup=<x> rel=<maxRel> PASS|FAIL
-最后一行给逐点 speedup 的几何均值。
+输出（stdout）：
+  # A/B  base=<.o>  cand=<.o>  reps=<K>  rounds=<R>  points=<P>    # 首行头
+  AB n=<n> b=<b> base=<us> cand=<us> speedup=<x> rel=<maxRel> PASS|FAIL[  < REGRESS]
+  AB n=<n> b=<b>  < 不完整（缺 base 或 cand 的读数）                # 某一侧没读到数
+  [ FAIL ] round<rd> <base|cand> n=<n> b=<b>: <fft_check 报错尾行>  # 该次运行失败
+  geomean speedup = <x>x   (...)   points=<k>/<P>  errors=<e>      # 最后一行：逐点几何均值
+  -> <json 文件>                                                    # 仅给了 --json 时
 
 历史基线 `.o`（如文档里出现过的 `/tmp/op/overlap.o`）可用
 `scripts/baseline_o.sh <git-rev>` 从对应提交重新构建。

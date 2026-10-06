@@ -8,7 +8,10 @@
 指「本卡原生复数 FFT 路径」；裸 CANN C API 一路见 `baseline_rfft --e2e`。
 
   python3 scripts/bench_native_npu.py --ns 256,1024,4096 --bs 1,64,4096 --reps 20
-输出每行：NATIVE n=<n> b=<b> native_us=<us> maxRel=<rel>
+输出（stdout）每行：
+  NATIVE     n=<n> b=<b> native_us=<min> native_mean_us=<mean> maxRel=<rel> PASS|FAIL
+  NATIVE_E2E n=<n> b=<b> e2e_us=<min> e2e_mean_us=<mean> first_us=<us> maxRel=<rel> PASS|FAIL
+             （第二行只在 --e2e 时输出；first_us = 该 shape 的冷调用）
 maxRel 为 NPU 输出与 torch CPU 双精度参考的相对误差（判据 1e-4）。
 """
 import argparse, os, sys, time, warnings
