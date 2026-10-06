@@ -335,11 +335,83 @@ def fig_e2e_three(e2e, out):
     save(fig, out, "fig7_three_way_e2e.png")
 
 
+# ------------------------------------------------------------------ fig8
+def fig_box(rows, e2rows, approws, out):
+    """加速比分布箱型图：device-only(49) / 端到端(49) / 应用负载端到端(12)。
+
+    一张图回答「加速比的范围有多大」：箱体 = Q1..Q3，中位线 = median，
+    须 = min/max（离群点单独画），红虚线 = 1.0x 打平。
+    """
+    sets = []
+    v = [r["ratio"] for r in rows if r.get("ratio") == r.get("ratio")]
+    if v:
+        sets.append(("Device-only\n49 points", v))
+    v = [r["e2e_ratio"] for r in (e2rows or [])
+         if r.get("e2e_ratio") == r.get("e2e_ratio")]
+    if v:
+        sets.append(("End-to-end\n49 points", v))
+    v = [r["e2e_ratio"] for r in (approws or [])
+         if r.get("e2e_ratio") == r.get("e2e_ratio")]
+    if v:
+        sets.append(("App loads,\nend-to-end (%d)" % len(v), v))
+    if not sets:
+        return
+    data = [np.asarray(d, dtype=float) for _, d in sets]
+    # min/max 写进 x 轴刻度的第三行，不画在坐标区里 —— 图内标注会压到
+    # 坐标区底边与刻度标签上（端到端那箱的 min 还在 1.0x 红线之下）。
+    labels = [f"{lb}\n{d.min():.2f}–{d.max():.2f}x"
+              for lb, d in zip((lb for lb, _ in sets), data)]
+    colors = ["#1f77b4", "#2ca02c", "#ff7f0e"]
+
+    fig, ax = plt.subplots(figsize=(7.8, 4.9))
+    bp = ax.boxplot(data, positions=list(range(1, len(data) + 1)), widths=0.46,
+                    patch_artist=True, showfliers=True,
+                    flierprops=dict(marker="o", ms=3.5, mfc="0.4", mec="none", alpha=.7),
+                    medianprops=dict(color="black", lw=1.7),
+                    whiskerprops=dict(color="0.35"), capprops=dict(color="0.35"))
+    for patch, c in zip(bp["boxes"], colors[:len(data)]):
+        patch.set_facecolor(c)
+        patch.set_alpha(0.32)
+        patch.set_edgecolor(c)
+        patch.set_linewidth(1.3)
+    rng = np.random.default_rng(0)
+    for i, d in enumerate(data, 1):
+        ax.scatter(np.full(len(d), i) + rng.uniform(-0.14, 0.14, len(d)), d,
+                   s=9, color=colors[i - 1], alpha=0.7, linewidths=0, zorder=3)
+
+    ax.axhline(1.0, color="#d62728", ls="--", lw=1.2, zorder=4)
+    ax.text(len(data) + 0.45, 1.0, "parity 1.0x", color="#d62728",
+            fontsize=8.5, va="center", ha="left")
+    for i, d in enumerate(data, 1):
+        med = float(np.median(d))
+        ax.text(i, med, f"  median {med:.2f}x", fontsize=8.5, va="center",
+                ha="left", fontweight="bold")
+
+    geos = " / ".join(f"{np.exp(np.mean(np.log(d))):.2f}x" for d in data)
+    ax.set_title("Speedup vs CANN native (>1 = faster)\n"
+                 f"geometric means: {geos}   (left to right)", fontsize=11)
+    ax.set_ylabel("speedup (x)")
+    ax.set_xticks(list(range(1, len(data) + 1)))
+    ax.set_xticklabels(labels, fontsize=9.5)
+    lo_all = min(float(d.min()) for d in data)
+    hi_all = max(float(d.max()) for d in data)
+    # 底边留 0.15 让 1.0x 红线与其下唯一的离群点（端到端 min 0.95x）不贴边
+    ax.set_ylim(min(0.9, lo_all - 0.15),
+                hi_all + max(0.4, 0.12 * (hi_all - lo_all)))
+    ax.grid(axis="y", color="0.88", lw=.7)
+    ax.set_axisbelow(True)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    fig.tight_layout()
+    save(fig, out, "fig8_speedup_boxplot.png")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--matrix", default="docs/matrix_test_a7.md")
     ap.add_argument("--std", default="docs/性能对比-标准库vs自研.md")
     ap.add_argument("--e2e", default="results/e2e.json")
+    ap.add_argument("--e2e-app", default="results/e2e_app.json")
     ap.add_argument("--out", default="docs/figures")
     a = ap.parse_args()
 
@@ -370,6 +442,7 @@ def main():
     except FileNotFoundError:
         print("stdlib 文档不存在，跳过 fig4", file=sys.stderr)
 
+    er = []
     try:
         e = json.load(open(ap_(a.e2e), encoding="utf-8"))
         # e2e_test.py 用 "batch"，统一成 "b" 与矩阵表一致
@@ -393,6 +466,17 @@ def main():
     except FileNotFoundError:
         print(f"{a.e2e} 不存在，跳过 fig6（先跑 scripts/e2e_test.py）",
               file=sys.stderr)
+
+    app_r = []
+    try:
+        aj = json.load(open(ap_(a.e2e_app), encoding="utf-8"))
+        app_r = [r for r in aj.get("rows", [])
+                 if r.get("e2e_ratio") == r.get("e2e_ratio")]
+        if app_r:
+            print(f"e2e_app: {len(app_r)} points")
+    except (FileNotFoundError, ValueError):
+        print(f"{a.e2e_app} 不存在，fig8 只画两箱", file=sys.stderr)
+    made.append("fig8_speedup_boxplot.png"); fig_box(rows, er, app_r, ap_(a.out))
 
     print(f"done: {len(made)} figures")
     return 0

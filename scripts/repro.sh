@@ -32,7 +32,7 @@ reg e2e         "docs/实验对比.md · 图6/图7"                    "端到�
     "python3 scripts/e2e_test.py --reps 10 --rounds 3"
 reg e2e-app     "docs/实验对比.md §6.4"                        "三类典型应用负载端到端（OFDM/雷达/深度学习频域层，应用形状输入）" \
     "python3 scripts/e2e_test.py --app all --reps 10 --rounds 3"
-reg figures     "docs/实验对比.md"                              "出 7 张图 -> docs/figures/" \
+reg figures     "docs/实验对比.md"                              "出 8 张图 -> docs/figures/" \
     "python3 scripts/plot_results.py"
 reg doc         "docs/实验对比.md"                              "出图 + 详表文档（本文档是生成物）" \
     "python3 scripts/gen_compare_doc.py"

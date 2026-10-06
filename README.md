@@ -11,37 +11,18 @@ device kernel 用 AscendC 写，host 侧带一层「枚举 → 计费 → 实测
 在 Ascend910_9382（48 AIV）全网格 49 个 `(n, batch)` 点上，**device-only 对 CANN 原生复数 FFT 49 : 0**。
 设计移植自 [**cuButterfly**](https://github.com/TruNcat3/cuButterfly)（BSD-3-Clause）。
 
-**一句话总结。** 相较于 CANN 原生复数 FFT：**device-only 计算口径快 1.04× ~ 6.86×**
-（几何均值 **3.01×**，全网格 **49 : 0**）；把 `H2D 拷贝 → 一次前向复数 FFT → D2H 拷贝`
-三段整体计时的**端到端口径**（三方主机缓冲统一 **pinned**；进程启动、设备上下文、plan 构建
-与输入生成都在计时区外）**46 / 49 个点更快、1.02× ~ 2.70×**（几何均值 **1.66×**，
-小批量 `B ≤ 64` 一档 **28 / 28 全胜**、几何均值 2.01×），另外 3 个大 batch 点是
-0.95× ~ 0.99× 的持平档；再把输入换成**三类典型应用的形状**（OFDM / 雷达距离门 /
-DL 频域层，12 个代表形状）仍 **12 / 12 全胜、几何均值 1.70×**。两种口径的逐点数据与
-拆分原因见下文 `结果`。
+**一句话总结。** 相较于 CANN 原生复数 FFT（**>1 = 自研更快**），三种计时口径全部占优：
 
-**端到端那一列测的应用形态。** 计时区间就是 `H2D 拷贝 → 一次前向复数 FFT → D2H 拷贝`，
-也就是「数据落在 host、变换放在卡上」这类程序的最小闭环。它服务的典型应用有三类，
-而这三类在这一步长得完全一样 —— 一批 `[batch][2n]` 的复数搬上去、做一次前向 FFT、结果整批搬回来：
+| 口径 | 计时范围 | 结果 |
+|---|---|---|
+| **device-only** | 只测 kernel 执行 | **49 / 49**，几何均值 **3.01×**（1.04× ~ 6.86×） |
+| **端到端** | `H2D 拷贝 → 一次前向复数 FFT → D2H 拷贝`（pinned 主机缓冲；启动 / plan / 输入生成在计时区外） | **46 / 49**，几何均值 **1.66×**（1.02× ~ 2.70×），输的 3 点 0.95× ~ 0.99× |
+| **应用负载** | 同上，输入换成三类应用的真实形状（OFDM / 雷达距离门 / DL 频域层，12 个代表形状） | **12 / 12**，几何均值 **1.70×**（1.32× ~ 2.70×） |
 
-- **多载波通信 / 频域均衡**：一帧 OFDM 符号在 host 采集，上卡逐符号 FFT 后回 CPU 解调，
-  `batch` = 一帧里的符号数。开源参考 [srsRAN](https://github.com/srsran)、
-  [GNU Radio](https://github.com/gnuradio/gnuradio)。
-- **雷达成像的距离门**：一帧内的多路回波做距离 FFT，`batch` = 脉冲 / 通道数 ——
-  range-doppler 处理链的第一步就是它。开源参考：GNU Radio 生态的 FMCW range-doppler 实现。
-- **深度学习的频域层**：卷积 / 注意力改在频域做的中间特征，由 host 侧编排，
-  `batch` = 样本数 × 序列数。开源参考 [Kymatio](https://github.com/kymatio/kymatio)、
-  PyTorch 的 `torch.fft`。
+![box plot of speedup distributions for device-only, end-to-end, and application-load benchmarks](docs/figures/fig8_speedup_boxplot.png)
 
-**实测（三类应用 × 12 个代表形状，`scripts/repro.sh e2e-app`）**：换成应用形状的输入后
-正确性 **12 / 12 PASS**（maxRel ≤ 1e-4），device-only **12 / 12 全胜、几何均值 3.12×**，
-端到端 **12 / 12 全胜、几何均值 1.70×**（1.32× ~ 2.70×）—— 与网格口径的 46/49、1.66× 同量级，
-换输入、换代表性 shape 都不改变结论。逐点见
-[实验对比 §6.4](docs/实验对比.md#64-三类典型应用负载)。
-
-**口径注意**：§6 与图 6 / 图 7 的**网格**读数用**随机输入**测 —— 这三段的时间只取决于
-字节数与 kernel 本身，与数据内容无关，所以三类应用拿到的是同一批数；三者各自的前处理
-（解调、CFAR、反归一化）**不在**计时区内。应用形状输入的对照就是上面那 12 个点。
+**图 8 —— 加速比的分布**：三个箱依次对应上面三行（箱体 Q1~Q3、粗线中位数、须到 min / max、
+散点为逐点值），红虚线是 1.0× 打平线。逐点数值与拆分原因见下文 `结果`。
 
 > **English.** Ascend-FFT is a radix-2 DIT complex fp32 FFT library for Huawei Ascend NPUs,
 > written in AscendC, with a host-side framework that enumerates a design space, prices each
@@ -58,8 +39,8 @@ DL 频域层，12 个代表形状）仍 **12 / 12 全胜、几何均值 1.70×**
 
 1. **只想知道它是什么** → [架构](#架构)：一张图讲清四层选型闭环与端到端数据流。
 2. **想知道这些数字怎么来的** → [性能总阶段](#性能总阶段)：阶段 0 → 49 : 0 的每一次跳变。
-3. **要复现结果** → [结果](#结果) 的图 1 / 图 3 / 图 6，再进
-   [`docs/实验对比.md`](docs/实验对比.md)（7 张图的完整版 + 逐点详表）。
+3. **要复现结果** → [结果](#结果) 的图 8 / 图 1 / 图 3 / 图 6，再进
+   [`docs/实验对比.md`](docs/实验对比.md)（图1~7 的完整版 + 逐点详表）。
 4. **要改 kernel 或模型** → [思路](#思路) 4 条，再进
    [`docs/性能优化-C2b与K择优.md`](docs/性能优化-C2b与K择优.md)（5 轮 A/B 全记录）。
 5. **要从零跑起来** → [快速开始](#快速开始)：一条 `scripts/init.sh`。
@@ -125,7 +106,8 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 ## 结果
 
 全网格 49 点：`n ∈ {64…4096}` × `batch ∈ {1…4096}`，`--reps 20 --rounds 3`、逐点取 min-of-means。
-**图编号沿用 [`docs/实验对比.md`](docs/实验对比.md)**（那里是全部 7 张图的完整版）。
+**图编号沿用 [`docs/实验对比.md`](docs/实验对比.md)**（那里是图 1~7 的完整版；
+图 8 是本 README 专用的分布图，由 `scripts/plot_results.py` 与之同批生成）。
 
 ![device-only speedup heatmap: 49/49 points faster than CANN native, geometric mean 3.01x](docs/figures/fig1_speedup_heatmap.png)
 
@@ -149,6 +131,25 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 逐点数值见 [`docs/matrix_test_a7.md`](docs/matrix_test_a7.md)；
 六基线（numpy / torch / `aclRfft1D` / v1 / 原生 / 自研）同场见
 [`docs/性能对比-标准库vs自研.md`](docs/性能对比-标准库vs自研.md)。
+
+**端到端那一行测的应用形态。** 计时区间就是 `H2D 拷贝 → 一次前向复数 FFT → D2H 拷贝`，
+即「数据落在 host、变换放在卡上」这类程序的最小闭环；它服务的三类典型应用在这一步长得
+完全一样 —— 一批 `[batch][2n]` 的复数搬上去、做一次前向 FFT、结果整批搬回来：
+
+- **多载波通信 / 频域均衡**：一帧 OFDM 符号在 host 采集，上卡逐符号 FFT 后回 CPU 解调，
+  `batch` = 一帧里的符号数。开源参考 [srsRAN](https://github.com/srsran)、
+  [GNU Radio](https://github.com/gnuradio/gnuradio)。
+- **雷达成像的距离门**：一帧内的多路回波做距离 FFT，`batch` = 脉冲 / 通道数 ——
+  range-doppler 处理链的第一步就是它。
+- **深度学习的频域层**：卷积 / 注意力改在频域做的中间特征，由 host 侧编排，
+  `batch` = 样本数 × 序列数。开源参考 [Kymatio](https://github.com/kymatio/kymatio)、
+  PyTorch 的 `torch.fft`。
+
+**实测**（`scripts/repro.sh e2e-app`，12 个代表形状）：device-only **12 / 12**、**3.12×**，
+端到端 **12 / 12**、**1.70×** —— 与网格口径同量级，换输入、换代表性 shape 都不改变结论；
+逐点见 [实验对比 §6.4](docs/实验对比.md#64-三类典型应用负载)。
+**口径**：网格读数（图 1 / 3 / 6 / 7 与 §6）用**随机输入**测 —— 这三段的时间只取决于字节数与
+kernel 本身，与数据内容无关；三者各自的前处理（解调、CFAR、反归一化）**不在**计时区内。
 
 ![speedup and latency vs batch, one line per n](docs/figures/fig3_speedup_curve.png)
 
@@ -400,7 +401,7 @@ uint32_t foldDFor(uint32_t n, uint32_t batch,
 | 六基线 49 点 | `scripts/repro.sh sixway` | [docs/性能对比-标准库vs自研.md](docs/性能对比-标准库vs自研.md) | 同左 |
 | 端到端三路（自研 / torch / 裸 CANN，**三路均 pinned 主机缓冲**） | `scripts/repro.sh e2e` | `results/e2e.{md,json}` | [docs/实验对比.md](docs/实验对比.md) 图6·图7 · §6.2口径 |
 | 应用负载端到端（OFDM / 雷达 / DL 频域层，**应用形状输入**，三方逐位同式） | `scripts/repro.sh e2e-app` | `results/e2e_app.{md,json}` | [docs/实验对比.md](docs/实验对比.md) §6.4 |
-| 出图（图1~7） | `scripts/repro.sh figures` | [docs/figures/](docs/figures/) | [docs/实验对比.md](docs/实验对比.md) |
+| 出图（图1~8） | `scripts/repro.sh figures` | [docs/figures/](docs/figures/) | [docs/实验对比.md](docs/实验对比.md) |
 | 出架构图 | `python3 scripts/gen_arch_diagram.py` | [docs/figures/architecture.svg](docs/figures/architecture.svg) | 本文 [架构](#架构) |
 | 出对比文档 | `scripts/repro.sh doc` | [docs/实验对比.md](docs/实验对比.md) | 同左（生成物） |
 | η 成本模型标定 | `scripts/repro.sh eta` | 打印 3 个系数，人工回填 `estimate()` | [docs/性能优化-C2b与K择优.md](docs/性能优化-C2b与K择优.md) §3·§11.5 |
