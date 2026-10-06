@@ -40,6 +40,63 @@ static uint32_t readArgSize(const char* path){
     return 0;
 }
 
+// ---- 应用形状输入（AB_INPUT，默认 sin，保持既有门禁/矩阵口径不变）----------
+// 三类典型应用共用同一套确定性 PRNG，公式与 scripts/bench_native_npu.py 的
+// --input 实现逐位一致（xorshift32 三轮，seed = b*2654435761 + k*40503）：
+//   ofdm  16-QAM 子载波（DC/保护带置零、每 12 个子载波一个导频）—— 多载波通信
+//   radar 4 个目标的复指数距离回波（逐脉冲多普勒相位）            —— 雷达距离门
+//   dl    每 8 点一块的复激活（幅度 + 4PSK 相位）                 —— 深度学习频域层
+// 输出仍与下面的双精度 refFft 逐点比对，PASS/FAIL 口径不变。
+static inline uint32_t appHash(uint32_t b, uint32_t k){
+    uint32_t x = b*2654435761u + k*40503u;
+    x ^= x<<13; x ^= x>>17; x ^= x<<5;
+    x ^= x<<13; x ^= x>>17; x ^= x<<5;
+    return x;
+}
+
+static void genAppInput(std::vector<float>& hIn, uint32_t n, uint32_t batch,
+                        const char* mode){
+    static const float q[4] = {-3.f, -1.f, 1.f, 3.f};
+    const bool ofdm  = strcmp(mode,"ofdm")==0;
+    const bool radar = strcmp(mode,"radar")==0;
+    // dl 是第三种（都不匹配时的分支）
+    for(uint32_t b=0;b<batch;b++){
+        for(uint32_t k=0;k<n;k++){
+            uint32_t x = appHash(b,k);
+            float re=0.f, im=0.f;
+            if(ofdm){
+                bool guard = (k==0u) || (k < n/16u) || (k >= n-n/16u);
+                if(guard){ re=0.f; im=0.f; }
+                else if((k%12u)==0u){                    // 导频：QPSK、单位幅度
+                    re = (x&1u)?1.f:-1.f; im = (x&2u)?1.f:-1.f;
+                }else{                                    // 16-QAM，功率归一 1/sqrt(10)
+                    re = q[(x>>0)&3u]*0.31622776f; im = q[(x>>2)&3u]*0.31622776f;
+                }
+            }else if(radar){
+                static const float fr[4] = {1.f/16, 1.f/5, 1.f/3, 0.62f};
+                static const float am[4] = {1.f, 0.5f, 0.25f, 0.125f};
+                static const float dop[4] = {0.f, 1.f/64, -1.f/128, 3.f/256};
+                double sr=0, si=0;
+                for(int t=0;t<4;t++){
+                    double ph = 2.0*M_PI*(fr[t]*(double)k + dop[t]*(double)b)
+                              + (t*0.7 + ((x>>8)&255u)/255.0*0.3);
+                    sr += am[t]*std::cos(ph); si += am[t]*std::sin(ph);
+                }
+                re = 0.25f*(float)sr; im = 0.25f*(float)si;
+            }else{                                        // dl：8 点一块的复激活
+                uint32_t xb = appHash(b, k/8u);
+                float mag = (float)((xb>>8)&255u)/255.0f;
+                uint32_t phs = (xb>>16)&3u;
+                static const float c[4] = {1.f, 0.f, -1.f, 0.f};
+                static const float s[4] = {0.f, 1.f, 0.f, -1.f};
+                re = mag*c[phs]; im = mag*s[phs];
+            }
+            hIn[2u*((size_t)b*n+k)]   = re;
+            hIn[2u*((size_t)b*n+k)+1] = im;
+        }
+    }
+}
+
 static void refFft(const float* in, std::complex<double>* y, uint32_t n){
     uint32_t logn=0; while((1u<<logn)<n) logn++;
     for(uint32_t i=0;i<n;i++){
@@ -85,8 +142,14 @@ int main(int argc, char** argv){
     const auto tBoot1=std::chrono::steady_clock::now();
 
     std::vector<float> hIn(elements);
-    for(uint32_t i=0;i<elements;i++)
-        hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
+    // AB_INPUT=sin（默认）| ofdm | radar | dl —— 见上面 genAppInput 的注释。
+    const char* inMode = getenv("AB_INPUT") ? getenv("AB_INPUT") : "sin";
+    if(strcmp(inMode,"sin")==0){
+        for(uint32_t i=0;i<elements;i++)
+            hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
+    }else{
+        genAppInput(hIn, n, batch, inMode);
+    }
     std::vector<float> hOut(elements,0.f);
     // plan 计时从这里起：跳过 hIn 测试输入的生成（host 上的 sin/cos 逐元素循环，
     // 大形状能到上百 ms，属于测试夹具而非 plan 准备）
@@ -268,9 +331,9 @@ int main(int argc, char** argv){
         double planUs=std::chrono::duration<double,std::micro>(tSetup1-tPlan0).count();
         double spanUs=std::chrono::duration<double,std::micro>(t0e-tSetup1).count();
         printf("E2E n=%u batch=%u reps=%d e2e_us=%.1f e2e_min_us=%.1f first_us=%.1f "
-               "boot_us=%.1f plan_us=%.1f warmup_us=%.1f mode=%s host=%s\n",
+               "boot_us=%.1f plan_us=%.1f warmup_us=%.1f mode=%s host=%s input=%s\n",
                n,batch,ereps,e,minE,firstE,bootUs,planUs,spanUs,
-               useAsync?"async":"sync", hostTag);
+               useAsync?"async":"sync", hostTag, inMode);
         fflush(stdout);
         if(pIn){ aclrtFreeHost(pIn); aclrtFreeHost(pOut); }
     }

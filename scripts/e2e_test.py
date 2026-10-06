@@ -74,7 +74,46 @@ def main():
     ap.add_argument("--json", default="results/e2e.json")
     ap.add_argument("--no-bare", action="store_true",
                     help="跳过裸 CANN aclRfft1D 端到端（需 build/baseline_rfft）")
+    ap.add_argument("--app", default="", choices=["", "ofdm", "radar", "dl", "all"],
+                    help="应用负载模式：按典型应用的 (n,batch) 组合 + 应用形状输入"
+                         "（fft_check AB_INPUT / bench_native_npu --input，两者逐位同式）"
+                         "重跑三方端到端；输出默认 results/e2e_app.{md,json}，"
+                         "并跳过实->复的裸 CANN 一路（变换不同，不参与胜负）")
     a = ap.parse_args()
+
+    # 典型应用的代表形状（都是既有网格里的点：n 为 2 的幂、batch 任意）
+    #   ofdm  4G LTE 20 MHz 的 FFT 点数，一子帧 14 符号 / 一帧 140 符号
+    #   radar 一帧 64 个脉冲（×4 接收通道 = 256），距离门数取 1024/2048
+    #   dl    频域层的复激活，batch = 样本 × 通道
+    APPS = {
+        "ofdm":  ("2048,4096", "14,140",
+                  "多载波通信 / 频域均衡（16-QAM 子载波，DC/保护带置零）"),
+        "radar": ("1024,2048", "64,256",
+                  "雷达成像距离门（4 目标复指数回波 + 逐脉冲多普勒相位）"),
+        "dl":    ("1024,4096", "32,128",
+                  "深度学习频域层（每 8 点一块的复激活）"),
+    }
+    runs, inp = [], {}            # runs: (app, ns_str, bs_str)；inp: (n,b) -> 应用输入模式
+    if a.app:
+        for nm in (["ofdm", "radar", "dl"] if a.app == "all" else [a.app]):
+            ns_s, bs_s, _desc = APPS[nm]
+            runs.append((nm, ns_s, bs_s))
+            for n in [int(x) for x in ns_s.split(",")]:
+                for b in [int(x) for x in bs_s.split(",")]:
+                    inp[(n, b)] = nm
+        if a.out == "results/e2e.md":
+            a.out = "results/e2e_app.md"
+        if a.json == "results/e2e.json":
+            a.json = "results/e2e_app.json"
+        a.no_bare = True          # 裸一路是实->复、搬运量减半，与这三类应用不可比
+    else:
+        runs = [("", a.ns, a.bs)]
+    pairs = [(int(n), int(b)) for _, ns_s, bs_s in runs
+             for n in ns_s.split(",") for b in bs_s.split(",")]
+    if len(set(pairs)) != len(pairs):
+        # shape 跨应用重叠会让三方记录（按 (n,b) 键）互相污染，必须唯一
+        print(f"ERR: shape 重复：{pairs}", file=sys.stderr)
+        return 2
     ns = [int(x) for x in a.ns.split(",")]
     bs = [int(x) for x in a.bs.split(",")]
     rounds = max(1, a.rounds)
@@ -84,27 +123,31 @@ def main():
     bare_ok = True
 
     # ---- 原生：一个进程跑完全网格（进程级冷启动只消耗一次）----
-    print(f"[1/3] CANN 原生 E2E  ({len(ns)}x{len(bs)} x{rounds}) ...", file=sys.stderr)
+    what = (f"{len(runs)} 个应用 × {len(pairs)} 个 shape"
+            if a.app else f"{len(ns)}x{len(bs)}")
+    print(f"[1/3] CANN 原生 E2E  ({what} x{rounds}) ...", file=sys.stderr)
     for _ in range(rounds):
-        out = sh(f"{PY} scripts/bench_native_npu.py --ns {a.ns} --bs {a.bs} "
-                 f"--reps {max(a.reps, 20)} --e2e")
-        for ln in out.splitlines():
-            m = re.match(r"NATIVE n=(\d+) b=(\d+) native_us=([\d.]+) native_mean_us=([\d.]+) "
-                         r"maxRel=([\d.eE+-]+) (\w+)", ln)
-            if m:
-                k = (int(m.group(1)), int(m.group(2)))
-                d = nat.setdefault(k, {})
-                d["dev_mean"] = minof(d.get("dev_mean"), float(m.group(4)))
-                d["dev_min"] = minof(d.get("dev_min"), float(m.group(3)))
-                nat_ok &= (m.group(6) == "PASS")
-            m = re.match(r"NATIVE_E2E n=(\d+) b=(\d+) e2e_us=([\d.]+) e2e_mean_us=([\d.]+) "
-                         r"first_us=([\d.]+) maxRel=([\d.eE+-]+) (\w+)", ln)
-            if m:
-                k = (int(m.group(1)), int(m.group(2)))
-                d = nat.setdefault(k, {})
-                d["e2e_min"] = minof(d.get("e2e_min"), float(m.group(3)))
-                d["e2e_mean"] = minof(d.get("e2e_mean"), float(m.group(4)))
-                d["first_us"] = minof(d.get("first_us"), float(m.group(5)))
+        for nm, ns_s, bs_s in runs:
+            out = sh(f"{PY} scripts/bench_native_npu.py --ns {ns_s} --bs {bs_s} "
+                     f"--reps {max(a.reps, 20)} --e2e"
+                     + (f" --input {nm}" if nm else ""))
+            for ln in out.splitlines():
+                m = re.match(r"NATIVE n=(\d+) b=(\d+) native_us=([\d.]+) native_mean_us=([\d.]+) "
+                             r"maxRel=([\d.eE+-]+) (\w+)", ln)
+                if m:
+                    k = (int(m.group(1)), int(m.group(2)))
+                    d = nat.setdefault(k, {})
+                    d["dev_mean"] = minof(d.get("dev_mean"), float(m.group(4)))
+                    d["dev_min"] = minof(d.get("dev_min"), float(m.group(3)))
+                    nat_ok &= (m.group(6) == "PASS")
+                m = re.match(r"NATIVE_E2E n=(\d+) b=(\d+) e2e_us=([\d.]+) e2e_mean_us=([\d.]+) "
+                             r"first_us=([\d.]+) maxRel=([\d.eE+-]+) (\w+)", ln)
+                if m:
+                    k = (int(m.group(1)), int(m.group(2)))
+                    d = nat.setdefault(k, {})
+                    d["e2e_min"] = minof(d.get("e2e_min"), float(m.group(3)))
+                    d["e2e_mean"] = minof(d.get("e2e_mean"), float(m.group(4)))
+                    d["first_us"] = minof(d.get("first_us"), float(m.group(5)))
     print(f"    native {len(nat)} 点 {'PASS' if nat_ok else 'FAIL'}", file=sys.stderr)
 
     # ---- 裸 CANN C API：逐点一个进程（每进程自带 boot + 极小变换冷启动）----
@@ -120,8 +163,7 @@ def main():
                r"e2e_us=([\d.]+) e2e_mean_us=([\d.]+) first_us=([\d.]+) "
                r"boot_us=([\d.]+) setup_us=([\d.]+) ws_mb=([\d.]+) "
                r"maxRel=([\d.eE+-]+) (\w+)")
-        for n in ns:
-            for b in bs:
+        for n, b in pairs:
                 cmd = (f"./build/baseline_rfft {n} {b} 1 {abenv.work()}/ab_bare.bin "
                        f"--e2e --reps={max(a.reps, 10)}")
                 d = bare.setdefault((n, b), {})
@@ -145,11 +187,11 @@ def main():
         print(f"[2/3] 裸 CANN aclRfft1D E2E — 跳过", file=sys.stderr)
 
     # ---- 自研：逐点一个进程（boot/plan 是进程级一次性，天然逐点独立）----
-    print(f"[3/3] 自研 kfft_fwd E2E ({len(ns)}x{len(bs)}, reps={a.reps} x{rounds}) ...",
+    print(f"[3/3] 自研 kfft_fwd E2E ({what}, reps={a.reps} x{rounds}) ...",
           file=sys.stderr)
-    for n in ns:
-        for b in bs:
-            cmd = (f"AB_E2E={a.reps} ./build/fft_check {n} {b} {a.reps}")
+    for n, b in pairs:
+            cmd = (f"{('AB_INPUT=' + inp[(n, b)] + ' ') if (n, b) in inp else ''}"
+                   f"AB_E2E={a.reps} ./build/fft_check {n} {b} {a.reps}")
             d = ours.setdefault((n, b), {})
             for _ in range(rounds):
                 s = sh(cmd)
@@ -183,22 +225,42 @@ def main():
             return float("nan")
 
     lines, L = [], []
-    L.append("# 端到端对比：H2D + 变换 + D2H（自研 vs CANN 原生 vs 裸 CANN C API）\n")
+    L.append(("#应用负载端到端对比：H2D + 变换 + D2H（自研 vs CANN 原生）\n"
+              if a.app else
+              "# 端到端对比：H2D + 变换 + D2H（自研 vs CANN 原生 vs 裸 CANN C API）\n"))
     L.append(f"> 硬件 Ascend910_9382（48 AIV）；reps={a.reps}；`--rounds {rounds}` "
              f"逐点 min-of-means（与 `matrix_test.py` 同口径）。\n")
-    L.append("> **口径**（三路逐段对应，计时区外均剔除进程/框架启动与输入生成）：\n"
-             "> 1. `自研` = H2D → `kfft_fwd` → D2H（复数→复数，`fft_check AB_E2E=1`）\n"
-             "> 2. `原生` = `xd.copy_(x_cpu)` → `torch.fft.fft(xd)` → `yd.copy_(out)`（源/目的均 pinned）"
-             "（复数→复数，torch_npu op-plugin 内核）\n"
-             "> 3. `裸 CANN` = H2D → `aclRfft1D` → D2H（**实→复、单边**，唯一可用的裸 "
-             "CANN C API FFT —— CANN 9.0.0 没有复数→复数 C API）\n"
-             "> \n"
-             "> **表1 的 `E2E 比值 > 1` 表示自研更快**；只算 kernel 的 `device 比值` "
-             "见 `matrix_test_a7.md`。**表2 仅作参照、不参与胜负统计**：\n"
-             "> * 变换不同（实→复 vs 复→复），且 **搬运量正好是一半**"
-             "（`8n·B` vs `16n·B` 字节），大 batch 的 E2E 不可直接比；\n"
-             "> * 它的价值在 **device-only**：与传输无关，用来把「CANN 算子调用路径的"
-             "固定开销」和「torch 调度 + op-plugin」分开。\n")
+    if a.app:
+        names = ["ofdm", "radar", "dl"] if a.app == "all" else [a.app]
+        L.append("> **应用负载模式** `--app " + a.app + "`：三方都喂**应用形状的输入**"
+                 "（自研 `AB_INPUT=<app>`、原生 `--input <app>`，C++ 与 numpy 同一套 "
+                 "xorshift32、**逐位同式**），仍然与各自双精度参考逐点比对（判据 1e-4）。\n")
+        for nm in names:
+            ns_s, bs_s, desc = APPS[nm]
+            L.append(f"> * **{nm}** —— {desc}；形状 n ∈ {{{ns_s}}} × batch ∈ {{{bs_s}}}，"
+                     f"搬运量 16·n·batch 字节。\n")
+        L.append("> \n")
+    L.append("**口径**（三路逐段对应，计时区外均剔除进程/框架启动与输入生成）：\n"
+             "1. `自研` = H2D → `kfft_fwd` → D2H（复数→复数，`fft_check AB_E2E=1`）\n"
+             "2. `原生` = `xd.copy_(x_cpu)` → `torch.fft.fft(xd)` → `yd.copy_(out)`（源/目的均 pinned）"
+             "（复数→复数，torch_npu op-plugin 内核）\n")
+    if a.app:
+        L.append("3. `裸 CANN aclRfft1D` —— **应用负载模式下跳过**（实→复、搬运量减半，"
+                 "与这三类应用不可比；网格口径的三方对比见 `results/e2e.md`）\n")
+    else:
+        L.append("3. `裸 CANN` = H2D → `aclRfft1D` → D2H（**实→复、单边**，唯一可用的裸 "
+                 "CANN C API FFT —— CANN 9.0.0 没有复数→复数 C API）\n")
+    L.append(" \n"
+             "**表1 的 `E2E 比值 > 1` 表示自研更快**；只算 kernel 的 `device 比值` "
+             "见 `matrix_test_a7.md`。")
+    if a.app:
+        L.append("\n")
+    else:
+        L.append("**表2 仅作参照、不参与胜负统计**：\n"
+                 "* 变换不同（实→复 vs 复→复），且 **搬运量正好是一半**"
+                 "（`8n·B` vs `16n·B` 字节），大 batch 的 E2E 不可直接比；\n"
+                 "* 它的价值在 **device-only**：与传输无关，用来把「CANN 算子调用路径的"
+                 "固定开销」和「torch 调度 + op-plugin」分开。\n")
     L.append("")
 
     # ---------------- 表1：自研 vs 原生（同算法、同搬运量）----------------
@@ -208,8 +270,7 @@ def main():
     L.append("|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|")
 
     rows = []
-    for n in ns:
-        for b in bs:
+    for n, b in pairs:
             o = ours.get((n, b), {})
             d = nat.get((n, b), {})
             br = bare.get((n, b), {})
@@ -227,6 +288,7 @@ def main():
                      f"| {fm(d.get('first_us', float('nan')))} | {rel:.3e} | {ok} |")
             rows.append({
                 "n": n, "batch": b,
+                "app": inp.get((n, b)),
                 "ours_dev": od, "nat_dev": nd, "dev_ratio": dr,
                 "ours_e2e": oe, "nat_e2e": ne, "e2e_ratio": er,
                 "ours_plan_us": plan.get((n, b), float("nan")),
@@ -315,7 +377,8 @@ def main():
     open(a.out, "w", encoding="utf-8").write(txt)
     os.makedirs(os.path.dirname(a.json) or ".", exist_ok=True)
     json.dump({"rows": rows,
-               "meta": {"ns": ns, "bs": bs, "reps": a.reps, "rounds": rounds,
+               "meta": {"ns": ns, "bs": bs, "app": a.app or None,
+                        "shapes": pairs, "reps": a.reps, "rounds": rounds,
                         "bare_run": bool(run_bare),
                         "generated": time.strftime("%Y-%m-%d %H:%M:%S")}},
               open(a.json, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

@@ -74,6 +74,8 @@ def main():
     ap.add_argument("--matrix", default="docs/matrix_test_a7.md")
     ap.add_argument("--std", default="docs/性能对比-标准库vs自研.md")
     ap.add_argument("--e2e", default="results/e2e.json")
+    ap.add_argument("--e2e-app", default="results/e2e_app.json",
+                    help="应用负载端到端（scripts/e2e_test.py --app），缺省时 §6.4 给出跑法")
     ap.add_argument("--out", default="docs/实验对比.md")
     a = ap.parse_args()
     R = lambda p: os.path.join(ROOT, p)
@@ -116,6 +118,7 @@ def main():
       "`results/e2e.json` 完全一致。\n")
     A("> **复现脚本**：[`scripts/matrix_test.py`](../scripts/matrix_test.py) 图1~3 的矩阵 · "
       "[`scripts/e2e_test.py`](../scripts/e2e_test.py) 图6/图7 端到端三路 · "
+      "[`scripts/e2e_test.py --app all`](../scripts/e2e_test.py) §6.4 三类应用负载 · "
       "[`scripts/gen_stdlib_doc.py`](../scripts/gen_stdlib_doc.py) 图4 六基线 · "
       "[`scripts/calib_eta.py`](../scripts/calib_eta.py) 图5 η 标定 · "
       "[`scripts/plot_results.py`](../scripts/plot_results.py) + "
@@ -279,6 +282,13 @@ def main():
                  if k[0] >= 512 and k[1] >= 256 and v["share"] == v["share"]]
         e2w = sum(1 for v in ew if v["e2e"] > 1)
 
+        A("**这一段在实际程序里对应什么。** 端到端计时的 `H2D → 一次前向复数 FFT → D2H`，"
+          "就是「数据在 host、变换在卡上」这类程序的最小闭环，典型有三类 —— 多载波通信 / 频域均衡"
+          "（一帧 OFDM 符号上卡逐符号 FFT，`batch` = 符号数；开源参考 srsRAN、GNU Radio）、"
+          "雷达成像的距离门（一帧内多路回波做距离 FFT，`batch` = 脉冲 / 通道数）、"
+          "深度学习的频域层（频域中间特征，`batch` = 样本 × 序列；开源参考 Kymatio、PyTorch `torch.fft`）。"
+          "三者在这一步的形状完全相同，且**本节数字用随机输入测** —— 这三段耗时只取决于字节数与 kernel，"
+          "与数据内容无关；三者各自的前处理（解调、CFAR、反归一化）**不在**计时区内。\n")
         A("### 6.1　结果怎么读\n")
         A(f"1. **中小尺寸（`B ≤ 256` 且 `n ≤ 1024`，{len(small_win)} 点）**：内核占大头，"
           f"device-only 的优势基本传导到端到端，**{nsw}/{len(small_win)} 更快**。")
@@ -341,7 +351,69 @@ def main():
           "原生的输出张量由 `torch.fft.fft` 每次分配，但 torch_npu 的 caching allocator 使其在 "
           "warmup 后接近常数开销，与自研的预分配 `dOut` 量级相当。\n")
 
-        # ---- 6.4 裸 CANN C API 参照 ----
+        # ---- 6.4 三类典型应用负载（scripts/e2e_test.py --app all）----
+        A("### 6.4　三类典型应用负载\n")
+        app_rows, app_meta = [], {}
+        try:
+            _aj = json.load(open(R(a.e2e_app), encoding="utf-8"))
+            app_rows = _aj.get("rows", [])
+            app_meta = _aj.get("meta", {})
+        except (FileNotFoundError, ValueError):
+            pass
+        if app_rows:
+            # shape -> 应用（老结果里没有 app 字段，按代表形状回推；两边必须保持一致）
+            shape_app = {}
+            for _nm, _ns, _bs in (("ofdm", (2048, 4096), (14, 140)),
+                                  ("radar", (1024, 2048), (64, 256)),
+                                  ("dl", (1024, 4096), (32, 128))):
+                for _n in _ns:
+                    for _b in _bs:
+                        shape_app[(_n, _b)] = _nm
+            A("把随机输入换成**应用形状的输入**（自研 `AB_INPUT=<app>`、原生 `--input <app>`，"
+              "C++ 与 numpy 同一套 xorshift32、**逐位同式**），按三类典型应用的代表形状各测一遍；"
+              "三方口径与 [§6.2](#62-口径) 完全一致（pinned、min-of-means、计时区外剔除启动与输入生成），"
+              "输出仍与各自双精度参考逐点比对（判据 `1e-4`）。\n")
+            A("| 应用 | n | batch | 搬运量 | 自研 device | 原生 device | device 比值 "
+              "| **自研 E2E** | **原生 E2E** | **E2E 比值** | maxRel | 正确性 |")
+            A("|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|")
+
+            def _kb(v):
+                return "—" if v != v else (f"{v / 1048576:.1f} MB" if v >= 1048576
+                                           else f"{v / 1024:.0f} KB" if v >= 1024
+                                           else f"{v} B")
+
+            for r in app_rows:
+                nm = r.get("app") or shape_app.get((r["n"], r["batch"]), "?")
+                od, nd = r.get("ours_dev"), r.get("nat_dev")
+                oe, ne = r.get("ours_e2e"), r.get("nat_e2e")
+                dr, er = r.get("dev_ratio"), r.get("e2e_ratio")
+                ok = "PASS" if r.get("ok") else "FAIL"
+                A(f"| {nm} | {r['n']} | {r['batch']} | {_kb(16 * r['n'] * r['batch'])} "
+                  f"| {od:.1f} | {nd:.1f} | {dr:.2f}× | **{oe:.1f}** | **{ne:.1f}** "
+                  f"| **{er:.2f}×** | {r.get('maxRel', float('nan')):.2e} | {ok} |")
+            A("")
+            _ers = [r["e2e_ratio"] for r in app_rows
+                    if r.get("e2e_ratio") == r.get("e2e_ratio")]
+            _drs = [r["dev_ratio"] for r in app_rows
+                    if r.get("dev_ratio") == r.get("dev_ratio")]
+            _npass = sum(1 for r in app_rows if r.get("ok"))
+            A(f"- 正确性：**{_npass}/{len(app_rows)} PASS**（maxRel ≤ 1e-4）；"
+              f"device-only **{sum(1 for x in _drs if x > 1)}/{len(_drs)}**、"
+              f"几何均值 **{geo(_drs):.2f}×**，端到端 **"
+              f"{sum(1 for x in _ers if x > 1)}/{len(_ers)}**、几何均值 "
+              f"**{geo(_ers):.2f}×** —— 与网格口径（§6.1 的 46/49、1.66×）同量级，"
+              "说明**换成应用形状的输入与代表性 (n, batch) 不改变结论**。")
+            if app_meta.get("reps"):
+                A(f"- 口径：`--reps {app_meta['reps']}`、`--rounds "
+                  f"{app_meta.get('rounds', 3)}` 逐点 min-of-means；裸 CANN 一路"
+                  "（实→复、搬运量减半）在应用负载模式下**不跑**。复现："
+                  "`python3 scripts/e2e_test.py --app all --reps 10 --rounds 3`。\n")
+        else:
+            A("本节由 `results/e2e_app.json` 生成，**当前尚未测过**。先跑：\n")
+            A("`python3 scripts/e2e_test.py --app all --reps 10 --rounds 3`"
+              "（或 `scripts/repro.sh e2e-app`），再重新生成本文。\n")
+
+        # ---- 图7：裸 CANN C API 参照 ----
         bare = [(k, v) for k, v in e2.items()
                 if v.get("bare_dev") == v.get("bare_dev")
                 and v.get("bare_e2e") == v.get("bare_e2e")]

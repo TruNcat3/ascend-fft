@@ -12,10 +12,36 @@ device kernel 用 AscendC 写，host 侧带一层「枚举 → 计费 → 实测
 设计移植自 [**cuButterfly**](https://github.com/TruNcat3/cuButterfly)（BSD-3-Clause）。
 
 **一句话总结。** 相较于 CANN 原生复数 FFT：**device-only 计算口径快 1.04× ~ 6.86×**
-（几何均值 **3.01×**，全网格 **49 : 0**）；把 H2D / D2H 搬运也算进来的**端到端口径**
-（三方主机缓冲统一 **pinned**）**46 / 49 个点更快、1.02× ~ 2.70×**（几何均值 **1.66×**，
+（几何均值 **3.01×**，全网格 **49 : 0**）；把 `H2D 拷贝 → 一次前向复数 FFT → D2H 拷贝`
+三段整体计时的**端到端口径**（三方主机缓冲统一 **pinned**；进程启动、设备上下文、plan 构建
+与输入生成都在计时区外）**46 / 49 个点更快、1.02× ~ 2.70×**（几何均值 **1.66×**，
 小批量 `B ≤ 64` 一档 **28 / 28 全胜**、几何均值 2.01×），另外 3 个大 batch 点是
-0.95× ~ 0.99× 的持平档 —— 两种口径的逐点数据与拆分原因见下文 `结果`。
+0.95× ~ 0.99× 的持平档；再把输入换成**三类典型应用的形状**（OFDM / 雷达距离门 /
+DL 频域层，12 个代表形状）仍 **12 / 12 全胜、几何均值 1.70×**。两种口径的逐点数据与
+拆分原因见下文 `结果`。
+
+**端到端那一列测的应用形态。** 计时区间就是 `H2D 拷贝 → 一次前向复数 FFT → D2H 拷贝`，
+也就是「数据落在 host、变换放在卡上」这类程序的最小闭环。它服务的典型应用有三类，
+而这三类在这一步长得完全一样 —— 一批 `[batch][2n]` 的复数搬上去、做一次前向 FFT、结果整批搬回来：
+
+- **多载波通信 / 频域均衡**：一帧 OFDM 符号在 host 采集，上卡逐符号 FFT 后回 CPU 解调，
+  `batch` = 一帧里的符号数。开源参考 [srsRAN](https://github.com/srsran)、
+  [GNU Radio](https://github.com/gnuradio/gnuradio)。
+- **雷达成像的距离门**：一帧内的多路回波做距离 FFT，`batch` = 脉冲 / 通道数 ——
+  range-doppler 处理链的第一步就是它。开源参考：GNU Radio 生态的 FMCW range-doppler 实现。
+- **深度学习的频域层**：卷积 / 注意力改在频域做的中间特征，由 host 侧编排，
+  `batch` = 样本数 × 序列数。开源参考 [Kymatio](https://github.com/kymatio/kymatio)、
+  PyTorch 的 `torch.fft`。
+
+**实测（三类应用 × 12 个代表形状，`scripts/repro.sh e2e-app`）**：换成应用形状的输入后
+正确性 **12 / 12 PASS**（maxRel ≤ 1e-4），device-only **12 / 12 全胜、几何均值 3.12×**，
+端到端 **12 / 12 全胜、几何均值 1.70×**（1.32× ~ 2.70×）—— 与网格口径的 46/49、1.66× 同量级，
+换输入、换代表性 shape 都不改变结论。逐点见
+[实验对比 §6.4](docs/实验对比.md#64-三类典型应用负载)。
+
+**口径注意**：§6 与图 6 / 图 7 的**网格**读数用**随机输入**测 —— 这三段的时间只取决于
+字节数与 kernel 本身，与数据内容无关，所以三类应用拿到的是同一批数；三者各自的前处理
+（解调、CFAR、反归一化）**不在**计时区内。应用形状输入的对照就是上面那 12 个点。
 
 > **English.** Ascend-FFT is a radix-2 DIT complex fp32 FFT library for Huawei Ascend NPUs,
 > written in AscendC, with a host-side framework that enumerates a design space, prices each
@@ -114,7 +140,8 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 | **vs CANN 原生复数 FFT**（同卡同变换） | **49 : 0**，几何均值 **3.01×** |
 | 最好 / 最紧倍率 | **6.86×** @ `n=128,B=4` ｜ **1.04×** @ `n=1024,B=4096` |
 | 头条点 `n=4096,B=4096` | 1,492.7 vs 2,444.7 µs = **1.64×**（674 GFLOP/s） |
-| 端到端（H2D + 变换 + D2H，pinned 主机缓冲） | **46 / 49** 更快，几何均值 **1.66×**（`B≤64` **28 / 28**、2.01×） |
+| 端到端（H2D 拷贝 + 一次前向复数 FFT + D2H 拷贝，启动/plan/输入生成在计时区外，pinned 主机缓冲） | **46 / 49** 更快，几何均值 **1.66×**（`B≤64` **28 / 28**、2.01×） |
+| 应用负载端到端（OFDM / 雷达距离门 / DL 频域层，应用形状输入，12 个代表形状） | **12 / 12** 更快，几何均值 **1.70×**；device-only **3.12×**；正确性 **12 / 12 PASS** |
 | η 成本模型偏差 | 平均 **7.7%**，43/49 落在 ±15% 内（带外 6 点见 [实验对比 图5](docs/实验对比.md#图5-成本模型-η-vs-实测)） |
 | vs numpy / torch (CPU) | **36 / 49**、**38 / 49**（`B≥1024` 各 **14 / 14**） |
 | vs 自研 v1（标量旋转因子版） | **49 / 49**，中位 **11.2×**、最好 **38.8×** |
@@ -133,7 +160,8 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 
 ![end-to-end vs device-only speedup, and share of time outside the kernel](docs/figures/fig6_end_to_end.png)
 
-**图 6** —— 把数据搬运算进来之后的真实读数（三方主机缓冲统一 **pinned**，口径见
+**图 6** —— 把数据搬运算进来之后的真实读数：计时区只框住 `H2D 拷贝 → 一次前向复数 FFT →
+D2H 拷贝` 三段，启动 / plan / 输入生成在区外（三方主机缓冲统一 **pinned**，口径见
 [§6.3](docs/实验对比.md#63-已知局限必须一起读)）。上半：灰柱 device-only（**49/49**，
 这一轮几何均值 **3.17×**，与图 1 的 3.01× 是两个时段的两次测量），彩色柱端到端
 （**46/49、几何均值 1.66×**，绿=更快、红=更慢）；下半是一张 `n × batch` 热力图，
@@ -170,11 +198,12 @@ reps 口径见各文档），最后一列是出处。
 | 第 1 批 C1+C2 | 平面级 `Axpy` 合并、planar Level-0 折组（记作后续批次的基线） | **~2013 µs** | [性能优化 §0](docs/性能优化-C2b与K择优.md) |
 | 第 2~3 批 | C2b（复数乘 6→4）、**K 择优修正**、merge 放宽、MTE3⊗MTE2 重叠、**平面级 radix-4**（否极泰来） | 2013 → **1481 µs**（累计 −26.4%） | 同上 §0·§9 |
 | 第 4~5 批 | 候选可行性逐条核查（多为否决）+ **批折叠 A3~A5**（一次 repeat 过 D 个 batch） | 比分 **44 : 5 → 49 : 0** | 同上 §10·§11 |
-| **现在（A7）** | 权威 49 点矩阵 + 三方 pinned 端到端 | device-only **49 : 0、几何均值 3.01×**；端到端 **46 / 49、1.66×** | [matrix_test_a7](docs/matrix_test_a7.md) · [实验对比 §6](docs/实验对比.md#63-已知局限必须一起读) |
+| **现在（A7）** | 权威 49 点矩阵 + 三方 pinned 端到端 + **三类应用真负载** | device-only **49 : 0、几何均值 3.01×**；端到端 **46 / 49、1.66×**；应用负载 **12 / 12、1.70×** | [matrix_test_a7](docs/matrix_test_a7.md) · [实验对比 §6](docs/实验对比.md#63-已知局限必须一起读) · [§6.4](docs/实验对比.md#64-三类典型应用负载) |
 
 **读法**：前六阶段把「跑不通」变成「跑得快」（同一点 49 336 → 3 293 µs），
 后面几批把「单点快」变成「全网格都不输」（44:5 → 49:0）；
-端到端那一列是把 PCIe 也算进来之后的诚实读数（46/49，输的 3 个点是 0.95×~0.99× 持平档）。
+端到端那一列是把 PCIe 也算进来之后的诚实读数（46/49，输的 3 个点是 0.95×~0.99× 持平档）；
+最后再把随机输入换成三类应用的真实形状（§6.4），12/12 全胜 —— **读数不依赖喂什么数据**。
 每一步的取舍与被否掉的想法都在两份过程文档里，**没做的也写了为什么没做**。
 
 ---
@@ -370,6 +399,7 @@ uint32_t foldDFor(uint32_t n, uint32_t batch,
 | 批折叠前基线存档 | `scripts/repro.sh matrix-archive` | [docs/matrix_test_raw.md](docs/matrix_test_raw.md) | 同左（**勿覆盖**） |
 | 六基线 49 点 | `scripts/repro.sh sixway` | [docs/性能对比-标准库vs自研.md](docs/性能对比-标准库vs自研.md) | 同左 |
 | 端到端三路（自研 / torch / 裸 CANN，**三路均 pinned 主机缓冲**） | `scripts/repro.sh e2e` | `results/e2e.{md,json}` | [docs/实验对比.md](docs/实验对比.md) 图6·图7 · §6.2口径 |
+| 应用负载端到端（OFDM / 雷达 / DL 频域层，**应用形状输入**，三方逐位同式） | `scripts/repro.sh e2e-app` | `results/e2e_app.{md,json}` | [docs/实验对比.md](docs/实验对比.md) §6.4 |
 | 出图（图1~7） | `scripts/repro.sh figures` | [docs/figures/](docs/figures/) | [docs/实验对比.md](docs/实验对比.md) |
 | 出架构图 | `python3 scripts/gen_arch_diagram.py` | [docs/figures/architecture.svg](docs/figures/architecture.svg) | 本文 [架构](#架构) |
 | 出对比文档 | `scripts/repro.sh doc` | [docs/实验对比.md](docs/实验对比.md) | 同左（生成物） |

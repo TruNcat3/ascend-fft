@@ -32,7 +32,7 @@ matrix_test_raw.md              ⑧ 存档：批折叠前的 44:5 基线（表�
 
 | 文档 | 主题 | 复现脚本 | 状态 |
 |---|---|---|---|
-| [实验对比.md](实验对比.md) | **图 + 详表**：speedup 热力图、延迟热力图、batch 缩放、六基线柱状、η 散点、端到端、三路端到端（含裸 CANN C API） | `repro.sh figures` · `repro.sh doc`（本文是生成物）；数据来自 `matrix_test.py` / `e2e_test.py` | **推荐先看** |
+| [实验对比.md](实验对比.md) | **图 + 详表**：speedup 热力图、延迟热力图、batch 缩放、六基线柱状、η 散点、端到端、三路端到端（含裸 CANN C API）、**三类典型应用负载（§6.4）** | `repro.sh figures` · `repro.sh doc`（本文是生成物）；数据来自 `matrix_test.py` / `e2e_test.py` | **推荐先看** |
 | [阶段0-1-发现与结果.md](阶段0-1-发现与结果.md) | 环境、硬件能力探测（probe）、`aclRfft1D` 基线、`kfft_fwd` 首版（§0~§4），以及 §5~§11 的阶段 2（框架骨架）～阶段 6（设计空间 / η / 选型闭环） | `init.sh --check` · `hw_probe.sh` · `build.sh rfft` · `matrix_test.py` · `ab_test.py` | 历史主线 |
 | [性能优化-C2b与K择优.md](性能优化-C2b与K择优.md) | C2b、K 择优、merge 放宽、MTE 重叠、平面级 radix-4、**§11 批折叠/屏障/η/现状** | **`ab_test.py`**（§7/§9/§11）· `baseline_o.sh`（历史基线 `.o`）· `calib_eta.py` · `hw_probe.sh` · `one_click_test.sh` | 最新主线 |
 | [trace与profile诊断-小尺寸与大尺寸.md](trace与profile诊断-小尺寸与大尺寸.md) | `msprof` 原生小 n profile、**§6.4 屏障份额量化**、对「学 cuButterfly 搜索策略」的评估 | **`profile_test.sh`**（采集）· **`sum_prof.py`**（汇总）· `native_fft.py` / `time_native.py` | 诊断 |
@@ -61,7 +61,7 @@ scripts/repro.sh <实验名>          # 跑一个实验（如 repro.sh e2e）
 |---|---|---|
 | 环境与门禁 | `init` `gate` | README · 实验对比 §7 |
 | 性能矩阵 | `matrix` `matrix-archive` `sixway` `gpu-compare` | matrix_test_a7 · matrix_test_raw · 性能对比-标准库 · GPU 对照 |
-| 端到端（三路均 **pinned** 主机缓冲） | `e2e` `rfft-e2e` | 实验对比 图6 / 图7 · §6.2口径 |
+| 端到端（三路均 **pinned** 主机缓冲） | `e2e` `e2e-app` `rfft-e2e` | 实验对比 图6 / 图7 · §6.2口径 · **§6.4 应用负载** |
 | 图与文档 | `figures` `doc` | 实验对比 · figures/ |
 | 模型与选型 | `eta` `ab` `baseline-o` | 性能优化 §3·§7·§9·§11 |
 | 硬件与探针 | `hwprobe` `cube` `bwprobe` | 阶段0-1 §1 · 优化 §10.2 · Cube 探针 |
@@ -78,6 +78,7 @@ scripts/one_click_test.sh                  # 门禁 + 49 点矩阵，结果落 r
 scripts/hw_probe.sh                        # 硬件能力探针（换 SoC 后先跑这个）
 scripts/profile_test.sh                    # msprof 采集 + 汇总 -> results/profiles/
 python3 scripts/e2e_test.py --reps 10 --rounds 3   # 端到端（H2D+变换+D2H，三路，pinned）
+python3 scripts/e2e_test.py --app all --reps 10 --rounds 3   # 三类典型应用负载（OFDM/雷达/DL 频域层）
 python3 scripts/plot_results.py                   # 出图 -> docs/figures/
 python3 scripts/gen_compare_doc.py                # 出 docs/实验对比.md
 python3 scripts/gen_stdlib_doc.py                 # 出 性能对比-标准库vs自研.md
