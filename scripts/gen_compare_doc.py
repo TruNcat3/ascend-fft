@@ -164,6 +164,16 @@ def main():
     A("**形状趋势**：颜色随 `batch` 增大由绿转黄 —— 小/中 batch 是自研的强区（3~7×），"
       "大 batch（≥1024）两侧都逼近各自的访存上限，差距收窄到 1.0~1.6×。"
       "`n=4096/B=4096` 的 1.64× 是**在带宽受限区仍然赢**的点（原生 2444.7 vs 自研 1492.7 µs）。\n")
+    _small = [r for r in mx if r["b"] <= 64]
+    _big = [r for r in mx if r["b"] == 4096]
+    if _small and _big:
+        A(f"**优势集中在哪**：`B≤64` 一档 **{min(r['ratio'] for r in _small):.1f}~"
+          f"{max(r['ratio'] for r in _small):.1f}×**（几何均值 "
+          f"**{geo([r['ratio'] for r in _small]):.1f}×**），`B=4096` 一档收窄到 "
+          f"**{min(r['ratio'] for r in _big):.1f}~{max(r['ratio'] for r in _big):.1f}×**"
+          + ("；整张表没有任何一格跌破 1.0×。" if wins == len(mx) else "。")
+          + "原因见 [图3](#图3-speedup-与延迟随-batch-缩放) 与"
+          "[「思路」第 2 条](设计思路与演进.md#12-kernel两段式布局把-batch-折进指令)。\n")
 
     # 表1（带迷你条）
     A("### 表1　49 点详表（含迷你条，条越长越快）\n")
@@ -192,6 +202,17 @@ def main():
       "且整体从 `B=4` 的 4~7× 单调下滑到 `B=4096` 的 1.0~1.6×。"
       "右图是自研绝对延迟（对数轴），`B≤64` 几乎是平的 —— "
       "这个区间被固定开销主导，`B>64` 才开始随 batch 线性上升。\n")
+    _by = {(r["n"], r["b"]): r for r in mx}
+    _p = [(k, _by[k]) for k in ((1024, 1), (1024, 64), (4096, 64), (4096, 4096))
+          if k in _by]
+    if len(_p) == 4:
+        A(f"**具体读数**：`B≤64` 这一档几乎不随 batch 变"
+          f"（`n=1024` 只从 {_p[0][1]['ours']:.1f} 涨到 {_p[1][1]['ours']:.1f} µs，"
+          f"B=1→64），`B>64` 才开始真正随 batch 上升"
+          f"（`n=4096` 从 {_p[2][1]['ours']:.1f} 走到 {_p[3][1]['ours']:.1f} µs，"
+          f"B=64→4096）。\n")
+    A("**读法：小 batch 赢在 launch 开销低，大 batch 赢在每元素算得少。**"
+      "机制见 [「思路」第 2 条](设计思路与演进.md#12-kernel两段式布局把-batch-折进指令)。\n")
 
     # ---------------- 4 图4 ----------------
     A("---\n")
@@ -241,6 +262,9 @@ def main():
       f"带外的 {len(over)} 个点是 {over_txt}；{tail}\n")
     A("η 的作用是在 **kernel 还没编译**时就排出生命周期里的 launch 参数"
       "（`AB_FOLD_D` / `AB_PLANE_K`），这是选型闭环能跑起来的前提。\n")
+    A("实测回填再补一刀：`Plan::measure()` 真跑一次把结果写回候选，"
+      "`rank()` 按 `Measured > Feasible` 分层，估的和测的互相校正 —— "
+      "标定方法与系数含义见 [「思路」第 3 条](设计思路与演进.md#13-模型η-在-kernel-编译之前算账)。\n")
 
     # ---------------- 6 E2E ----------------
     A("---\n")
@@ -284,9 +308,11 @@ def main():
 
         A("**这一段在实际程序里对应什么。** 端到端计时的 `H2D → 一次前向复数 FFT → D2H`，"
           "就是「数据在 host、变换在卡上」这类程序的最小闭环，典型有三类 —— 多载波通信 / 频域均衡"
-          "（一帧 OFDM 符号上卡逐符号 FFT，`batch` = 符号数；开源参考 srsRAN、GNU Radio）、"
+          "（一帧 OFDM 符号上卡逐符号 FFT，`batch` = 符号数；开源参考 "
+          "[srsRAN](https://github.com/srsran)、[GNU Radio](https://github.com/gnuradio/gnuradio)）、"
           "雷达成像的距离门（一帧内多路回波做距离 FFT，`batch` = 脉冲 / 通道数）、"
-          "深度学习的频域层（频域中间特征，`batch` = 样本 × 序列；开源参考 Kymatio、PyTorch `torch.fft`）。"
+          "深度学习的频域层（频域中间特征，`batch` = 样本 × 序列；开源参考 "
+          "[Kymatio](https://github.com/kymatio/kymatio)、PyTorch `torch.fft`）。"
           "三者在这一步的形状完全相同，且**本节数字用随机输入测** —— 这三段耗时只取决于字节数与 kernel，"
           "与数据内容无关；三者各自的前处理（解调、CFAR、反归一化）**不在**计时区内。\n")
         A("### 6.1　结果怎么读\n")
@@ -296,8 +322,19 @@ def main():
             A(f"2. **传输量大（`n ≥ 512` 且 `B ≥ 256`，{len(bigsh)} 点）**：内核外时间占比 "
               f"**{min(bigsh) * 100:.0f}~{max(bigsh) * 100:.0f}%**，"
               "端到端被 PCIe 搬运封顶，两者一起变慢 —— 此时**比的不是 FFT，是数据搬运**。")
-        A(f"3. 因此端到端 **{e2w}/{len(ew)}** 而不是 49/49 是**预期行为**，"
-          "不是内核退化：device-only 一列仍然 49/49。\n")
+        _bb = [v["share"] for k, v in e2.items()
+               if k[1] >= 1024 and v["share"] == v["share"]]
+        if _bb:
+            A(f"   其中 `B≥1024` 一档占 **{min(_bb) * 100:.0f}~{max(_bb) * 100:.0f}%** —— "
+              "那一档比的不是 FFT，是 PCIe。")
+        _lost = sorted(v["e2e"] for v in ew if v["e2e"] <= 1)
+        if _lost:
+            A(f"3. 因此端到端 **{e2w}/{len(ew)}** 而不是 49/49 是**预期行为**，不是内核退化："
+              f"输掉的 {len(_lost)} 个点是 **{_lost[0]:.2f}×~{_lost[-1]:.2f}×** 的持平档，"
+              "device-only 一列仍然 49/49。\n")
+        else:
+            A(f"3. 因此端到端 **{e2w}/{len(ew)}** 而不是 49/49 是**预期行为**，"
+              "不是内核退化：device-only 一列仍然 49/49。\n")
         A("### 6.2　口径\n")
         A("| | 自研 | CANN 原生 |")
         A("|---|---|---|")
