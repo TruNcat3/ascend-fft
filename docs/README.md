@@ -18,9 +18,10 @@
 trace与profile诊断-*.md         ③ 手段：msprof 诊断、管线占用率、对照 GPU 的假设评估
 性能对比-标准库vs自研.md        ④ 结果：六基线 49 点同场对比（自动生成）
 matrix_test_a7.md               ⑤ 结果：当前 49:0 逐点矩阵（权威）
-矩阵测试与GPU绝对性能对比.md     ⑥ 展望：与网上公开 GPU 工作的绝对性能对照（正文=历史基线）
-Cube张量化探针.md               ⑦ 探针：fp32 Cube（矩阵单元）可行性
-matrix_test_raw.md              ⑧ 存档：批折叠前的 44:5 基线（表格一字不改）
+实数变换-r2c与c2r.md            ⑥ 能力：r2c/c2r 半谱链路设计与结果（xflip、行距、98/98 网格）
+矩阵测试与GPU绝对性能对比.md     ⑦ 展望：与网上公开 GPU 工作的绝对性能对照（正文=历史基线）
+Cube张量化探针.md               ⑧ 探针：fp32 Cube（矩阵单元）可行性
+matrix_test_raw.md              ⑨ 存档：批折叠前的 44:5 基线（表格一字不改）
 ```
 
 图在 [`figures/`](figures/)，由 `scripts/plot_results.py` 从上面的表格/JSON 生成，
@@ -86,6 +87,7 @@ python3 scripts/gen_compare_doc.py                # 出 docs/实验对比.md
 python3 scripts/gen_stdlib_doc.py                 # 出 性能对比-标准库vs自研.md
 python3 scripts/calib_eta.py                      # 重跑 η 标定（lstsq3，1/y 加权；打印 3 个系数，人工回填 src/framework/butterfly.cpp 的 estimate()）
 python3 scripts/matrix_test.py --rounds 5 --out docs/matrix_test.md
+scripts/repro.sh r2c-c2r                # r2c/c2r 半谱变换基准 -> results/r2c_c2r.json
 python3 scripts/ab_test.py --base <.o> --cand build/fft_radix2.o --points 4096x4096
 python3 scripts/sum_prof.py results/profiles/p_b4k    # 读已有 profile
 scripts/baseline_o.sh <git-rev>             # 从提交重建历史基线 .o
@@ -119,6 +121,7 @@ scripts/baseline_o.sh <git-rev>             # 从提交重建历史基线 .o
 | **D** | 批折叠系数 `foldDFor`，一个 Level-0 repeat 覆盖的连续 batch 数（≤ 4） |
 | **K** | 平面级 radix-2 的平面列数 `planeKFor`，`rows = n / K` |
 | **原生** | 本卡原生复数 fp32 前向（`torch.fft.fft` 走 torch_npu op-plugin；CANN 9.0.0 无复数 C2C C API，详见 [实验对比 图7](实验对比.md#图7-三路端到端自研--torch--裸-cann)） |
+| **r2c / c2r** | 实数半谱变换：实数 ↔ `n/2+1` 半谱（numpy `rfft`/`irfft` 布局，c2r 含 `1/n`），链路复用 `kfft_fwd` + 短链后处理，详见 [实数变换-r2c与c2r](实数变换-r2c与c2r.md) |
 | **裸 CANN** | `aclRfft1D` 直接调用（aclNN），实→复、单边，仅作参照 |
 | **v1** | 本仓库 `fft_radix2_v1.o`（标量旋转因子基线） |
 | **自研** | 本仓库 `fft_radix2.o`（当前主 kernel） |

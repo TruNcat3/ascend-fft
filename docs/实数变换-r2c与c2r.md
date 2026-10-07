@@ -1,13 +1,13 @@
 # 实数变换：r2c / c2r 半谱链路
 
+> **复现脚本**：[`scripts/repro.sh r2c-c2r`](../scripts/repro.sh) 49 点基准 → `results/r2c_c2r.json` · [`scripts/one_click_test.sh`](../scripts/one_click_test.sh) 门禁（门禁 B 自带 r2c/c2r 冒烟）· `AB_DIR=r2c|c2r ./build/fft_check <n> <b> <reps>` 单点正确性+计时。
+> **全量索引**：[`scripts/repro.sh --doc 实数变换`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。
 > **一句话**：在不动 `kfft_fwd` 主体的前提下，用「短链后处理」把复数前向 FFT 复用成
 > `r2c`（实数 → `n/2+1` 半谱）与 `c2r`（半谱 → 实数）两个方向，与 `torch.fft.rfft` /
 > `torch.fft.irfft` 布局逐点可比；正确性 **98/98 PASS**（`maxRel ≤ 3.1e-7`），
 > device-only 几何均值 r2c **65.2 µs**（vs torch **1.84×**、vs `aclRfft1D` **3.21×**）、
 > c2r **60.5 µs**（vs torch **3.06×**）。
 >
-> **复现**：[`scripts/repro.sh r2c-c2r`](../scripts/repro.sh)（基准）·
-> `scripts/one_click_test.sh`（门禁，含 `test_framework` 的 r2c/c2r 冒烟）。
 > 逐点数据：[`results/r2c_c2r.json`](../results/r2c_c2r.json)。
 
 ---
