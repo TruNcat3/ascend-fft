@@ -56,6 +56,8 @@ reg rfft        "docs/阶段0-1-发现与结果.md §2"                 "裸 CAN
     "./build/baseline_rfft 4096 4096 1 ${AB_WORK:-build}/bare_4096.bin --reps=50"
 reg rfft-e2e    "docs/实验对比.md · 图7"                        "裸 CANN aclRfft1D 端到端口径" \
     "./build/baseline_rfft 4096 4096 1 ${AB_WORK:-build}/bare_4096.bin --e2e --reps=20"
+reg r2c-c2r    "README.md · docs/实数变换-r2c与c2r.md"         "r2c/c2r 实数半谱变换基准（自研 vs torch vs aclRfft1D）" \
+    "python3 scripts/bench_r2c_c2r.py --out results/r2c_c2r.json"
 reg cube        "docs/Cube张量化探针.md"                        "fp32 Cube（矩阵单元）探针" \
     "./build/cube_probe build/cube_probe.o 3 1 16 2 0 1 65536 5"
 reg bwprobe     "docs/实验对比.md §6.3"                         "传输带宽探针（H2D/D2H/GM）" \

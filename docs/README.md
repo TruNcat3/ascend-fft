@@ -37,6 +37,7 @@ matrix_test_raw.md              ⑧ 存档：批折叠前的 44:5 基线（表�
 | [性能优化-C2b与K择优.md](性能优化-C2b与K择优.md) | C2b、K 择优、merge 放宽、MTE 重叠、平面级 radix-4、**§11 批折叠/屏障/η/现状** | **`ab_test.py`**（§7/§9/§11）· `baseline_o.sh`（历史基线 `.o`）· `calib_eta.py` · `hw_probe.sh` · `one_click_test.sh` | 最新主线 |
 | [trace与profile诊断-小尺寸与大尺寸.md](trace与profile诊断-小尺寸与大尺寸.md) | `msprof` 原生小 n profile、**§6.4 屏障份额量化**、对「学 cuButterfly 搜索策略」的评估 | **`profile_test.sh`**（采集）· **`sum_prof.py`**（汇总）· `native_fft.py` / `time_native.py` | 诊断 |
 | [性能对比-标准库vs自研.md](性能对比-标准库vs自研.md) | numpy / torch / `aclRfft1D` / 自研 v1 / CANN 原生 / 自研 六列 49 点 | `gen_stdlib_doc.py`（本文是生成物）· `bench_stdlib.py` · `bench_native_npu.py` | **自动重生成** |
+| [实数变换-r2c与c2r.md](实数变换-r2c与c2r.md) | r2c/c2r 半谱链路设计：xflip 符号翻转、`n+16` 行距、UB 守卫、行首屏障、98/98 网格与基准 | `repro.sh r2c-c2r` · `one_click_test.sh` · `AB_DIR=r2c\|c2r ./build/fft_check` | 设计 + 结果 |
 | [matrix_test_a7.md](matrix_test_a7.md) | **当前权威矩阵**（49:0，`--rounds 3` min-of-means，η 均值 7.7%） | `repro.sh matrix` · `one_click_test.sh` · `calib_eta.py` | 结果 |
 | [matrix_test_raw.md](matrix_test_raw.md) | 批折叠 A3~A5 之前的 44:5 基线存档 | `repro.sh matrix-archive`（**勿覆盖**） | 存档 |
 | [矩阵测试与GPU绝对性能对比.md](矩阵测试与GPU绝对性能对比.md) | 与 cuButterfly / cuFFT 等公开 GPU 结果的绝对性能对照（**正文为历史基线**，比分现状 49:0） | `repro.sh gpu-compare` · `hw_probe.sh --only bw` | 对外对照 |
@@ -67,6 +68,7 @@ scripts/repro.sh <实验名>          # 跑一个实验（如 repro.sh e2e）
 | 硬件与探针 | `hwprobe` `cube` `bwprobe` | 阶段0-1 §1 · 优化 §10.2 · Cube 探针 |
 | Profile | `profile` `profile-sum` | trace与profile诊断 §0·§7 |
 | 基线 | `native` `stdlib` `rfft` | 性能对比-标准库 · 阶段0-1 §2 |
+| 实数半谱变换（r2c/c2r） | `r2c-c2r` | 实数变换-r2c与c2r · README 结果 |
 
 ---
 

@@ -6,7 +6,7 @@
 [![CANN](https://img.shields.io/badge/CANN-9.0.0-0B6BCB.svg)](docs/阶段0-1-发现与结果.md)
 [![Result](https://img.shields.io/badge/results-49%3A0%20vs%20CANN%20native-brightgreen.svg)](docs/matrix_test_a7.md)
 
-**Ascend-FFT 是一个跑在华为昇腾 NPU 上的复数 fp32 FFT 库。**
+**Ascend-FFT 是一个跑在华为昇腾 NPU 上的复数 fp32 FFT 库，另带实数半谱 `r2c` / `c2r` 变换。**
 device kernel 用 AscendC 写，host 侧带一层「枚举 → 计费 → 实测回填」的选型框架。
 在 Ascend910_9382（48 AIV）全网格 49 个 `(n, batch)` 点上，**device-only 对 CANN 原生复数 FFT 49 : 0**。
 设计移植自 [**cuButterfly**](https://github.com/TruNcat3/cuButterfly)（BSD-3-Clause）。
@@ -26,10 +26,11 @@ device kernel 用 AscendC 写，host 侧带一层「枚举 → 计费 → 实测
 
 > **English.** Ascend-FFT is a radix-2 DIT complex fp32 FFT library for Huawei Ascend NPUs,
 > written in AscendC, with a host-side framework that enumerates a design space, prices each
-> candidate with a cost model, and back-fills real measurements. Its object set (`H/G/A/P/L/F/Q`),
-> `Context`/`Plan`/`Transform` API shape, batch-parallel decomposition and model-driven search are
-> ported from [cuButterfly](https://github.com/TruNcat3/cuButterfly) (BSD-3-Clause). See
-> [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance.
+> candidate with a cost model, and back-fills real measurements. It also ships real-input
+> `r2c` / half-spectrum `c2r` transforms (numpy `rfft` / `irfft` layouts). Its object set
+> (`H/G/A/P/L/F/Q`), `Context`/`Plan`/`Transform` API shape, batch-parallel decomposition and
+> model-driven search are ported from [cuButterfly](https://github.com/TruNcat3/cuButterfly)
+> (BSD-3-Clause). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance.
 
 ---
 
@@ -83,8 +84,8 @@ device kernel 用 AscendC 写，host 侧带一层「枚举 → 计费 → 实测
 FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。大家平时用的
 `torch.fft.fft` 走的是 torch_npu 自己注册的 `_fft_c2c` NPU 算子，
 **不在 CANN 的算子库条目里**。于是 host 侧 C++ 想做一次复数 FFT，要么绕进 Python/torch，
-要么自己写 kernel。本仓库补上后者 —— 一个 AscendC 的 radix-2 DIT 复数 fp32 FFT，
-外加一层 `Context` / `Plan` 的 C++ 框架。
+要么自己写 kernel。本仓库补上后者 —— 一个 AscendC 的 radix-2 DIT 复数 fp32 FFT
+（外加 `r2c` / `c2r` 实数半谱变换），外加一层 `Context` / `Plan` 的 C++ 框架。
 
 **但比「能跑」更重要的是「知道为什么快、也知道什么时候不快」。** 所以这个仓库把三样东西
 做成了可测量的：
@@ -131,6 +132,22 @@ FFT C API（`include/` 全量扫描只有 `aclRfft1D` 与 `aclStft` 两个）。
 逐点数值见 [`docs/matrix_test_a7.md`](docs/matrix_test_a7.md)；
 六基线（numpy / torch / `aclRfft1D` / v1 / 原生 / 自研）同场见
 [`docs/性能对比-标准库vs自研.md`](docs/性能对比-标准库vs自研.md)。
+
+**实数半谱变换（r2c / c2r）。** 同一套 `kfft_fwd` 之上还提供 `r2c`（实数输入 → `n/2+1` 个复数，
+`numpy.fft.rfft` 稠密布局）与 `c2r`（半谱 → 实数，含 `1/n`，`numpy.fft.irfft` 口径）——
+CANN 9.0.0 的 C API 只有 `aclRfft1D`（实→复），**没有 c2r**。49 点全网格 device-only
+（与主矩阵同 reps 政策，逐点 min）：
+
+| 指标 | 结果 |
+|---|---|
+| 正确性（r2c `n=128…8192`、c2r `n=64…4096` × `B=1…4096`） | **98 / 98 PASS**，`maxRel ≤ 3.1e-7` |
+| r2c（42 点，`n≥128`） | 自研 **65.2 µs**，vs torch.fft.rfft **1.84×**、vs `aclRfft1D` **3.21×** |
+| c2r（49 点） | 自研 **60.5 µs**，vs torch.fft.irfft **3.06×** |
+
+复现：[`scripts/repro.sh r2c-c2r`](scripts/repro.sh)（逐点见
+[`results/r2c_c2r.json`](results/r2c_c2r.json)）；框架入口
+[`Plan::runR2C` / `runC2R`](#api-概览)；链路设计与机制见
+[`docs/实数变换-r2c与c2r.md`](docs/实数变换-r2c与c2r.md)。
 
 **端到端那一行测的应用形态。** 计时区间就是 `H2D 拷贝 → 一次前向复数 FFT → D2H 拷贝`，
 即「数据落在 host、变换放在卡上」这类程序的最小闭环；它服务的三类典型应用在这一步长得
@@ -371,9 +388,15 @@ plan->prepare(4096, 4096);             // 生成并上传旋转因子/索引（�
 plan->run(in, out, 4096, 4096);        // 一次 n×batch 复数 fp32 前向 FFT
 bfly::Metric m;
 plan->measure(4096, 4096, &m);         // 实测 µs，回填 Metric 并置 Measured
+
+// 实数半谱变换（需 build/fft_real.o，与 kernelPath 同目录；缺文件时返回 -1）
+plan->runR2C(xReal, spec, 4096, 4096); // [batch][n] 实数 -> [batch][n+2] 半谱（n/2+1 复数）
+plan->runC2R(spec, yReal, 4096, 4096); // [batch][n+2] 半谱 -> [batch][n] 实数（含 1/n）
 ```
 
 输入/输出布局：`float32` **交错复数** `[batch][2*n]`（`re, im, re, im, ...`）。
+`r2c` / `c2r` 为**稠密半谱** `[batch][n+2]`（`numpy.fft.rfft` / `irfft` 布局；
+c2r 输入的 Nyquist 虚部须为 0）。
 
 核心启发式（`include/butterfly/fft_k.hpp`）：
 
@@ -413,6 +436,7 @@ uint32_t foldDFor(uint32_t n, uint32_t batch,
 | CANN 原生 NPU 基线 | `scripts/repro.sh native` | 终端 | [docs/性能对比-标准库vs自研.md](docs/性能对比-标准库vs自研.md) |
 | CPU 标准库基线 | `scripts/repro.sh stdlib` | 终端 | 同左 |
 | 裸 CANN `aclRfft1D` | `scripts/repro.sh rfft` / `rfft-e2e` | 终端 | [docs/阶段0-1-发现与结果.md](docs/阶段0-1-发现与结果.md) §2 · 实验对比 图7 |
+| r2c/c2r 半谱变换基准 | `scripts/repro.sh r2c-c2r` | `results/r2c_c2r.json` | 本文 [结果](#结果) · [docs/实数变换-r2c与c2r.md](docs/实数变换-r2c与c2r.md) |
 | Cube（矩阵单元）探针 | `scripts/hw_probe.sh --only cube` | 终端 | [docs/Cube张量化探针.md](docs/Cube张量化探针.md) |
 | 传输带宽探针 | `scripts/hw_probe.sh --only bw` | 终端 | [docs/实验对比.md](docs/实验对比.md) §6.3 |
 | 与公开 GPU 结果对照 | `scripts/repro.sh gpu-compare` | `results/gpu_compare.md` | [docs/矩阵测试与GPU绝对性能对比.md](docs/矩阵测试与GPU绝对性能对比.md) |
@@ -424,6 +448,7 @@ uint32_t foldDFor(uint32_t n, uint32_t batch,
 | **结果（先看）** | [`docs/实验对比.md`](docs/实验对比.md) | **图1~7 + 详表**：热力图、batch 缩放、六基线、η 散点、端到端、三路端到端 |
 | | [`docs/matrix_test_a7.md`](docs/matrix_test_a7.md) | 当前权威矩阵（49:0，逐点） |
 | | [`docs/性能对比-标准库vs自研.md`](docs/性能对比-标准库vs自研.md) | 六基线 49 点同场 |
+| | [`docs/实数变换-r2c与c2r.md`](docs/实数变换-r2c与c2r.md) | r2c/c2r 链路设计与结果（xflip、行距、98/98 网格、基准） |
 | **过程** | [`docs/阶段0-1-发现与结果.md`](docs/阶段0-1-发现与结果.md) | 环境/硬件能力探测、`aclRfft1D` 基线、从 0 到可跑通 |
 | | [`docs/性能优化-C2b与K择优.md`](docs/性能优化-C2b与K择优.md) | 5 轮 A/B 优化全记录（C2b、K 择优、radix-4、批折叠、η 标定） |
 | **诊断** | [`docs/trace与profile诊断-小尺寸与大尺寸.md`](docs/trace与profile诊断-小尺寸与大尺寸.md) | `msprof` 诊断：小尺寸输 GPU、大尺寸输原生、自己卡在矢量发射墙 |
@@ -473,6 +498,7 @@ ascend-fft/
 │   │   ├── fft_radix2.cpp       主 kernel（批折叠 + 平面级 radix-4 融合）
 │   │   ├── fft_radix2_v1.cpp    v1 基线（标量旋转因子）
 │   │   ├── fft_radix2_v2.cpp    v2（前 3 级 8-plane 布局）
+│   │   ├── fft_real.cpp         r2c/c2r 链三内核（r2c_post / c2r_prep / c2r_post）
 │   │   ├── probe_hw.cpp / probe_simt.cpp
 │   │   └── {stride,gather,cube}_probe.cpp
 │   ├── framework/             host 框架（`estimate()` 计费、选型、索引生成、launch）
@@ -485,7 +511,7 @@ ascend-fft/
 ├── config/                   硬件 profile + 设计空间 JSON（唯一真源）
 ├── scripts/                  构建 / 初始化 / 实验运行器（详见下表）
 ├── docs/                     设计与实验文档（索引见 docs/README.md）
-├── results/                  一键测试与 profile 输出（默认 git 忽略；`e2e.{json,md}` 作为存档跟踪）
+├── results/                  一键测试与 profile 输出（默认 git 忽略；`e2e.{json,md}` 与 `r2c_c2r.json` 作为存档跟踪）
 ├── CITATION.cff              GitHub「Cite this repository」引用元数据
 ├── LICENSE                   Apache-2.0
 └── THIRD_PARTY_NOTICES.md    cuButterfly 出处与 BSD-3-Clause 文本
@@ -504,6 +530,7 @@ ascend-fft/
 | [`matrix_test.py`](scripts/matrix_test.py) | 49 点矩阵（正确性 + 实测 + η + vs 原生） |
 | [`e2e_test.py`](scripts/e2e_test.py) | 端到端三路（自研 / torch / 裸 CANN） |
 | [`gen_stdlib_doc.py`](scripts/gen_stdlib_doc.py) · [`bench_stdlib.py`](scripts/bench_stdlib.py) · [`bench_native_npu.py`](scripts/bench_native_npu.py) | 六基线同场与两份基线 |
+| [`bench_r2c_c2r.py`](scripts/bench_r2c_c2r.py) | r2c/c2r device 基准（自研 vs torch vs `aclRfft1D`）→ `results/r2c_c2r.json` |
 | [`plot_results.py`](scripts/plot_results.py) · [`gen_compare_doc.py`](scripts/gen_compare_doc.py) | 出图 + 出 `docs/实验对比.md` |
 | [`gen_arch_diagram.py`](scripts/gen_arch_diagram.py) | 出上面那张架构图（`docs/figures/architecture.svg`） |
 | [`calib_eta.py`](scripts/calib_eta.py) | η 成本模型最小二乘标定 |
