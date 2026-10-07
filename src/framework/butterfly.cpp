@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <map>
@@ -534,16 +535,30 @@ std::vector<const Candidate*> rank(const std::vector<Candidate>& cs) {
 struct Plan::Impl {
     aclrtFuncHandle fn = nullptr;
     aclrtBinHandle bin = nullptr;
+    // r2c/c2r 链（fft_real.o，argBytes=40）：三内核同签名 (out,in,ex0,ex1,n,batch)
+    aclrtBinHandle binReal = nullptr;
+    aclrtFuncHandle fnPrep = nullptr, fnR2cPost = nullptr, fnC2rPost = nullptr;
     void* devOut = nullptr;
     void* devIn = nullptr;
     void* devTwr = nullptr;
     void* devTwi = nullptr;
     void* devOff = nullptr;
     void* devIdx = nullptr;      // 4n + 2nD 的索引张量：[idxB(n) | idxT(n) | idxOut(2nD)]
+    void* devA = nullptr;        // 链路中间量：r2c=内层FFT输出，c2r=prep 满谱
+    void* devB = nullptr;        // c2r：fwd 反号输出（post 的输入）
+    void* devSt = nullptr;       // 半谱行距 n+16 的设备缓冲（r2c 出 / c2r 入）
+    void* devPw = nullptr;       // r2c_post 的 W_n^k 表：[re(pPad) | im(pPad)]
+    size_t devInCap = 0, devOutCap = 0, devACap = 0, devBCap = 0, devStCap = 0;
+    size_t devPwCap = 0;
+    uint32_t pwPad = 0;          // 当前 devPw 的表长（8 倍数）
     uint32_t argBytes = 0;
+    uint32_t argBytesReal = 0;   // fft_real.o 的 __CCE_KernelArgSize（应为 40）
     bool prepared = false;
+    bool preparedReal = false;   // r2c/r2c_post 表（按全长度 n）是否就绪
+    int preparedSign = -1;       // devTwr/twi 的符号：-1 正向 / +1 c2r 反号
     uint32_t preparedN = 0;
     uint32_t preparedD = 0;   // 生成 idxO 时用的折叠系数；D 变了必须重生成
+    uint32_t preparedPwN = 0;
 };
 
 Plan::Plan(Candidate c) : cand_(std::move(c)) {}
@@ -556,7 +571,12 @@ Plan::~Plan() {
     if (impl_->devTwi) aclrtFree(impl_->devTwi);
     if (impl_->devOff) aclrtFree(impl_->devOff);
     if (impl_->devIdx) aclrtFree(impl_->devIdx);
+    if (impl_->devA) aclrtFree(impl_->devA);
+    if (impl_->devB) aclrtFree(impl_->devB);
+    if (impl_->devSt) aclrtFree(impl_->devSt);
+    if (impl_->devPw) aclrtFree(impl_->devPw);
     if (impl_->bin) aclrtBinaryUnLoad(impl_->bin);
+    if (impl_->binReal) aclrtBinaryUnLoad(impl_->binReal);
 }
 
 // 读 __CCE_KernelArgSize（与 src/host/launch.cpp 一致的 ELF 解析）
@@ -585,16 +605,21 @@ static uint32_t readArgSize(const std::string& path) {
 }
 
 // 旋转因子/位反转索引：每次 (n, D) 变化时重新生成并上传
-int Plan::prepare(uint32_t n, uint32_t batch) {
+int Plan::prepare(uint32_t n, uint32_t batch) { return prepareSign(n, batch, -1); }
+
+int Plan::prepareSign(uint32_t n, uint32_t batch, int sign) {
     // 折叠系数同时由 n、batch、launch 核数决定（foldDFor 的并发约束），故一并做缓存键。
     const uint32_t nblk = (cand_.a.udCore > 0) ? (uint32_t)cand_.a.udCore : 48u;
     const uint32_t D = bfly::foldDFor(n, batch, nblk);
-    if (impl_->prepared && impl_->preparedN == n && impl_->preparedD == D) return 0;
+    if (impl_->prepared && impl_->preparedN == n && impl_->preparedD == D &&
+        impl_->preparedSign == sign) return 0;
     Generator g;
     g.n = n;
     std::vector<float> twr, twi;
-    std::vector<uint32_t> offB, offT, offO;
     g.genTwiddles(twr, twi);
+    // c2r：旋转因子取反 => kfft_fwd 直接输出 n·IDFT（+i 约定，内核侧 xflip 位配套翻蝶形）
+    if (sign > 0) for (float& v : twi) v = -v;
+    std::vector<uint32_t> offB, offT, offO;
     g.genBitReversePlane(offB);   // 位反转+去交错 -> plane 的字节偏移
     g.genTransposePlane(offT);    // plane -> planar 转置的字节偏移
     g.genInterleave(offO, D);     // planar -> 交错输出的字节偏移（长度 2n*D）
@@ -620,6 +645,7 @@ int Plan::prepare(uint32_t n, uint32_t batch) {
     impl_->prepared = true;
     impl_->preparedN = n;
     impl_->preparedD = D;
+    impl_->preparedSign = sign;
     tf_.clear();
     tf_.push_back({Transform::GenTwiddles, "gen twiddles (align8 per-stage slots)"});
     tf_.push_back({Transform::GenBitReverse, "gen bitrev/transpose byte offsets (plane layout)"});
@@ -629,10 +655,10 @@ int Plan::prepare(uint32_t n, uint32_t batch) {
 
 // 按 .o 的 __CCE_KernelArgSize 模板打包 kfft_fwd 实参：
 //   0 out | 8 in | 16 n | 20 batch | 24 twr | 32 twi | 40 idxGm(4n+2nD)
-//   48 第 8 参 = 低 8 位 foldD | 高 8 位平面 K（内核 K=0 时才自己按规则取）
+//   48 第 8 参 = 低 8 位 foldD | 高 8 位平面 K | 第 16 位 xflip（c2r 的 +i 约定）
 static void buildArgs(std::vector<unsigned char>& ab, size_t argBytes,
                       void* out, void* in, uint32_t n, uint32_t batch, void* twr, void* twi,
-                      void* idx, uint32_t foldD) {
+                      void* idx, uint32_t foldD, bool xflip = false) {
     ab.assign(argBytes ? argBytes : 56, 0);
     auto putPtr = [&](size_t off, void* p) {
         unsigned long long v = (unsigned long long)(uintptr_t)p;
@@ -645,7 +671,49 @@ static void buildArgs(std::vector<unsigned char>& ab, size_t argBytes,
     putU32(16, n);  putU32(20, batch);
     putPtr(24, twr); putPtr(32, twi);
     putPtr(40, idx);
-    putU32(48, (foldD & 0xFFu) | (planeKFor(n) << 8));   // 低 8 位 foldD、高 8 位 K
+    putU32(48, (foldD & 0xFFu) | (planeKFor(n) << 8) | (xflip ? (1u << 16) : 0u));
+}
+
+// 设备缓冲按需扩容（旧路径只在首次 malloc；同一 plan 换 shape 复用会越界）
+static int ensureBuf(void** p, size_t* cap, size_t bytes) {
+    if (*cap >= bytes) return 0;
+    if (*p) { aclrtFree(*p); *p = nullptr; }
+    *cap = 0;
+    if (aclrtMalloc(p, bytes, ACL_MEM_MALLOC_NORMAL_ONLY)) return -1;
+    *cap = bytes;
+    return 0;
+}
+
+// r2c_post 的旋转因子 W_n^k = e^{-2πik/n}，k ∈ [0, n/4]（槽上取整到 8，同 fft_check）
+static void genR2CTwiddles(uint32_t n, std::vector<float>& pwr,
+                           std::vector<float>& pwi, uint32_t& pPad) {
+    const uint32_t pk1 = (n >> 2) + 1u;
+    pPad = (pk1 + 7u) & ~7u;
+    pwr.assign(pPad, 0.f);
+    pwi.assign(pPad, 0.f);
+    for (uint32_t k = 0; k < pk1; k++) {
+        const double ang = -2.0 * M_PI * (double)k / (double)n;
+        pwr[k] = (float)std::cos(ang);
+        pwi[k] = (float)std::sin(ang);
+    }
+}
+
+// 实数内核实参：out, in, ex0, ex1, n, batch（fft_real.o argBytes=40）。
+// ex0/ex1：r2c_post 是 W_n^k 表实/虚半区；prep/post 不用，传合法指针过空指针校验。
+static void buildRealArgs(std::vector<unsigned char>& ab, size_t argBytes,
+                          void* dst, void* src, void* ex0, void* ex1,
+                          uint32_t n, uint32_t batch) {
+    ab.assign(argBytes ? argBytes : 40, 0);
+    auto putPtr = [&](size_t off, void* p) {
+        unsigned long long v = (unsigned long long)(uintptr_t)p;
+        if (off + 8 <= ab.size()) memcpy(ab.data() + off, &v, 8);
+    };
+    auto putU32 = [&](size_t off, uint32_t v) {
+        if (off + 4 <= ab.size()) memcpy(ab.data() + off, &v, 4);
+    };
+    putPtr(0, dst); putPtr(8, src);
+    putPtr(16, ex0); putPtr(24, ex1);
+    putU32(32, n); putU32(36, batch);
 }
 
 int Plan::run(const float* in, float* out, uint32_t n, uint32_t batch) {
@@ -656,8 +724,8 @@ int Plan::run(const float* in, float* out, uint32_t n, uint32_t batch) {
     if ((uint64_t)batch * 2ull * (uint64_t)n > 0xFFFFFFFFull) return -8;
 
     const size_t nFloats = (size_t)n * 2 * batch;
-    if (!impl_->devIn && aclrtMalloc(&impl_->devIn, nFloats * 4, ACL_MEM_MALLOC_NORMAL_ONLY)) return -3;
-    if (!impl_->devOut && aclrtMalloc(&impl_->devOut, nFloats * 4, ACL_MEM_MALLOC_NORMAL_ONLY)) return -3;
+    if (ensureBuf(&impl_->devIn, &impl_->devInCap, nFloats * 4)) return -3;
+    if (ensureBuf(&impl_->devOut, &impl_->devOutCap, nFloats * 4)) return -3;
     if (aclrtMemcpy(impl_->devIn, nFloats * 4, in, nFloats * 4, ACL_MEMCPY_HOST_TO_DEVICE)) return -4;
 
     std::vector<unsigned char> ab;
@@ -672,6 +740,103 @@ int Plan::run(const float* in, float* out, uint32_t n, uint32_t batch) {
     if (e) return -5;
     if (aclrtSynchronizeStream(ctxStream_)) return -6;
     if (aclrtMemcpy(out, nFloats * 4, impl_->devOut, nFloats * 4, ACL_MEMCPY_DEVICE_TO_HOST)) return -7;
+    return 0;
+}
+
+// r2c：kfft_fwd(n/2)（实输入 n float/行零拷贝复用为交错复数）-> kfft_r2c_post。
+// 链与 src/host/fft_check.cpp（AB_DIR=r2c）同口径；输出为稠密半谱（行首 n+2 float）。
+int Plan::runR2C(const float* in, float* out, uint32_t n, uint32_t batch) {
+    if (!impl_ || !impl_->fn || !impl_->fnR2cPost) return -1;   // fft_real.o 未加载
+    // UB 预算同 fft_check 的 launch 守卫：内层 fwd 在 n/2<=4096、post 本身 <=192KB
+    if (n < 128 || n > 8192 || (n & 1u)) return -8;
+    if ((uint64_t)batch * 2ull * (uint64_t)n > 0xFFFFFFFFull) return -8;
+    const uint32_t innerN = n >> 1;
+    // fwd 的旋转因子/索引按内层长度 n/2 生成（sign -1 正向）
+    if (prepareSign(innerN, batch, -1)) return -2;
+    // W_n^k 表按全长度 n 键控
+    if (!impl_->preparedReal || impl_->preparedPwN != n) {
+        std::vector<float> pwr, pwi;
+        uint32_t pPad = 0;
+        genR2CTwiddles(n, pwr, pwi, pPad);
+        if (ensureBuf(&impl_->devPw, &impl_->devPwCap, (size_t)2 * pPad * 4)) return -3;
+        if (aclrtMemcpy(impl_->devPw, pPad * 4, pwr.data(), pPad * 4,
+                        ACL_MEMCPY_HOST_TO_DEVICE)) return -4;
+        if (aclrtMemcpy((char*)impl_->devPw + pPad * 4, pPad * 4, pwi.data(), pPad * 4,
+                        ACL_MEMCPY_HOST_TO_DEVICE)) return -4;
+        impl_->pwPad = pPad;
+        impl_->preparedReal = true;
+        impl_->preparedPwN = n;
+    }
+    const uint32_t nblk = (cand_.a.udCore > 0) ? (uint32_t)cand_.a.udCore : 48u;
+    const size_t inF = (size_t)n * batch;                 // 实数输入
+    const size_t hsSt = (size_t)n + 16u;                  // 半谱行距（内核 hsStride(n)）
+    const size_t stF = hsSt * batch;
+    if (ensureBuf(&impl_->devIn, &impl_->devInCap, (size_t)n * 2u * batch * 4u)) return -3;
+    if (ensureBuf(&impl_->devA, &impl_->devACap, (size_t)n * 2u * batch * 4u)) return -3;
+    if (ensureBuf(&impl_->devSt, &impl_->devStCap, stF * 4)) return -3;
+    if (aclrtMemcpy(impl_->devIn, inF * 4, in, inF * 4, ACL_MEMCPY_HOST_TO_DEVICE)) return -4;
+
+    const uint32_t blocks = (uint32_t)std::max(1, std::min(cand_.a.udCore, (int)batch));
+    std::vector<unsigned char> ab, ar;
+    buildArgs(ab, impl_->argBytes, impl_->devA, impl_->devIn, innerN, batch,
+              impl_->devTwr, impl_->devTwi, impl_->devIdx,
+              bfly::foldDFor(innerN, batch, nblk), false);
+    if (aclrtLaunchKernelWithHostArgs(impl_->fn, blocks, ctxStream_, nullptr,
+                                      ab.data(), ab.size(), nullptr, 0)) return -5;
+    buildRealArgs(ar, impl_->argBytesReal, impl_->devSt, impl_->devA,
+                  impl_->devPw, (char*)impl_->devPw + impl_->pwPad * 4, n, batch);
+    if (aclrtLaunchKernelWithHostArgs(impl_->fnR2cPost, blocks, ctxStream_, nullptr,
+                                      ar.data(), ar.size(), nullptr, 0)) return -5;
+    if (aclrtSynchronizeStream(ctxStream_)) return -6;
+
+    std::vector<float> st(stF);
+    if (aclrtMemcpy(st.data(), stF * 4, impl_->devSt, stF * 4,
+                    ACL_MEMCPY_DEVICE_TO_HOST)) return -7;
+    for (uint32_t b = 0; b < batch; b++)   // 行距 n+16 -> 稠密 n+2
+        memcpy(out + (size_t)b * (n + 2u), st.data() + (size_t)b * hsSt, (size_t)(n + 2u) * 4u);
+    return 0;
+}
+
+// c2r：kfft_c2r_prep（半谱镜像 -> 满谱）-> kfft_fwd(n, 旋转因子取反 + xflip) ->
+// kfft_c2r_post（偶 bin 提取 * 1/n）。输出含 1/n，口径同 numpy.fft.irfft。
+int Plan::runC2R(const float* in, float* out, uint32_t n, uint32_t batch) {
+    if (!impl_ || !impl_->fn || !impl_->fnPrep || !impl_->fnC2rPost) return -1;
+    if (n < 64 || n > 4096 || (n & 1u)) return -8;          // UB 预算同 fft_check 守卫
+    if ((uint64_t)batch * 2ull * (uint64_t)n > 0xFFFFFFFFull) return -8;
+    if (prepareSign(n, batch, 1)) return -2;                 // +i 约定（twiddle 取反）
+    const uint32_t nblk = (cand_.a.udCore > 0) ? (uint32_t)cand_.a.udCore : 48u;
+    const size_t hsSt = (size_t)n + 16u;
+    const size_t stF = hsSt * batch;
+    const size_t fullF = (size_t)n * 2u * batch;
+    if (ensureBuf(&impl_->devSt, &impl_->devStCap, stF * 4)) return -3;
+    if (ensureBuf(&impl_->devA, &impl_->devACap, fullF * 4)) return -3;
+    if (ensureBuf(&impl_->devB, &impl_->devBCap, fullF * 4)) return -3;
+    if (ensureBuf(&impl_->devOut, &impl_->devOutCap, fullF * 4)) return -3;
+    // 稠密半谱 (n+2)/行 -> 设备行距 n+16（slack 归零；prep 的镜像会整段覆盖 [n,2n)）
+    std::vector<float> st(stF, 0.f);
+    for (uint32_t b = 0; b < batch; b++)
+        memcpy(st.data() + (size_t)b * hsSt, in + (size_t)b * (n + 2u), (size_t)(n + 2u) * 4u);
+    if (aclrtMemcpy(impl_->devSt, stF * 4, st.data(), stF * 4,
+                    ACL_MEMCPY_HOST_TO_DEVICE)) return -4;
+
+    const uint32_t blocks = (uint32_t)std::max(1, std::min(cand_.a.udCore, (int)batch));
+    std::vector<unsigned char> ab, ar;
+    buildRealArgs(ar, impl_->argBytesReal, impl_->devA, impl_->devSt,
+                  impl_->devSt, impl_->devSt, n, batch);
+    if (aclrtLaunchKernelWithHostArgs(impl_->fnPrep, blocks, ctxStream_, nullptr,
+                                      ar.data(), ar.size(), nullptr, 0)) return -5;
+    buildArgs(ab, impl_->argBytes, impl_->devB, impl_->devA, n, batch,
+              impl_->devTwr, impl_->devTwi, impl_->devIdx,
+              bfly::foldDFor(n, batch, nblk), true);
+    if (aclrtLaunchKernelWithHostArgs(impl_->fn, blocks, ctxStream_, nullptr,
+                                      ab.data(), ab.size(), nullptr, 0)) return -5;
+    buildRealArgs(ar, impl_->argBytesReal, impl_->devOut, impl_->devB,
+                  impl_->devSt, impl_->devSt, n, batch);
+    if (aclrtLaunchKernelWithHostArgs(impl_->fnC2rPost, blocks, ctxStream_, nullptr,
+                                      ar.data(), ar.size(), nullptr, 0)) return -5;
+    if (aclrtSynchronizeStream(ctxStream_)) return -6;
+    if (aclrtMemcpy(out, (size_t)n * batch * 4, impl_->devOut, (size_t)n * batch * 4,
+                    ACL_MEMCPY_DEVICE_TO_HOST)) return -7;
     return 0;
 }
 
@@ -787,6 +952,22 @@ std::unique_ptr<Plan> Context::makePlan(const Candidate& c) {
         return nullptr;
     if (aclrtBinaryGetFunction(p->impl_->bin, "kfft_fwd", &p->impl_->fn) != ACL_SUCCESS)
         return nullptr;
+    // r2c/c2r 链（fft_real.o）：与 kernelPath 同目录，AB_REAL_O 可覆盖；缺失不影响 c2c
+    const char* rop = getenv("AB_REAL_O");
+    std::string rpath;
+    if (rop) {
+        rpath = rop;
+    } else {
+        size_t s = kernelPath_.find_last_of("/\\");
+        rpath = (s == std::string::npos ? std::string() : kernelPath_.substr(0, s + 1))
+                + "fft_real.o";
+    }
+    if (aclrtBinaryLoadFromFile(rpath.c_str(), nullptr, &p->impl_->binReal) == ACL_SUCCESS) {
+        aclrtBinaryGetFunction(p->impl_->binReal, "kfft_c2r_prep", &p->impl_->fnPrep);
+        aclrtBinaryGetFunction(p->impl_->binReal, "kfft_r2c_post", &p->impl_->fnR2cPost);
+        aclrtBinaryGetFunction(p->impl_->binReal, "kfft_c2r_post", &p->impl_->fnC2rPost);
+        p->impl_->argBytesReal = readArgSize(rpath);
+    }
     p->tf_.push_back({Transform::GenTwiddles, "gen twiddles (align8 per-stage slots)"});
     p->tf_.push_back({Transform::GenBitReverse, "gen bitrev/transpose byte offsets (plane layout)"});
     p->tf_.push_back({Transform::LaunchKernel, "kfft_fwd on aclrtStream"});

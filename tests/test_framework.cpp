@@ -61,6 +61,54 @@ int main(int argc, char** argv) {
     printf("maxRel=%.3e (accept 1e-4)  eta=%.1f us  measured=%.1f us  state=%s\n",
            maxRel, m.etaUs, m.measuredUs, bfly::toString(plan->candidate().state));
     if (maxRel > 1e-4) { printf("FAIL\n"); return 1; }
+
+    // r2c/c2r 冒烟：fft_real.o 缺失（rc=-1）或 n 越界时跳过；判据同 1e-4
+    bool realOk = true;
+    if (n >= 128 && n <= 8192 && (n & 1u) == 0) {
+        std::vector<float> rin((size_t)n * batch), rout((size_t)(n + 2) * batch), rref(n + 2);
+        for (size_t i = 0; i < rin.size(); i++) rin[i] = bfly::patternAt(i);
+        if (int rc = plan->runR2C(rin.data(), rout.data(), n, batch)) {
+            if (rc == -1) printf("r2c skipped (fft_real.o not loaded)\n");
+            else { printf("r2c run failed rc=%d\n", rc); realOk = false; }
+        } else {
+            double rel = 0;
+            const uint32_t checkB = bfly::sampleBatches(batch, 8, checkIdx, 8);
+            for (uint32_t i = 0; i < checkB; i++) {
+                const uint32_t b = checkIdx[i];
+                bfly::refR2CF32(rin.data() + (size_t)b * n, rref.data(), n);
+                rel = std::max(rel, bfly::maxRelScaled(rout.data() + (size_t)b * (n + 2),
+                                                       rref.data(), n + 2));
+            }
+            printf("r2c: maxRel=%.3e\n", rel);
+            if (rel > 1e-4) realOk = false;
+        }
+    } else {
+        printf("r2c skipped (n=%u outside 128..8192)\n", n);
+    }
+    if (n >= 64 && n <= 4096 && (n & 1u) == 0) {
+        std::vector<float> hin((size_t)(n + 2) * batch), hout((size_t)n * batch), rref(n);
+        // c2r 输入 = 任意合法稠密半谱（逐元素 pattern）；唯一约定：Nyquist 虚部为 0
+        for (size_t i = 0; i < hin.size(); i++) hin[i] = bfly::patternAt(i);
+        for (uint32_t b = 0; b < batch; b++) hin[(size_t)b * (n + 2) + n + 1] = 0.f;
+        if (int rc = plan->runC2R(hin.data(), hout.data(), n, batch)) {
+            if (rc == -1) printf("c2r skipped (fft_real.o not loaded)\n");
+            else { printf("c2r run failed rc=%d\n", rc); realOk = false; }
+        } else {
+            double rel = 0;
+            const uint32_t checkB = bfly::sampleBatches(batch, 8, checkIdx, 8);
+            for (uint32_t i = 0; i < checkB; i++) {
+                const uint32_t b = checkIdx[i];
+                bfly::refC2RF32(hin.data() + (size_t)b * (n + 2), rref.data(), n);
+                rel = std::max(rel, bfly::maxRelScaled(hout.data() + (size_t)b * n,
+                                                       rref.data(), n));
+            }
+            printf("c2r: maxRel=%.3e\n", rel);
+            if (rel > 1e-4) realOk = false;
+        }
+    } else {
+        printf("c2r skipped (n=%u outside 64..4096)\n", n);
+    }
+    if (!realOk) { printf("FAIL\n"); return 1; }
     printf("PASS\n");
     return 0;
 }

@@ -12,6 +12,13 @@ namespace bfly {
 // radix-2 DIT，先位反转再蝶形，旋转因子 exp(-2*pi*i*j/n)。
 void refFftF32(const float* in, float* out, uint32_t n);
 
+// r2c 参考：in 长 n 实数，out 长 n+2（前 n/2+1 个交错复数）== numpy.fft.rfft。
+void refR2CF32(const float* in, float* out, uint32_t n);
+
+// c2r 参考：in 长 n+2 稠密半谱（Nyquist 虚部须为 0），out 长 n 实数（含 1/n）
+// == numpy.fft.irfft 的 n 点口径。镜像规则与 fft_check/内核 prep 一致。
+void refC2RF32(const float* in, float* out, uint32_t n);
+
 // 全局 scale 归一的相对误差：max |got-ref| / max |ref|（按 float 分量取模，len = 2n）。
 // 三处验收必须用同一个口径，否则三套测试报的不是同一个指标：
 //   - src/framework/butterfly.cpp  Plan::measure

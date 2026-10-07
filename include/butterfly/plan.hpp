@@ -34,12 +34,20 @@ public:
     int prepare(uint32_t n, uint32_t batch = 0xFFFFFFFFu);
     // 执行一次 n×batch 的复数 fp32 前向 FFT
     int run(const float* in, float* out, uint32_t n, uint32_t batch);
+    // r2c：in [batch][n] 实数；out [batch][n+2] = n/2+1 个交错复数（numpy.fft.rfft 稠密布局）。
+    // 需要与 kernelPath 同目录的 fft_real.o（缺失返回 -1）；n 偶数且 128..8192。
+    int runR2C(const float* in, float* out, uint32_t n, uint32_t batch);
+    // c2r：in [batch][n+2] 半谱（Nyquist 虚部须为 0，与 fft_check::genHalfInput 同约定）；
+    // out [batch][n] 实数（含 1/n，口径同 numpy.fft.irfft）。n 偶数且 64..4096。
+    int runC2R(const float* in, float* out, uint32_t n, uint32_t batch);
     // 实测 µs（含同步），成功时回填 candidate 的 Metric 并把状态置 Measured
     int measure(uint32_t n, uint32_t batch, Metric* out);
 
 private:
     friend class Context;
     explicit Plan(Candidate c);   // 定义在 butterfly.cpp（Impl 需完整类型）
+    // prepare 的实现体：sign>0 时旋转因子取反（c2r 的 +i 约定，与内核 xflip 位配套）
+    int prepareSign(uint32_t n, uint32_t batch, int sign);
     Candidate cand_;
     std::vector<Transform> tf_;
     struct Impl;
