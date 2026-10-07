@@ -58,6 +58,11 @@ extern "C" __global__ __aicore__ __vector__ void kfft_fwd(__gm__ float* out, __g
     // 传 0 时内核自行按 bfly::planeKFor 规则取 K（与宿主一致）。
     // K 择优规则见 bfly::planeKFor（与宿主 fft_check 的索引生成、框架 Generator 共用）。
     const uint32_t K  = ((foldD >> 8) & 0xFFu) ? ((foldD >> 8) & 0xFFu) : bfly::planeKFor(n);
+    // 第 16 位：旋转因子符号约定翻转（c2r 用 e^{+2πi·} 表）。
+    // 融合 radix-4 的交叉旋转 ±i = W_{4h}^{h} 会随约定翻转成 ∓i，而 ±i 是写死在蝶形里的
+    // （W、W²、W³ 都来自查找表、会自动共轭，唯独它不会）=> 翻转约定时把 s 取反即可，
+    // y1/y3 的算子形态保持不变（q+i*(-s) = q-i*s）。
+    const bool xflip = ((foldD >> 16) & 0x1u) != 0u;
     uint32_t logK = 0;
     while ((1u << logK) < K) logK++;
     const uint32_t rows = n / K;       // 每个 plane 的长度（= 列长）
@@ -225,8 +230,10 @@ extern "C" __global__ __aicore__ __vector__ void kfft_fwd(__gm__ float* out, __g
                         // q = x0-u1 -> x1 ; p = x0+u1 -> x0   (u0/u1 仍是 u1)
                         Sub(a1, a0, u0, msk, g, bAAT); Sub(c1, c0, u1, msk, g, bAAT);
                         Add(a0, a0, u0, msk, g, bAAT); Add(c0, c0, u1, msk, g, bAAT);
-                        // s = u2-u3 -> u0/u1 ; r = u2+u3 -> u2/u3
-                        Sub(u0, u2, u4, msk, g, bTTT); Sub(u1, u3, u5, msk, g, bTTT);
+                        // s = u2-u3 -> u0/u1 ；xflip（+i 约定）时交叉旋转 ∓i => s 取反：
+                        // 直接交换减数/被减数（Level-0 就地矢量算子在批折叠下不可靠，且省 2 算子）
+                        if (!xflip) { Sub(u0, u2, u4, msk, g, bTTT); Sub(u1, u3, u5, msk, g, bTTT); }
+                        else        { Sub(u0, u4, u2, msk, g, bTTT); Sub(u1, u5, u3, msk, g, bTTT); }
                         Add(u2, u2, u4, msk, g, bTTT); Add(u3, u3, u5, msk, g, bTTT);
                         // y2 = p-r -> x2 ; y0 = p+r -> x0
                         Sub(a2, a0, u2, msk, g, bAAT); Sub(c2, c0, u3, msk, g, bAAT);
@@ -245,7 +252,8 @@ extern "C" __global__ __aicore__ __vector__ void kfft_fwd(__gm__ float* out, __g
                         LocalTensor<float> u3 = t3[off], u4 = t4[off], u5 = t5[off];
                         Sub(u0, a0, a1, msk, g, bTTA); Sub(u1, c0, c1, msk, g, bTTA); // q
                         Add(a0, a0, a1, msk, g, bAAA); Add(c0, c0, c1, msk, g, bAAA); // p
-                        Sub(u2, a2, a3, msk, g, bTTA); Sub(u3, c2, c3, msk, g, bTTA); // s
+                        if (!xflip) { Sub(u2, a2, a3, msk, g, bTTA); Sub(u3, c2, c3, msk, g, bTTA); } // s
+                        else        { Sub(u2, a3, a2, msk, g, bTTA); Sub(u3, c3, c2, msk, g, bTTA); } // s 取反
                         Add(u4, a2, a3, msk, g, bTTA); Add(u5, c2, c3, msk, g, bTTA); // r
                         Sub(a2, a0, u4, msk, g, bAAT); Sub(c2, c0, u5, msk, g, bAAT); // y2
                         Add(a0, a0, u4, msk, g, bAAT); Add(c0, c0, u5, msk, g, bAAT); // y0
@@ -276,8 +284,9 @@ extern "C" __global__ __aicore__ __vector__ void kfft_fwd(__gm__ float* out, __g
                         // q = x0-u1 -> x1 ; p = x0+u1 -> x0   (t0/t1 仍是 u1)
                         Sub(r1, r0, t0[tOff], rows); Sub(i1, i0, t1[tOff], rows);
                         Add(r0, r0, t0[tOff], rows); Add(i0, i0, t1[tOff], rows);
-                        // s = u2-u3 -> t0/t1 ; r = u2+u3 -> t2/t3
-                        Sub(t0[tOff], t2[tOff], t4[tOff], rows); Sub(t1[tOff], t3[tOff], t5[tOff], rows);
+                        // s = u2-u3 -> t0/t1 ；xflip 交换减数/被减数取反 s；r = u2+u3 -> t2/t3
+                        if (!xflip) { Sub(t0[tOff], t2[tOff], t4[tOff], rows); Sub(t1[tOff], t3[tOff], t5[tOff], rows); }
+                        else        { Sub(t0[tOff], t4[tOff], t2[tOff], rows); Sub(t1[tOff], t5[tOff], t3[tOff], rows); }
                         Add(t2[tOff], t2[tOff], t4[tOff], rows); Add(t3[tOff], t3[tOff], t5[tOff], rows);
                         // y2 = p-r -> x2 ; y0 = p+r -> x0
                         Sub(r2, r0, t2[tOff], rows); Sub(i2, i0, t3[tOff], rows);
@@ -288,7 +297,8 @@ extern "C" __global__ __aicore__ __vector__ void kfft_fwd(__gm__ float* out, __g
                     } else {
                         Sub(t0[tOff], r0, r1, rows); Sub(t1[tOff], i0, i1, rows);   // q -> t0/t1
                         Add(r0, r0, r1, rows); Add(i0, i0, i1, rows);               // p -> x0
-                        Sub(t2[tOff], r2, r3, rows); Sub(t3[tOff], i2, i3, rows);   // s -> t2/t3
+                        if (!xflip) { Sub(t2[tOff], r2, r3, rows); Sub(t3[tOff], i2, i3, rows); } // s -> t2/t3
+                        else        { Sub(t2[tOff], r3, r2, rows); Sub(t3[tOff], i3, i2, rows); } // s 取反
                         Add(t4[tOff], r2, r3, rows); Add(t5[tOff], i2, i3, rows);   // r -> t4/t5
                         Sub(r2, r0, t4[tOff], rows); Sub(i2, i0, t5[tOff], rows);   // y2
                         Add(r0, r0, t4[tOff], rows); Add(i0, i0, t5[tOff], rows);   // y0

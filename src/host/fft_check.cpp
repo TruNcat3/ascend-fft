@@ -1,5 +1,17 @@
-// Phase 1 acceptance harness: launch kfft_fwd and check against a double-precision CPU reference.
+// Phase 1 acceptance harness: launch kfft_fwd（c2c）或实数变换链（r2c/c2r），
+// 与双精度 CPU 参考逐点比对。
 // usage: fft_check <n> <batch> [reps]
+//
+//   AB_DIR   = c2c（默认）| r2c | c2r   选择变换方向（内核见 src/ascendc/fft_real.cpp）
+//              c2c : kfft_fwd(n)
+//              r2c : kfft_fwd(n/2)（实输入零拷贝复用为交错复数）-> kfft_r2c_post
+//              c2r : kfft_c2r_prep -> kfft_fwd(n)（旋转因子取反，直接算 n·IDFT）
+//                    -> kfft_c2r_post
+//              r2c 要求 n>=128（内层 FFT n/2 必须满足 8-plane 布局 rows=n/K>=8）
+//   AB_FFT_O   kfft_fwd 的 .o（默认 build/fft_radix2.o）
+//   AB_REAL_O  实数内核的 .o（默认 build/fft_real.o，仅 r2c/c2r 需要）
+//   其余环境变量（AB_INPUT/AB_E2E/AB_DUMP/AB_FOLD_D/AB_PLANE_K/AB_FFT_O ...）语义不变，
+//   其中 AB_FOLD_D/AB_PLANE_K 作用在「内层 FFT」的长度上（r2c 时为 n/2）。
 #include <acl/acl.h>
 #include "butterfly/fft_k.hpp"
 #include "butterfly/reference.hpp"
@@ -97,6 +109,24 @@ static void genAppInput(std::vector<float>& hIn, uint32_t n, uint32_t batch,
     }
 }
 
+// c2r 输入：任意半谱（确定性 hash，行距 n+16 float，Nyquist 虚部置 0）。
+// 非 Hermitian 一致的中间 bin 也照收 —— prep 按镜像规则补全满谱，参考实现同式，
+// 因此这是对展开逻辑本身的更强测试（不是「输入即合法 rfft 输出」的恒等检验）。
+static void genHalfInput(std::vector<float>& h, uint32_t n, uint32_t batch){
+    const uint32_t m = n >> 1, st = n + 16u;
+    for(uint32_t b=0;b<batch;b++){
+        for(uint32_t k=0;k<=m;k++){
+            uint32_t x1 = appHash(b, k);
+            uint32_t x2 = appHash(b, k ^ 0x5bd1u);
+            float re = (float)((int32_t)(x1 & 0xFFFFu) - 32768) * (1.0f/32768.0f);
+            float im = (k==m) ? 0.f
+                     : (float)((int32_t)(x2 & 0xFFFFu) - 32768) * (1.0f/32768.0f);
+            h[(size_t)b*st + 2u*k]     = re;
+            h[(size_t)b*st + 2u*k + 1u] = im;
+        }
+    }
+}
+
 static void refFft(const float* in, std::complex<double>* y, uint32_t n){
     uint32_t logn=0; while((1u<<logn)<n) logn++;
     for(uint32_t i=0;i<n;i++){
@@ -117,7 +147,7 @@ static void refFft(const float* in, std::complex<double>* y, uint32_t n){
 }
 
 int main(int argc, char** argv){
-    if(argc<3){ printf("usage: %s <n> <batch> [reps]\n", argv[0]); return 2; }
+    if(argc<3){ printf("usage: %s <n> <batch> [reps]   (AB_DIR=c2c|r2c|c2r)\n", argv[0]); return 2; }
     const auto tInit0=std::chrono::steady_clock::now();
     uint32_t n=(uint32_t)atoi(argv[1]); uint32_t batch=(uint32_t)atoi(argv[2]);
     int reps = argc>3?atoi(argv[3]):10;
@@ -127,41 +157,91 @@ int main(int argc, char** argv){
         printf("n must be >= 64 (8-plane layout: rows=n/K must be a multiple of 8)\n");
         return 2;
     }
+    // ---- 变换方向（AB_DIR）----
+    const char* dir = getenv("AB_DIR") ? getenv("AB_DIR") : "c2c";
+    const bool isR2C = strcmp(dir,"r2c")==0;
+    const bool isC2R = strcmp(dir,"c2r")==0;
+    const bool isReal = isR2C || isC2R;
+    if(!isReal && strcmp(dir,"c2c")!=0){
+        printf("AB_DIR must be c2c | r2c | c2r (got %s)\n", dir); return 2;
+    }
+    if(isR2C && n<128){
+        printf("r2c requires n >= 128 (inner FFT n/2 must satisfy rows=n/K >= 8)\n");
+        return 2;
+    }
+    // UB 预算（见 fft_radix2.cpp InitBuffer）：fwd @n=8192 ≈389KB > 192KB 会 507035。
+    // r2c 的 fwd 走半长 => n<=8192（inner<=4096）；c2r 的 fwd 走全长 => n<=4096。
+    if(isC2R && n>4096){ printf("c2r requires n <= 4096 (fwd runs at full n, UB budget)\n"); return 2; }
+    if(isR2C && n>8192){ printf("r2c requires n <= 8192 (inner n/2 <= 4096)\n"); return 2; }
+    if(!isReal && n>4096){ printf("c2c requires n <= 4096 (UB budget)\n"); return 2; }
+    const uint32_t innerN = isR2C ? (n>>1) : n;   // kfft_fwd 的长度（r2c 走半长）
+    const uint32_t hsSt   = n + 16u;              // 半谱行距（float，见 fft_real.cpp）
+    const uint32_t inSt   = isR2C ? n : (isC2R ? hsSt : 2u*n);
+    const uint32_t outSt  = isR2C ? hsSt : (isC2R ? n : 2u*n);
+    const size_t inElems  = (size_t)inSt * batch;
+    const size_t outElems = (size_t)outSt * batch;
+    const size_t elements = 2ull*(size_t)n*batch; // 复数张量（满谱 / 复 FFT 中间量）
     if((uint64_t)batch*2ull*(uint64_t)n > 0xFFFFFFFFull){
         // 内核 goff = b*2u*n 是 uint32（fft_radix2.cpp:97），b 可达 batch-1
         printf("batch*2*n exceeds uint32 goff (max batch for n=%u is %llu)\n",
                n, (unsigned long long)0xFFFFFFFFull/(2ull*(uint64_t)n));
         return 2;
     }
-    uint32_t twPad=n+16;
-    uint32_t elements=2u*n*batch;
+    const uint32_t twPad=innerN+16;
 
     CK(aclInit(nullptr)); CK(aclrtSetDevice(0));
     aclrtStream s=nullptr; CK(aclrtCreateStream(&s));
     // boot = aclInit + SetDevice + CreateStream（进程级一次性）；plan = 之后的数据准备
     const auto tBoot1=std::chrono::steady_clock::now();
 
-    std::vector<float> hIn(elements);
+    std::vector<float> hIn(inElems, 0.f);
     // AB_INPUT=sin（默认）| ofdm | radar | dl —— 见上面 genAppInput 的注释。
+    // c2r 固定用 genHalfInput（任意半谱），AB_INPUT 对它不生效。
     const char* inMode = getenv("AB_INPUT") ? getenv("AB_INPUT") : "sin";
-    if(strcmp(inMode,"sin")==0){
-        for(uint32_t i=0;i<elements;i++)
-            hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
+    if(isC2R){
+        genHalfInput(hIn, n, batch);
+    }else if(isR2C){
+        if(strcmp(inMode,"sin")==0){
+            for(size_t i=0;i<inElems;i++)
+                hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
+        }else{
+            std::vector<float> cx(elements);           // 应用形状是复数的，取实部当实输入
+            genAppInput(cx, n, batch, inMode);
+            for(size_t i=0;i<inElems;i++) hIn[i]=cx[2*i];
+        }
     }else{
-        genAppInput(hIn, n, batch, inMode);
+        if(strcmp(inMode,"sin")==0){
+            for(size_t i=0;i<elements;i++)
+                hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
+        }else{
+            genAppInput(hIn, n, batch, inMode);
+        }
     }
-    std::vector<float> hOut(elements,0.f);
+    std::vector<float> hOut(outElems,0.f);
+    // AB_INPUT_FILE=<path>：整块覆盖 hIn（任意模式），供链路中间量交叉验证。
+    if(const char* inf=getenv("AB_INPUT_FILE")){
+        FILE* fp=fopen(inf,"rb");
+        if(!fp || fread(hIn.data(),4,inElems,fp)!=inElems){
+            printf("AB_INPUT_FILE read failed: %s\n", inf); return 2;
+        }
+        fclose(fp);
+    }
     // plan 计时从这里起：跳过 hIn 测试输入的生成（host 上的 sin/cos 逐元素循环，
     // 大形状能到上百 ms，属于测试夹具而非 plan 准备）
     const auto tPlan0=std::chrono::steady_clock::now();
 
-    // twiddles (planar, padded to twPad)
+    // twiddles (planar, padded to twPad)，按内层 FFT 长度 innerN 生成。
+    // c2r：符号取反（e^{+2πi·}）=> kfft_fwd 直接输出 G(X)=n·IDFT(X)（见 fft_real.cpp 头注）。
+    // AB_SGN=+1|-1：强制覆盖旋转因子符号（默认 c2r 取反、其余正向），供调试。
+    // sgn 还打包进 packArg 第 16 位（内核 xflip：交叉旋转 ±i 互换，见 fft_radix2.cpp）。
+    double sgn = isC2R ? 1.0 : -1.0;
+    if(const char* se=getenv("AB_SGN")) sgn = (atof(se)>0)?1.0:-1.0;
     std::vector<float> twr(twPad,0.f), twi(twPad,0.f);
     {
         uint32_t off=0;
-        for(uint32_t h=1; h<=n/2; h<<=1){
+        for(uint32_t h=1; h<=innerN/2; h<<=1){
             for(uint32_t j=0; j<h; j++){
-                double ang = -M_PI*(double)j/(double)h;
+                double ang = sgn*M_PI*(double)j/(double)h;
                 twr[off+j]=(float)std::cos(ang); twi[off+j]=(float)std::sin(ang);
             }
             off += (h+7u)&~7u;
@@ -169,12 +249,25 @@ int main(int argc, char** argv){
         if(off!=twPad) printf("WARN: twiddle slots %u != twPad %u\n", off, twPad);
     }
 
+    // r2c 后处理的旋转因子 W_n^k = e^{-2πik/n}，k ∈ [0, n/4]（8 倍数上取整）
+    std::vector<float> pwr, pwi;
+    uint32_t pPad=0;
+    if(isR2C){
+        const uint32_t pk1=(n>>2)+1u;
+        pPad=(pk1+7u)&~7u;
+        pwr.assign(pPad,0.f); pwi.assign(pPad,0.f);
+        for(uint32_t k=0;k<pk1;k++){
+            double ang=-2.0*M_PI*(double)k/(double)n;
+            pwr[k]=(float)std::cos(ang); pwi[k]=(float)std::sin(ang);
+        }
+    }
+
     // 三张索引合成一个 (4n + 2nD) 的 GM 张量：[idxB(n) | idxT(n) | idxOut(2nD)]，单位字节。
     // foldD：默认取 bfly::foldDFor(n, batch, 48)，与 launch 的 blocks=min(48,batch) 同口径，
     //   也与 src/framework/butterfly.cpp::Plan::prepare 同一规则（那边 nblk = cand.udCore）。
     //   AB_FOLD_D=<k> 可强制指定，仅供 A/B —— 核内 tmpF/idx 按传入值现算，任意 k>=1 都
     //   功能正确；k>1 而 rows=n/K>64 时核内 plane 段按 64 元素行切片（不变错，只是多一层循环）。
-    uint32_t foldD = bfly::foldDFor(n, batch, 48u);
+    uint32_t foldD = bfly::foldDFor(innerN, batch, 48u);
     if (const char* e = getenv("AB_FOLD_D")) {
         int v = atoi(e);
         if (v >= 1) foldD = (uint32_t)v;
@@ -186,53 +279,79 @@ int main(int argc, char** argv){
     // 行切片（nRowSlice=2，A5 新增路径）。K 不能 < 8（planar 首级 h=K<8 时 32B 对齐
     // 失效，AIV 抛 507035），这正是 planeKFor 候选集从 8 起跳的原因。
     // 只对当前 8 参内核有效（遗留 v1/v2 不读第 8 参，索引会与核内 K 不一致）。
-    uint32_t planeK = bfly::planeKFor(n);
+    uint32_t planeK = bfly::planeKFor(innerN);
     if (const char* e = getenv("AB_PLANE_K")) {
         int v = atoi(e);
         if (v == 8 || v == 16 || v == 32) planeK = (uint32_t)v;
     }
-    const uint32_t packArg = foldD | (planeK << 8);
-    const uint32_t idxN = 4u*n + 2u*n*D;
+    const uint32_t packArg = foldD | (planeK << 8) | ((sgn > 0.0) ? (1u << 16) : 0u);
+    const uint32_t idxN = 4u*innerN + 2u*innerN*D;
     std::vector<uint32_t> idxAll(idxN, 0u);
-    if(n>=64){
+    if(innerN>=64){
         uint32_t K = planeK;
-        uint32_t rows=n/K, logK=0; while((1u<<logK)<K) logK++;
-        uint32_t logn=0; while((1u<<logn)<n) logn++;
+        uint32_t rows=innerN/K, logK=0; while((1u<<logK)<K) logK++;
+        uint32_t logn=0; while((1u<<logn)<innerN) logn++;
         uint32_t mask=K-1u;
-        for(uint32_t k=0;k<n;k++){
+        for(uint32_t k=0;k<innerN;k++){
             uint32_t j=((k%rows)<<logK)|(k/rows), r=0, t=j;
             for(uint32_t b=0;b<logn;b++){ r=(r<<1)|(t&1u); t>>=1; }
-            idxAll[k]   = 2u*r*4u;                                   // bitrev(invpos(k))
-            idxAll[n+k] = (((k&mask)*rows)+(k>>logK))*4u;             // plane -> planar
+            idxAll[k]   = 2u*r*4u;                                        // bitrev(invpos(k))
+            idxAll[innerN+k] = (((k&mask)*rows)+(k>>logK))*4u;             // plane -> planar
         }
-        for(uint32_t d=0;d<D;d++){                                    // planar -> 交错，逐批一段
-            uint32_t base = 2u*n + d*2u*n, rd = d*n;
-            for(uint32_t j=0;j<n;j++){
+        for(uint32_t d=0;d<D;d++){                                        // planar -> 交错，逐批一段
+            uint32_t base = 2u*innerN + d*2u*innerN, rd = d*innerN;
+            for(uint32_t j=0;j<innerN;j++){
                 idxAll[base+2u*j]     = 4u*(rd+j);
-                idxAll[base+2u*j+1u]  = 4u*(D*n + rd+j);
+                idxAll[base+2u*j+1u]  = 4u*(D*innerN + rd+j);
             }
         }
     }
-    void *dIn=nullptr,*dOut=nullptr,*dTwR=nullptr,*dTwI=nullptr,*dIdx=nullptr;
-    CK(aclrtMalloc(&dIn,  elements*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
-    CK(aclrtMalloc(&dOut, elements*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
+    void *dIn=nullptr,*dOut=nullptr,*dA=nullptr,*dB=nullptr,*dTwR=nullptr,*dTwI=nullptr,
+         *dIdx=nullptr,*dPW=nullptr;
+    CK(aclrtMalloc(&dIn,  inElems*4u,  ACL_MEM_MALLOC_NORMAL_ONLY));
+    CK(aclrtMalloc(&dOut, outElems*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
+    if(isR2C){                                    // Z：内层 FFT 输出（n float/行）
+        CK(aclrtMalloc(&dA, inElems*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
+        CK(aclrtMalloc(&dPW, (size_t)2u*pPad*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
+    }else if(isC2R){                              // A：满谱；B：kfft_fwd 反号输出
+        CK(aclrtMalloc(&dA, elements*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
+        CK(aclrtMalloc(&dB, elements*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
+    }
     CK(aclrtMalloc(&dTwR, twPad*4u,     ACL_MEM_MALLOC_NORMAL_ONLY));
     CK(aclrtMalloc(&dTwI, twPad*4u,     ACL_MEM_MALLOC_NORMAL_ONLY));
     CK(aclrtMalloc(&dIdx, (size_t)idxN*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
-    CK(aclrtMemcpy(dIn, elements*4u, hIn.data(), elements*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+    CK(aclrtMemcpy(dIn, inElems*4u, hIn.data(), inElems*4u, ACL_MEMCPY_HOST_TO_DEVICE));
     CK(aclrtMemcpy(dTwR, twPad*4u, twr.data(), twPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
     CK(aclrtMemcpy(dTwI, twPad*4u, twi.data(), twPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
     CK(aclrtMemcpy(dIdx, (size_t)idxN*4u, idxAll.data(), (size_t)idxN*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+    if(isR2C){
+        CK(aclrtMemcpy(dPW, (size_t)pPad*4u, pwr.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+        CK(aclrtMemcpy((char*)dPW + (size_t)pPad*4u, (size_t)pPad*4u,
+                       pwi.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+    }
 
     aclrtBinHandle b=nullptr;
-    CK(aclrtBinaryLoadFromFile(getenv("AB_FFT_O")?getenv("AB_FFT_O"):"build/fft_radix2.o", nullptr, &b));
+    const char* opath = getenv("AB_FFT_O")?getenv("AB_FFT_O"):"build/fft_radix2.o";
+    CK(aclrtBinaryLoadFromFile(opath, nullptr, &b));
     aclrtFuncHandle f=nullptr; CK(aclrtBinaryGetFunction(b,"kfft_fwd",&f));
+
+    // 实数内核（同一 .o 内三个内核同签名，argSize=40）
+    aclrtBinHandle rb=nullptr;
+    aclrtFuncHandle fPrep=nullptr, fPost=nullptr;
+    if(isReal){
+        const char* ropath = getenv("AB_REAL_O")?getenv("AB_REAL_O"):"build/fft_real.o";
+        CK(aclrtBinaryLoadFromFile(ropath, nullptr, &rb));
+        if(isR2C) CK(aclrtBinaryGetFunction(rb,"kfft_r2c_post",&fPost));
+        else{
+            CK(aclrtBinaryGetFunction(rb,"kfft_c2r_prep",&fPrep));
+            CK(aclrtBinaryGetFunction(rb,"kfft_c2r_post",&fPost));
+        }
+    }
 
     uint32_t blocks = batch<48u?batch:48u;
     // spec p p u u p p p u -> out,in,n,batch,twr,twi,idxGm(4n+2nD),foldD
     // 遗留内核 v1/v2 只有 7 参（argBytes<52）：AB_FFT_O 指向它们时不写第 8 参，
     // 否则 aclrtLaunchKernelWithHostArgs 会因实参块长度不符而拒收。
-    const char* opath = getenv("AB_FFT_O")?getenv("AB_FFT_O"):"build/fft_radix2.o";
     uint32_t argBytes=readArgSize(opath);
     size_t used=56;
     if(argBytes==0){ printf("WARN: __CCE_KernelArgSize not found\n"); }
@@ -245,15 +364,47 @@ int main(int argc, char** argv){
                    (uint64_t)(uintptr_t)dIdx};
     memcpy(ab.data()+0, &p[0],8);
     memcpy(ab.data()+8, &p[1],8);
-    memcpy(ab.data()+16,&n,4);
+    memcpy(ab.data()+16,&innerN,4);
     memcpy(ab.data()+20,&batch,4);
     memcpy(ab.data()+24,&p[2],8);
     memcpy(ab.data()+32,&p[3],8);
     memcpy(ab.data()+40,&p[4],8);
     if(hasFold) memcpy(ab.data()+48,&packArg,4);   // 低 8 位 foldD | 高 8 位平面 K
 
+    // 实数内核实参：out, in, ex0, ex1, n, batch（=40B，fft_real.o 的 argSize）。
+    // ex0/ex1：r2c_post 是旋转因子表 wrr/wri（dPW）；prep/post 不用，传合法指针过校验。
+    std::vector<unsigned char> abR(40,0);
+    const uint64_t dMy=(uint64_t)(uintptr_t)dIn;    // dummy 也给合法指针，避免空指针校验
+    auto setReal=[&](void* dst, void* src, void* ex0=nullptr, void* ex1=nullptr){
+        uint64_t q0=(uint64_t)(uintptr_t)dst, q1=(uint64_t)(uintptr_t)src;
+        uint64_t q2=ex0?(uint64_t)(uintptr_t)ex0:dMy;
+        uint64_t q3=ex1?(uint64_t)(uintptr_t)ex1:dMy;
+        memcpy(abR.data()+0, &q0,8);
+        memcpy(abR.data()+8, &q1,8);
+        memcpy(abR.data()+16,&q2,8);
+        memcpy(abR.data()+24,&q3,8);
+        memcpy(abR.data()+32,&n,4);
+        memcpy(abR.data()+36,&batch,4);
+    };
+    auto issueFwd=[&](void* dst, void* src)->aclError{
+        uint64_t q0=(uint64_t)(uintptr_t)dst, q1=(uint64_t)(uintptr_t)src;
+        memcpy(ab.data()+0,&q0,8);
+        memcpy(ab.data()+8,&q1,8);
+        return aclrtLaunchKernelWithHostArgs(f,blocks,s,nullptr,ab.data(),ab.size(),nullptr,0);
+    };
+    auto issueReal=[&](aclrtFuncHandle fh, void* dst, void* src,
+                       void* ex0=nullptr, void* ex1=nullptr)->aclError{
+        setReal(dst, src, ex0, ex1);
+        return aclrtLaunchKernelWithHostArgs(fh,blocks,s,nullptr,abR.data(),abR.size(),nullptr,0);
+    };
+    // 一次 launch = 整条方向链（多内核在同一流上串行），末尾一次同步 => 计的是整链 device 时间
     auto launch=[&](){
-        aclError e=aclrtLaunchKernelWithHostArgs(f,blocks,s,nullptr,ab.data(),ab.size(),nullptr,0);
+        aclError e=ACL_SUCCESS;
+        if(isR2C)      { e=issueFwd(dA,dIn);
+                         if(!e) e=issueReal(fPost,dOut,dA, dPW,(char*)dPW+(size_t)pPad*4); }
+        else if(isC2R) { e=issueReal(fPrep,dA,dIn);     if(!e) e=issueFwd(dB,dA);
+                         if(!e) e=issueReal(fPost,dOut,dB); }
+        else           { e=issueFwd(dOut,dIn); }
         if(e){ printf("launch=%d\n",(int)e); return false; }
         { aclError se=aclrtSynchronizeStream(s); if(se){ printf("sync=%d\n",(int)se); return false; } }
         return true;
@@ -266,7 +417,7 @@ int main(int argc, char** argv){
     if(!launch()) return 1;
 
     // ---- 端到端口径（AB_E2E=1，默认关闭，不影响矩阵/门禁解析）----
-    // 每次重复：H2D(输入) -> kfft_fwd -> D2H(输出)，与 bench_native_npu.py --e2e 的
+    // 每次重复：H2D(输入) -> 变换链 -> D2H(输出)，与 bench_native_npu.py --e2e 的
     //   xd.copy_(x_cpu) -> torch.fft.fft(xd) -> yd.copy_(out) 逐段对应，
     //   三路主机缓冲同为 pinned（见 docs/实验对比.md §6.2/§6.3）。
     // 计时边界含传输与同步，不含一次性 setup。
@@ -289,11 +440,11 @@ int main(int argc, char** argv){
         float* pIn = nullptr; float* pOut = nullptr;
         if(wantPinned){
             void *a=nullptr, *b=nullptr;
-            const size_t nb=(size_t)elements*4u;
-            const int ei=aclrtMallocHost(&a, nb), eo=aclrtMallocHost(&b, nb);
+            const size_t nbi=inElems*4u, nbo=outElems*4u;
+            const int ei=aclrtMallocHost(&a, nbi), eo=aclrtMallocHost(&b, nbo);
             if(ei==ACL_SUCCESS && eo==ACL_SUCCESS){
                 pIn=(float*)a; pOut=(float*)b;
-                memcpy(pIn, hIn.data(), nb);
+                memcpy(pIn, hIn.data(), nbi);
             }else{
                 if(ei==ACL_SUCCESS) aclrtFreeHost(a);
                 if(eo==ACL_SUCCESS) aclrtFreeHost(b);
@@ -308,18 +459,18 @@ int main(int argc, char** argv){
         for(int i=0;i<ereps;i++){
             auto a0=std::chrono::steady_clock::now();
             if(useAsync){
-                CK(aclrtMemcpyAsync(dIn, elements*4u, src, elements*4u,
+                CK(aclrtMemcpyAsync(dIn, inElems*4u, src, inElems*4u,
                                     ACL_MEMCPY_HOST_TO_DEVICE, s));
                 CK(aclrtSynchronizeStream(s));
                 if(!xferOnly && !launch()) return 1;
-                CK(aclrtMemcpyAsync(dst, elements*4u, dOut, elements*4u,
+                CK(aclrtMemcpyAsync(dst, outElems*4u, dOut, outElems*4u,
                                     ACL_MEMCPY_DEVICE_TO_HOST, s));
                 CK(aclrtSynchronizeStream(s));
             }else{
-                CK(aclrtMemcpy(dIn, elements*4u, src, elements*4u,
+                CK(aclrtMemcpy(dIn, inElems*4u, src, inElems*4u,
                                ACL_MEMCPY_HOST_TO_DEVICE));
                 if(!xferOnly && !launch()) return 1;
-                CK(aclrtMemcpy(dst, elements*4u, dOut, elements*4u,
+                CK(aclrtMemcpy(dst, outElems*4u, dOut, outElems*4u,
                                ACL_MEMCPY_DEVICE_TO_HOST));
             }
             auto a1=std::chrono::steady_clock::now();
@@ -350,7 +501,7 @@ int main(int argc, char** argv){
     }
     double us=sumUs/reps;
 
-    CK(aclrtMemcpy(hOut.data(), elements*4u, dOut, elements*4u, ACL_MEMCPY_DEVICE_TO_HOST));
+    CK(aclrtMemcpy(hOut.data(), outElems*4u, dOut, outElems*4u, ACL_MEMCPY_DEVICE_TO_HOST));
 
     // AB_DUMP=<prefix> 时导出输入/输出，供 scripts/bench_stdlib.py 与 torch/numpy 交叉验证
     if(const char* dp=getenv("AB_DUMP")){
@@ -361,30 +512,88 @@ int main(int argc, char** argv){
         };
         wr(".in.bin", hIn); wr(".out.bin", hOut);
     }
+    // AB_DUMP2=<prefix>：导出链路中间量（r2c: a=内层FFT输出；c2r: a=prep 满谱, b=fwd 输出）
+    if(const char* dp=getenv("AB_DUMP2")){
+        auto wrv=[&](const std::string& suf, void* dev, size_t bytes){
+            std::vector<unsigned char> tmp(bytes);
+            if(aclrtMemcpy(tmp.data(),bytes,dev,bytes,ACL_MEMCPY_DEVICE_TO_HOST)){
+                printf("dump2 d2h failed\n"); return;
+            }
+            std::string fn=std::string(dp)+suf; FILE* f=fopen(fn.c_str(),"wb");
+            if(!f){ printf("dump2 open failed: %s\n", fn.c_str()); return; }
+            fwrite(tmp.data(),1,bytes,f); fclose(f); printf("dumped %s (%zu bytes)\n", fn.c_str(), bytes);
+        };
+        if(isR2C)     wrv(".a.bin", dA, inElems*4u);
+        else if(isC2R){ wrv(".a.bin", dA, elements*4u); wrv(".b.bin", dB, elements*4u); }
+    }
 
     // 判据：与 bfly::maxRelScaled 完全同一口径（分母 = max|ref| 按 float 分量，
     // 口径统一说明见 include/butterfly/reference.hpp）。maxAbs/worst 仍按复数模打印，
     // 只作诊断、不参与 PASS/FAIL。
     double maxAbs=0, maxRel=0;
     uint32_t worst=0;
-    std::vector<std::complex<double>> y(n);
-    std::vector<float> refFlat(2*n);
-    for(uint32_t bi=0;bi<batch;bi++){
-        refFft(&hIn[bi*2*n], y.data(), n);
-        for(uint32_t j=0;j<n;j++){
-            refFlat[2*j]  =(float)y[j].real();
-            refFlat[2*j+1]=(float)y[j].imag();
+    if(!isReal){
+        std::vector<std::complex<double>> y(n);
+        std::vector<float> refFlat(2*n);
+        for(uint32_t bi=0;bi<batch;bi++){
+            refFft(&hIn[bi*2*n], y.data(), n);
+            for(uint32_t j=0;j<n;j++){
+                refFlat[2*j]  =(float)y[j].real();
+                refFlat[2*j+1]=(float)y[j].imag();
+            }
+            for(uint32_t j=0;j<n;j++){
+                double gr=hOut[(bi*2*n)+2*j], gi=hOut[(bi*2*n)+2*j+1];
+                double e=std::abs(std::complex<double>(gr,gi)-y[j]);
+                if(e>maxAbs){ maxAbs=e; worst=bi*n+j; }
+            }
+            maxRel=std::max(maxRel, bfly::maxRelScaled(&hOut[bi*2*n], refFlat.data(), 2*n));
         }
-        for(uint32_t j=0;j<n;j++){
-            double gr=hOut[(bi*2*n)+2*j], gi=hOut[(bi*2*n)+2*j+1];
-            double e=std::abs(std::complex<double>(gr,gi)-y[j]);
-            if(e>maxAbs){ maxAbs=e; worst=bi*n+j; }
+    }else if(isR2C){
+        // 参考：n 点复 FFT（虚部 0）取前 n/2+1 个 bin == numpy.fft.rfft
+        const uint32_t m=n>>1;
+        const uint32_t halfLen=2u*(m+1u);
+        std::vector<std::complex<double>> y(n);
+        std::vector<float> cin(2u*n), refFlat(halfLen);
+        for(uint32_t bi=0;bi<batch;bi++){
+            const float* row=&hIn[(size_t)bi*n];
+            for(uint32_t j=0;j<n;j++){ cin[2*j]=row[j]; cin[2*j+1]=0.f; }
+            refFft(cin.data(), y.data(), n);
+            for(uint32_t j=0;j<=m;j++){
+                refFlat[2*j]  =(float)y[j].real();
+                refFlat[2*j+1]=(float)y[j].imag();
+            }
+            const float* got=&hOut[(size_t)bi*hsSt];
+            for(uint32_t j=0;j<=m;j++){
+                double gr=got[2*j], gi=got[2*j+1];
+                double e=std::abs(std::complex<double>(gr,gi)-y[j]);
+                if(e>maxAbs){ maxAbs=e; worst=bi*n+j; }
+            }
+            maxRel=std::max(maxRel, bfly::maxRelScaled(got, refFlat.data(), halfLen));
         }
-        maxRel=std::max(maxRel, bfly::maxRelScaled(&hOut[bi*2*n], refFlat.data(), 2*n));
+    }else{
+        // 参考：满谱按 prep 的镜像规则展开，G(X)/n = conj(F(conj X))/n（实部）
+        const uint32_t m=n>>1;
+        std::vector<std::complex<double>> X(n), y(n);
+        std::vector<float> cin(2u*n), refFlat(n);
+        for(uint32_t bi=0;bi<batch;bi++){
+            const float* row=&hIn[(size_t)bi*hsSt];
+            for(uint32_t k=0;k<=m;k++) X[k]=std::complex<double>(row[2*k], row[2*k+1]);
+            for(uint32_t k=1;k<m;k++) X[n-k]=std::conj(X[k]);
+            for(uint32_t j=0;j<n;j++){ cin[2*j]=(float)X[j].real(); cin[2*j+1]=(float)(-X[j].imag()); }
+            refFft(cin.data(), y.data(), n);
+            for(uint32_t j=0;j<n;j++) refFlat[j]=(float)(std::conj(y[j])/(double)n).real();
+            const float* got=&hOut[(size_t)bi*n];
+            for(uint32_t j=0;j<n;j++){
+                double e=std::fabs((double)got[j]-(double)refFlat[j]);
+                if(e>maxAbs){ maxAbs=e; worst=bi*n+j; }
+            }
+            maxRel=std::max(maxRel, bfly::maxRelScaled(got, refFlat.data(), n));
+        }
     }
     printf("n=%u batch=%u blocks=%u  maxAbs=%.3e maxRel=%.3e (worst idx %u)\n",
            n,batch,blocks,maxAbs,maxRel,worst);
-    printf("kfft_fwd: %.1f us/call over %d reps (min %.1f us)\n", us, reps, minUs);
+    const char* kname = isR2C ? "kfft_r2c" : (isC2R ? "kfft_c2r" : "kfft_fwd");
+    printf("%s: %.1f us/call over %d reps (min %.1f us)\n", kname, us, reps, minUs);
     printf("%s\n", maxRel<=1e-4?"PASS":"FAIL");
     return maxRel<=1e-4?0:1;
 }
