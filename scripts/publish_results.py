@@ -55,6 +55,16 @@ def detect_cann_version():
     return "unknown"
 
 
+def detect_npu_smi():
+    """硬件无关环境（CI）没有 npu-smi；探测失败时留空而不是让采集崩溃。"""
+    try:
+        result = subprocess.run(["npu-smi", "info"], capture_output=True,
+                                text=True, timeout=30)
+        return result.stdout[:600] if result.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
 def record_run(directory, experiment, command, exit_code):
     directory.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).isoformat()
@@ -74,8 +84,7 @@ def record_run(directory, experiment, command, exit_code):
             "cann": detect_cann_version(),
         },
         "hardware_id": os.environ.get("AB_SOC", "unknown"),
-        "npu_smi": subprocess.run(["npu-smi", "info"], capture_output=True,
-                                  text=True, timeout=30).stdout[:600],
+        "npu_smi": detect_npu_smi(),
         "hardware_profile_sha256": {
             str(item.relative_to(ROOT)): hashlib.sha256(item.read_bytes()).hexdigest()
             for item in sorted((ROOT / "config").glob("*profile*.json"))},
