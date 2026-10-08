@@ -118,7 +118,7 @@ Ascend-FFT 的目标是面向不同精度、长度、batch 和 Ascend 硬件生�
 能力从“研究选项”进入发布支持范围前，应同时完成：
 
 1. 可查询的合法性与执行契约，拒绝未消费或未实现的参数组合。
-2. 单元/边界/数值正确性与[四道门禁](development/validation-and-release.md)。
+2. 单元/边界/数值正确性与[五道门禁](development/validation-and-release.md)。
 3. 独立的模型或候选选型证据，保存已验证配置与来源。
 4. 固定协议的重复测量、误差、基线和完整原始数据，生成可复现图表。
 5. 更新 API、支持矩阵、故障排查、快照及 cuButterfly 来源/引用声明。

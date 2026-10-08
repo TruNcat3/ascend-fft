@@ -12,6 +12,80 @@
 using bfly::Context;
 using bfly::State;
 
+// Use a legal local C2C plan for R2C's N/2 inner FFT, including N=8192.
+static bool checkRealBoundary(Context& ctx, uint32_t n, uint32_t batch,
+                              int& passed, int& skipped) {
+    const bool r2c = n >= 128;
+    const bool c2r = n <= 4096;
+    // C2R executes a full-length local FFT; choose for that stricter length when present.
+    // R2C-only N=8192 chooses its legal N/2 inner FFT.
+    auto plan = ctx.select(c2r ? n : n / 2, batch, 3, nullptr);
+    if (!plan) { printf("FAIL real boundary n=%u: no local plan\n", n); return false; }
+    std::vector<float> input((size_t)n * batch), spectrum((size_t)(n + 2) * batch),
+                       output((size_t)n * batch), reference(n + 2);
+    for (size_t i = 0; i < input.size(); ++i) input[i] = bfly::patternAt(i);
+    if (r2c) {
+        const int rc = plan->runR2C(input.data(), spectrum.data(), n, batch);
+        if (rc == -1) {
+            printf("SKIP real boundary n=%u B=%u (fft_real.o not loaded)\n", n, batch);
+            ++skipped;
+            return true;
+        }
+        if (rc) { printf("FAIL R2C boundary n=%u rc=%d\n", n, rc); return false; }
+        if (!std::all_of(spectrum.begin(), spectrum.end(),
+                         [](float v) { return std::isfinite(v); })) {
+            printf("FAIL R2C boundary n=%u: non-finite output\n", n);
+            return false;
+        }
+        for (uint32_t b = 0; b < batch; ++b) {
+            bfly::refR2CF32(input.data() + (size_t)b * n, reference.data(), n);
+            const double error = bfly::maxRelScaled(
+                spectrum.data() + (size_t)b * (n + 2), reference.data(), n + 2);
+            if (!std::isfinite(error) || error > 1e-4) {
+                printf("FAIL R2C boundary n=%u row=%u error=%.3e\n", n, b, error);
+                return false;
+            }
+        }
+    } else {
+        for (size_t i = 0; i < spectrum.size(); ++i) spectrum[i] = bfly::patternAt(i);
+        for (uint32_t b = 0; b < batch; ++b) {
+            spectrum[(size_t)b * (n + 2) + 1] = 0.f;
+            spectrum[(size_t)b * (n + 2) + n + 1] = 0.f;
+        }
+    }
+    if (c2r) {
+        const int rc = plan->runC2R(spectrum.data(), output.data(), n, batch);
+        if (rc == -1) {
+            printf("SKIP C2R boundary n=%u B=%u (fft_real.o not loaded)\n", n, batch);
+            ++skipped;
+            return true;
+        }
+        if (rc) { printf("FAIL C2R boundary n=%u rc=%d\n", n, rc); return false; }
+        if (!std::all_of(output.begin(), output.end(),
+                         [](float v) { return std::isfinite(v); })) {
+            printf("FAIL C2R boundary n=%u: non-finite output\n", n);
+            return false;
+        }
+        for (uint32_t b = 0; b < batch; ++b) {
+            bfly::refC2RF32(spectrum.data() + (size_t)b * (n + 2), reference.data(), n);
+            const float* actual = output.data() + (size_t)b * n;
+            const double error = bfly::maxRelScaled(actual, reference.data(), n);
+            const double roundTrip = r2c ? bfly::maxRelScaled(
+                actual, input.data() + (size_t)b * n, n) : 0;
+            if (!std::isfinite(error) || !std::isfinite(roundTrip) ||
+                error > 1e-4 || roundTrip > 1e-4) {
+                printf("FAIL C2R boundary n=%u row=%u error=%.3e round-trip=%.3e\n",
+                       n, b, error, roundTrip);
+                return false;
+            }
+        }
+    }
+    printf("PASS real boundary n=%u B=%u (%s)\n", n, batch,
+           r2c && c2r ? "R2C/C2R round-trip" : r2c ? "R2C upper bound" : "C2R lower bound");
+    ++passed;
+    return true;
+}
+
 int main(int argc, char** argv) {
     const char* profile = argc > 1 ? argv[1] : "config/ascend910_93_profile.json";
     const char* space   = argc > 2 ? argv[2] : "config/butterfly_space.json";
@@ -109,6 +183,11 @@ int main(int argc, char** argv) {
         printf("c2r skipped (n=%u outside 64..4096)\n", n);
     }
     if (!realOk) { printf("FAIL\n"); return 1; }
+    int realPassed = 0, realSkipped = 0;
+    for (uint32_t realN : {64u, 128u, 4096u, 8192u}) {
+        if (!checkRealBoundary(ctx, realN, 3, realPassed, realSkipped)) return 1;
+    }
+    printf("real boundary coverage: %d passed, %d skipped\n", realPassed, realSkipped);
     printf("PASS\n");
     return 0;
 }

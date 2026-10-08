@@ -1,13 +1,14 @@
 # 验证与发布
 
-## 四道门禁
+## 五道门禁
 
 ```bash
 scripts/one_click_test.sh --no-matrix
 ```
 
-顺序为 `test_limits`、`test_framework`、`stride_probe`、`fft_check`。任一失败都必须终止，
-不能继续发布性能数字。
+顺序为 `test_limits`、`test_framework`、`stride_probe`、`fft_check` 和确定性数值输入 profile。
+任一失败都必须终止，不能继续发布性能数字。外部库逐点胜负属于报告结果，不是 correctness
+门禁；性能回归应绑定冻结的本库基线与明确容差。
 
 ## 完整验证
 

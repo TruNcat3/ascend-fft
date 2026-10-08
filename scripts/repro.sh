@@ -20,8 +20,12 @@ NAMES=(); DOCS=(); DESC=(); CMDS=()
 # ---- 实验注册表（文档列即 README/docs 的导航来源）-------------------------
 reg init        "docs/getting-started/installation.md"          "环境体检（不编译不跑门禁）" \
     "scripts/init.sh --check"
-reg gate        "docs/development/validation-and-release.md"    "4 道门禁 + 编译（不含性能矩阵）" \
+reg gate        "docs/development/validation-and-release.md"    "5 道门禁 + 编译（不含性能矩阵）" \
     "scripts/one_click_test.sh --no-matrix"
+reg test-smoke  "docs/testing.md"                               "配置驱动的当前支持范围快速正确性矩阵" \
+    "python3 scripts/run_test_profile.py smoke"
+reg test-regression "docs/testing.md"                           "配置驱动的硬件拐点/数值/实数夜间回归" \
+    "python3 scripts/run_test_profile.py regression"
 reg matrix      "docs/benchmarks/results.md"                   "49 点性能矩阵（权威结果）" \
     "python3 scripts/matrix_test.py --reps 20 --rounds 3"
 reg matrix-archive "docs/archive/decisions.md"                  "矩阵复测（历史原文仅归档，不覆盖）" \

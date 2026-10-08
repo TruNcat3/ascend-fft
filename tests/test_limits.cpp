@@ -5,6 +5,7 @@
 //   4) StagePlan::ubBytes 的黄金值（防止回退到旧的 44n+128）
 // 与 tests/test_framework.cpp 共用同一 Context / 同一套 maxRelScaled 口径。
 #include <algorithm>
+#include <cmath>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -60,7 +61,8 @@ static void expectLive(Context& ctx, uint32_t n, uint32_t batch, const char* lab
 }
 
 // 真跑一个 n×batch 并与双精度参考比对
-static void runCheck(Context& ctx, uint32_t n, uint32_t batch, const char* label) {
+static void runCheck(Context& ctx, uint32_t n, uint32_t batch, const char* label,
+                     bool allBatches = false) {
     auto plan = ctx.select(n, batch, 3, nullptr);
     if (!plan) { bad(label, "n=%u B=%u 无可行候选", n, batch); return; }
     const size_t nf = (size_t)n * 2 * batch;
@@ -70,16 +72,25 @@ static void runCheck(Context& ctx, uint32_t n, uint32_t batch, const char* label
         bad(label, "n=%u B=%u run rc=%d", n, batch, rc);
         return;
     }
+    if (!std::all_of(out.begin(), out.end(), [](float v) { return std::isfinite(v); })) {
+        bad(label, "n=%u B=%u non-finite output", n, batch);
+        return;
+    }
     double maxRel = 0;
     uint32_t checkIdx[8];
-    const uint32_t checkB = bfly::sampleBatches(batch, 8, checkIdx, 8);
+    const uint32_t checkB = allBatches ? batch : bfly::sampleBatches(batch, 8, checkIdx, 8);
     for (uint32_t i = 0; i < checkB; i++) {
-        const uint32_t b = checkIdx[i];
+        const uint32_t b = allBatches ? i : checkIdx[i];
         bfly::refFftF32(in.data() + (size_t)b * 2 * n, ref.data(), n);
-        maxRel = std::max(maxRel,
-                          bfly::maxRelScaled(out.data() + (size_t)b * 2 * n, ref.data(), 2 * n));
+        const double error = bfly::maxRelScaled(
+            out.data() + (size_t)b * 2 * n, ref.data(), 2 * n);
+        if (!std::isfinite(error)) {
+            bad(label, "n=%u B=%u row=%u non-finite error", n, batch, b);
+            return;
+        }
+        maxRel = std::max(maxRel, error);
     }
-    if (maxRel > 1e-4) { bad(label, "n=%u B=%u maxRel=%.3e > 1e-4", n, batch, maxRel); return; }
+    if (!std::isfinite(maxRel) || maxRel > 1e-4) { bad(label, "n=%u B=%u maxRel=%.3e > 1e-4", n, batch, maxRel); return; }
     printf("     n=%u B=%u maxRel=%.3e\n", n, batch, maxRel);
     ok(label);
 }
@@ -163,6 +174,14 @@ int main(int argc, char** argv) {
     runCheck(ctx, 1024, 100,  "batch=100");
     runCheck(ctx, 1024, 1000, "batch=1000");
     runCheck(ctx, 64,   3,    "batch=3 @ n=64");
+
+    // 48 AIV with fold D=1..4: exercise complete waves and both tails.
+    // N=1024 keeps full-row reference checks inexpensive while permitting folding.
+    for (uint32_t batch : {47u, 48u, 49u, 95u, 96u, 97u,
+                           143u, 144u, 145u, 191u, 192u, 193u}) {
+        const std::string label = "AIV/fold boundary batch=" + std::to_string(batch);
+        runCheck(ctx, 1024, batch, label.c_str(), true);
+    }
 
     printf("\n%d passed, %d failed  ->  %s\n", g_pass, g_fail, g_fail ? "FAIL" : "PASS");
     return g_fail ? 1 : 0;

@@ -52,6 +52,7 @@ nav:
       - 实数变换: design/real-transforms.md
   - 实验与结果:
       - 测量方法: benchmarks/methodology.md
+      - 测试策略与扩展矩阵: testing.md
       - 当前结果: benchmarks/results.md
       - 复现实验: benchmarks/reproducibility.md
       - 相关工作与基线: benchmarks/related-work.md
