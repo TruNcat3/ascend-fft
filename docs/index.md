@@ -1,6 +1,6 @@
 # 文档入口
 
-Ascend-FFT 提供面向 Ascend NPU 的 fp32 一维 FFT，以及硬件约束驱动的候选枚举、成本估计和实测选型。文档按任务组织；历史探索不是使用本库的前置条件。
+Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实践。它以统一 Plan、参数化设计空间和硬件实测选型为基础，目标是逐步覆盖不同精度、长度、批量、变换语义和 Ascend 硬件。当前发布版的已验证范围单独记录在[支持范围](reference/support.md)，不作为项目的最终边界。文档按任务组织；历史探索不是使用本库的前置条件。
 
 它是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 混合空间-时间映射方法的 Ascend 迁移实例：继承架构范式，但针对 AIV、UB、MTE 和 GM 独立实现物理 lowering，不复用 CUDA kernel。
 

@@ -6,9 +6,9 @@
 [![Hardware](https://img.shields.io/badge/SoC-Ascend910__9382-8A2BE2.svg)](docs/reference/support.md)
 [![Method](https://img.shields.io/badge/method-cuButterfly-2F80ED.svg)](https://github.com/TruNcat3/cuButterfly)
 
-**Ascend-FFT 是面向华为昇腾 NPU 的 fp32 FFT 算子库。** 它提供复数 C2C 前向 FFT，
-以及兼容 NumPy 半谱布局的 R2C/C2R，并用硬件 profile、参数化设计空间、成本模型和实测回填
-为每个 `(length, batch)` 选择执行计划。
+**Ascend-FFT 是面向华为昇腾 NPU 的高性能 FFT 算子库与跨平台方法实践。** 项目目标是在统一
+Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件，并用硬件 profile、参数化设计空间、
+成本模型和实测回填为每个工作负载选择执行计划，而不是固化一组尺寸或一种计算核心。
 
 ## 与 cuButterfly 的关系
 
@@ -17,6 +17,8 @@
 存储和同步均重新映射到 AIV、UB、MTE 与 GM。方法来源与差异见[相关工作](docs/benchmarks/related-work.md)。
 
 ## 当前能力
+
+下表是当前发布版本已经验证的实现范围，不是项目的最终能力边界。
 
 | 变换 | 精度 | 长度 | 布局 | 状态 |
 |---|---|---|---|---|
@@ -136,7 +138,7 @@ scripts/repro.sh r2c-c2r
 ```bibtex
 @software{wang2026ascendfft,
   author       = {Teng Wang},
-  title        = {Ascend-FFT: Hardware-Mapped Complex FFT on Huawei Ascend NPUs},
+  title        = {Ascend-FFT: A Hardware-Mapped FFT Operator Library for Huawei Ascend NPUs},
   year         = {2026},
   url          = {https://github.com/TruNcat3/ascend-fft},
   organization = {High Efficient Intelligent Computing Lab,

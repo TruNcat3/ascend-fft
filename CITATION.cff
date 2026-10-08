@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software or its experimental data, please cite it using the metadata below."
-title: "Ascend-FFT: Hardware-Mapped Complex FFT on Huawei Ascend NPUs"
+title: "Ascend-FFT: A Hardware-Mapped FFT Operator Library for Huawei Ascend NPUs"
 type: software
 authors:
   - given-names: "Teng"
@@ -12,17 +12,19 @@ url: "https://github.com/TruNcat3/ascend-fft"
 version: 0.1.0
 date-released: 2026-10-03
 abstract: >-
-  An AscendC library and reproducible artifact implementing a radix-2
-  decimation-in-time complex fp32 FFT for the Ascend910_9382 SoC. The design
-  space, Context/Plan/Transform API shape, batch-parallel decomposition, and
-  cost-model-driven plan selection are ported from cuButterfly.
+  A hardware-mapped FFT operator library and reproducible research artifact
+  for Huawei Ascend NPUs. It applies the cuButterfly space-time mapping method
+  through target-specific AscendC processing units, memory movement, legality
+  checks, cost modeling, and measured plan selection. The current release
+  validates fp32 C2C, R2C, and C2R paths on Ascend910_9382 while retaining an
+  extensible design space for additional numeric and transform contracts.
 keywords:
   - FFT
   - Ascend
   - AscendC
   - NPU
-  - radix-2
-  - batch folding
+  - FFT operator library
+  - hybrid dataflow
   - cost model
   - design space search
   - space-time parallelism
