@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""生成 docs/实验对比.md：图 + 带「迷你条」的可读表格 + 口径/局限说明。
+"""生成 docs/generated/comparison-detail.md，不覆盖手写分析页。
 
 数据全部来自已有产物，不重复测量：
-  docs/matrix_test_a7.md        device-only 49 点矩阵
-  docs/性能对比-标准库vs自研.md   六基线表
-  results/e2e.json              端到端测试（scripts/e2e_test.py）
+  results/published/ascend910_9382-cann9.0.0/ 下的矩阵、六基线和端到端数据
   docs/figures/*.png            对比图（scripts/plot_results.py）
 
-  python3 scripts/plot_results.py && python3 scripts/gen_compare_doc.py
+  python3 scripts/gen_compare_doc.py [--matrix PATH] [--out PATH]
 """
 import argparse, json, math, os, re, sys
 
@@ -71,12 +69,13 @@ def geo(xs):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--matrix", default="docs/matrix_test_a7.md")
-    ap.add_argument("--std", default="docs/性能对比-标准库vs自研.md")
-    ap.add_argument("--e2e", default="results/e2e.json")
-    ap.add_argument("--e2e-app", default="results/e2e_app.json",
+    published = "results/published/ascend910_9382-cann9.0.0"
+    ap.add_argument("--matrix", default=f"{published}/matrix.md")
+    ap.add_argument("--std", default=f"{published}/sixway.md")
+    ap.add_argument("--e2e", default=f"{published}/e2e.json")
+    ap.add_argument("--e2e-app", default=f"{published}/e2e_app.json",
                     help="应用负载端到端（scripts/e2e_test.py --app），缺省时 §6.4 给出跑法")
-    ap.add_argument("--out", default="docs/实验对比.md")
+    ap.add_argument("--out", default="docs/generated/comparison-detail.md")
     a = ap.parse_args()
     R = lambda p: os.path.join(ROOT, p)
 
@@ -86,6 +85,7 @@ def main():
     try:
         j = json.load(open(R(a.e2e), encoding="utf-8"))
         for r in j["rows"]:
+            r = {key: float("nan") if value is None else value for key, value in r.items()}
             d, g = r.get("ours_dev"), r.get("ours_e2e")
             e2[(r["n"], r["batch"])] = dict(
                 dev=r.get("dev_ratio"), e2e=r.get("e2e_ratio"),
@@ -559,7 +559,11 @@ def main():
       "中文图例换台机器就变豆腐块。中文说明都在本文的图注里。\n")
 
     txt = "\n".join(L) + "\n"
-    open(R(a.out), "w", encoding="utf-8").write(txt)
+    destination = R(a.out)
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    if os.path.commonpath([destination, os.path.join(ROOT, "docs", "generated")]) == os.path.join(ROOT, "docs", "generated"):
+        txt = txt.replace("](../scripts/", "](../../scripts/").replace("](figures/", "](../figures/")
+    open(destination, "w", encoding="utf-8").write(txt)
     print(f"-> {a.out}  ({len(txt) // 1024 + 1} KB, {len(L)} lines)")
     return 0
 

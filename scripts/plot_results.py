@@ -2,8 +2,8 @@
 """从矩阵 / 基线 / 端到端数据生成对比图（PNG，docs/figures/）。
 
 数据源（全部是已有文档/结果，不重复测量）：
-  --matrix  docs/matrix_test_a7.md       49 点 device-only 矩阵（自研 vs CANN 原生 + η）
-  --std     docs/性能对比-标准库vs自研.md  六基线表（numpy/torch/aclRfft1D/v1/原生/自研）
+  --matrix  docs/generated/matrix.md       49 点 device-only 矩阵（自研 vs CANN 原生 + eta）
+  --std     docs/generated/comparison.md   六基线表（numpy/torch/aclRfft1D/v1/原生/自研）
   --e2e     results/e2e.json             端到端测试输出（scripts/e2e_test.py）
 
   python3 scripts/plot_results.py --out docs/figures
@@ -19,12 +19,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import TwoSlopeNorm, LogNorm
 
+from plot_style import COLORS, apply_publication_style, save_on_canvas
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # ---- 取色：自研/基线用同一批，跨图保持一致 ----
 C_OURS, C_NAT = "#1f77b4", "#d62728"
 C_BASE = ["#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#2ca02c", "#1f77b4"]
 PALE = plt.get_cmap("tab20")
+apply_publication_style()
 
 
 def num(s):
@@ -85,10 +88,56 @@ def grid(rows, key):
 
 def save(fig, out, name):
     p = os.path.join(out, name)
-    fig.savefig(p, dpi=140, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
+    save_on_canvas(fig, p)
     kb = os.path.getsize(p) // 1024
     print(f"  {name:32s} {kb:5d} KB")
+
+
+def geo(values):
+    values = np.asarray([v for v in values if v is not None and v > 0], dtype=float)
+    return float(np.exp(np.mean(np.log(values)))) if values.size else float("nan")
+
+
+def fig_overview(rows, e2rows, approws, real_rows, out):
+    """README headline: comparable groups, each with its baseline in the label."""
+    groups = [
+        ("C2C\ndevice-only", geo([r["ratio"] for r in rows]), "CANN native", len(rows)),
+        ("C2C\nend-to-end", geo([r["e2e_ratio"] for r in e2rows]), "CANN native", len(e2rows)),
+        ("Applications\nend-to-end", geo([r["e2e_ratio"] for r in approws]), "CANN native", len(approws)),
+        ("R2C\ndevice-only", geo([r.get("r2c_vs_torch") for r in real_rows]), "torch_npu", sum(r.get("r2c_vs_torch") is not None for r in real_rows)),
+        ("C2R\ndevice-only", geo([r.get("c2r_vs_torch") for r in real_rows]), "torch_npu", sum(r.get("c2r_vs_torch") is not None for r in real_rows)),
+    ]
+    groups = [g for g in groups if g[1] == g[1]]
+    fig, ax = plt.subplots(figsize=(12.8, 6.3))
+    x = np.arange(len(groups))
+    values = [g[1] for g in groups]
+    colors = [COLORS["ours"], COLORS["e2e"], COLORS["application"],
+              COLORS["model"], "#8E6C8A"][:len(groups)]
+    bars = ax.bar(x, values, width=.62, color=colors, edgecolor="white", linewidth=1.2)
+    ax.axhline(1.0, color=COLORS["native"], linestyle="--", linewidth=1.6,
+               label="baseline parity (1.0x)")
+    for bar, value, (_, _, baseline, points) in zip(bars, values, groups):
+        ax.text(bar.get_x() + bar.get_width() / 2, value + .09,
+                f"{value:.2f}x", ha="center", va="bottom", fontsize=14,
+                fontweight="bold", color="#101828")
+        ax.text(bar.get_x() + bar.get_width() / 2, .12,
+                f"vs {baseline}\n{points} points", ha="center", va="bottom",
+                fontsize=9, color="white", fontweight="bold")
+    ax.set_xticks(x, [g[0] for g in groups])
+    ax.set_ylabel("Geometric-mean speedup (higher is better)")
+    ax.set_ylim(0, max(values) * 1.24)
+    fig.suptitle("Ascend-FFT performance summary", x=.06, y=.98, ha="left",
+                 fontsize=19, fontweight="bold")
+    ax.set_title(
+        "Ascend910_9382, FP32; each bar states its own strictly matched baseline",
+        loc="left", fontsize=11, color=COLORS["neutral"], pad=12)
+    ax.grid(axis="y", color=COLORS["grid"], linewidth=.8, alpha=.65)
+    ax.set_axisbelow(True)
+    ax.legend(frameon=False, loc="upper right")
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.tight_layout(rect=(0, 0, 1, .92))
+    save(fig, out, "overview_performance.png")
 
 
 def cell_label(ax, mat, fmt="{:.2f}", fs=7.5, thresh=None):
@@ -408,10 +457,11 @@ def fig_box(rows, e2rows, approws, out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--matrix", default="docs/matrix_test_a7.md")
-    ap.add_argument("--std", default="docs/性能对比-标准库vs自研.md")
+    ap.add_argument("--matrix", default="docs/generated/matrix.md")
+    ap.add_argument("--std", default="docs/generated/comparison.md")
     ap.add_argument("--e2e", default="results/e2e.json")
     ap.add_argument("--e2e-app", default="results/e2e_app.json")
+    ap.add_argument("--real", default="results/r2c_c2r.json")
     ap.add_argument("--out", default="docs/figures")
     a = ap.parse_args()
 
@@ -477,6 +527,14 @@ def main():
     except (FileNotFoundError, ValueError):
         print(f"{a.e2e_app} 不存在，fig8 只画两箱", file=sys.stderr)
     made.append("fig8_speedup_boxplot.png"); fig_box(rows, er, app_r, ap_(a.out))
+
+    real_r = []
+    try:
+        real_r = json.load(open(ap_(a.real), encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        print(f"{a.real} 不存在，首页汇总图不含 R2C/C2R", file=sys.stderr)
+    made.append("overview_performance.png")
+    fig_overview(rows, er, app_r, real_r, ap_(a.out))
 
     print(f"done: {len(made)} figures")
     return 0

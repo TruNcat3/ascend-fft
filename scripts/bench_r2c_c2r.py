@@ -9,8 +9,9 @@
 
   python3 scripts/bench_r2c_c2r.py --ns 64,...,4096 --bs 1,...,4096 --out results/r2c_c2r.json
 
-输出 JSON 行（与 results/r2c_c2r.json 同结构）：
-  {n, b, r2c, c2r, torch_rfft, torch_irfft, acl_rfft, r2c_vs_torch, r2c_vs_acl, c2r_vs_torch}
+输出 JSON 行：
+  {n, b, r2c, c2r, r2c_ok, c2r_ok, ok, torch_rfft, torch_irfft,
+   acl_rfft, r2c_vs_torch, r2c_vs_acl, c2r_vs_torch}
 比值一律 >1 表示自研更快；stdout 打印几何均值汇总，进度到 stderr。
 """
 import argparse, json, math, os, re, statistics as st, subprocess, sys, time
@@ -129,7 +130,7 @@ def main():
     rows, fails = [], []
     for n in ns:
         for b in bs:
-            ours, t = {}, {}
+            ours, ours_ok, t = {}, {}, {}
             for dirn in ("r2c", "c2r"):
                 if dirn == "r2c" and (n < 128 or n > 8192):
                     continue
@@ -137,6 +138,7 @@ def main():
                     continue
                 us, ok = bench_ours(dirn, n, b)
                 ours[dirn] = us
+                ours_ok[dirn] = ok
                 if not ok:
                     fails.append((dirn, n, b))
                 tdir = "r2c" if dirn == "r2c" else "c2r"
@@ -145,6 +147,8 @@ def main():
             acl_us = acl.get((n, b))
             row = dict(n=n, b=b,
                        r2c=ours.get("r2c"), c2r=ours.get("c2r"),
+                       r2c_ok=ours_ok.get("r2c"), c2r_ok=ours_ok.get("c2r"),
+                       ok=all(ours_ok.values()) if ours_ok else False,
                        torch_rfft=t.get("r2c"), torch_irfft=t.get("c2r"),
                        acl_rfft=acl_us,
                        r2c_vs_torch=(t.get("r2c") / ours["r2c"])

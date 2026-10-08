@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""生成 `docs/性能对比-标准库vs自研.md`（全网格 49 点，numpy/torch/aclRfft1D/v1/原生/自研 同场）。
+"""测量六基线，默认生成 `docs/generated/sixway.md`，不覆盖手写文档。
 
-    python3 scripts/gen_stdlib_doc.py [--matrix docs/matrix_test_a7.md] [--out docs/性能对比-标准库vs自研.md]
+    python3 scripts/gen_stdlib_doc.py [--matrix PATH] [--out PATH]
 
 六列数据来源：
   numpy / torch (CPU)  scripts/bench_stdlib.py perf           （每次重测）
@@ -97,8 +97,8 @@ def bench_v1():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--matrix", default="docs/matrix_test_a7.md")
-    ap.add_argument("--out", default="docs/性能对比-标准库vs自研.md")
+    ap.add_argument("--matrix", default="results/published/ascend910_9382-cann9.0.0/matrix.md")
+    ap.add_argument("--out", default="docs/generated/sixway.md")
     a = ap.parse_args()
     mx = parse_matrix(os.path.join(ROOT, a.matrix))
     print("[1/3] numpy / torch (CPU)", file=sys.stderr)
@@ -238,6 +238,9 @@ def main():
     A("```")
     body = "\n".join(L) + "\n"
     out = os.path.join(ROOT, a.out)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if os.path.commonpath([out, os.path.join(ROOT, "docs", "generated")]) == os.path.join(ROOT, "docs", "generated"):
+        body = body.replace("](../scripts/", "](../../scripts/")
     open(out, "w").write(body)
     print(f"written -> {out}", file=sys.stderr)
     return 0

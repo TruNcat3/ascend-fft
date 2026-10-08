@@ -1,0 +1,4 @@
+mkdocs==1.6.1
+mkdocs-material==9.6.21
+matplotlib==3.10.7
+numpy==2.2.6

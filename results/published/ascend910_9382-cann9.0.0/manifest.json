@@ -1,0 +1,39 @@
+{
+  "cann_version": "9.0.0",
+  "commit": "9dccfec04efe7388a49a8dddbf7ab5678e11eacb",
+  "created_utc": "2026-10-07T00:00:00+00:00",
+  "dirty": false,
+  "experiments": [
+    {
+      "command": "python3 scripts/matrix_test.py --reps 20 --rounds 3",
+      "name": "matrix",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/gen_stdlib_doc.py",
+      "name": "sixway",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --reps 10 --rounds 3",
+      "name": "e2e",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --app all --reps 10 --rounds 3",
+      "name": "e2e-app",
+      "status": "complete"
+    }
+  ],
+  "provenance": "legacy-published-snapshot",
+  "provenance_note": "Existing checked-in results reorganized without remeasurement; R2C/C2R legacy JSON is excluded because it lacks per-row correctness fields required by the new publisher.",
+  "published_artifacts": {
+    "e2e.json": "9d73001c043cbb949fc0910e163cf89c258fa71bff802fb95a4c886550cd3772",
+    "e2e_app.json": "dcc3fc5d2b71796e26086dad22353921fd7b07e24d314deb2a3c6296fcabacf4",
+    "matrix.csv": "5e748aa623d5e83eac2a412c9814549d7835f5fd3379f955f844b02dc9bfa58a",
+    "matrix.md": "e9e770b9cfc7aed2a61989ada881b4943a53f0775911e8efc8b643fbe2f8f22d",
+    "sixway.md": "551622e7d2157c60c936fcbf4d5bfb97369f853241426cc16ce899c5e209876d"
+  },
+  "schema_version": 1,
+  "soc": "Ascend910_9382"
+}

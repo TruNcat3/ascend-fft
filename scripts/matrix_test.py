@@ -45,7 +45,10 @@ def main():
                     help="整套测量跑几遍、逐点取 min（0 噪声口径，见文件头）")
     ap.add_argument("--no-eta", action="store_true")
     ap.add_argument("--no-native", action="store_true")
-    ap.add_argument("--out", default="")
+    from datetime import datetime, timezone
+    run_name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ-matrix")
+    ap.add_argument("--out", default=f"results/runs/{run_name}/matrix.md")
+    ap.add_argument("--csv", default=None, help="结构化矩阵；默认与 --out 同目录")
     a = ap.parse_args()
     ns = [int(x) for x in a.ns.split(",")]
     bs = [int(x) for x in a.bs.split(",")]
@@ -160,6 +163,20 @@ def main():
         os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
         open(a.out, "w").write(body)
         print(f"written -> {a.out}", file=sys.stderr)
+        import csv
+        import json
+        destination = a.csv or os.path.join(os.path.dirname(a.out), "matrix.csv")
+        os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
+        with open(destination, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["n", "batch", "ours_us", "ours_min_us", "max_rel", "native_min_us", "native_us", "eta_us", "correct"])
+            writer.writerows(rows)
+        with open(os.path.join(os.path.dirname(a.out), "summary.json"), "w", encoding="utf-8") as handle:
+            json.dump({"operator": "c2c", "precision": "fp32", "direction": "forward",
+                       "timing": "device-only", "reps": a.reps, "rounds": rounds,
+                       "ns": ns, "batches": bs, "correctness_threshold": 1e-4,
+                       "correct_points": n_ok, "total_points": len(rows)}, handle, indent=2)
+            handle.write("\n")
     print(body)
     return 0 if n_ok == len(rows) else 1
 

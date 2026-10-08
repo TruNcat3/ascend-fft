@@ -1,0 +1,79 @@
+# 架构与硬件映射
+
+本库继承 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 的阶段/数据二维空间-时间映射方法，在 Ascend 上重新实现其物理数据通路。它不是 CUDA kernel 的翻译版。先读 [设计动机](motivation.md)，再用本页对应概念、代码和当前实现边界。
+
+## 从方法到实现
+
+```text
+FFT 依赖图 + 长度/batch/数值语义
+                 ↓
+阶段/数据空间展开与时间复用 + 布局/驻留/流水
+                 ↓
+硬件可行性约束 + 计算核心选型 + 成本估计
+                 ↓
+Plan：索引/系数生成与上传、缓冲准备、执行与实测
+                 ↓
+Ascend lowering：AIV 矢量指令 / 私有 UB / MTE 搬运
+```
+
+“架构映射”说明资源怎样组织与复用；“计算核心选型”说明其中执行哪种蝶形算术；“lowering”说明该核心如何合法地使用指令、布局和同步。三者分层，但资源成本相互影响，必须共同筛选。
+
+## 当前生产数据通路
+
+```text
+GM 交错复数输入
+   → DataCopy 到 UB
+   → Gather：位反转、去交错、K-plane 布局
+   → 平面级局部 radix-4 / radix-2
+   → Gather：转为 planar 布局
+   → planar radix-2 阶段（独立组折入 repeat）
+   → Gather：交错输出
+   → DataCopy 回 GM
+```
+
+整个 c2c transform 的中间值在单个 AIV 的 UB 中，不是每一级都写回 GM。多个 AIV 分配独立 batch；单个 AIV 按组循环处理其余批次。满足 repeat、步长和并发约束时，D 个 batch 可共同形成矢量指令工作组。D 的作用是减少重复发射，而不是证明 MTE 与全部计算已经流水重叠。
+
+## 框架对象不是七套独立算法
+
+| 对象 | 职责 | 主要代码 |
+|---|---|---|
+| H / Hardware | 设备资源与指令约束 | `objects.hpp`、硬件 profile |
+| G / Generator | 旋转因子、位反转和布局索引 | `reference.cpp` |
+| A / Mapping | 核数、数据循环、局部交换等映射 | `objects.hpp` |
+| P / StagePlan | radix、阶段融合和 UB 可行性 | `objects.hpp` |
+| L / Layout | 输入输出表示与连续性 | `objects.hpp` |
+| F / Fusion | 蝶形/阶段融合候选描述 | `objects.hpp` |
+| Q / Metric | 模型成本、实测成本和误差 | `objects.hpp` |
+
+接口定义见 [objects.hpp](https://github.com/TruNcat3/ascend-fft/blob/master/include/butterfly/objects.hpp) 和 [plan.hpp](https://github.com/TruNcat3/ascend-fft/blob/master/include/butterfly/plan.hpp)。枚举中存在的字段不等于已有独立高效 kernel；当前可执行候选受实际实现和验收约束。`Mapping.ts/us` 的现有编码也不等同于方法层 Ts/Us 的展开计数，不能仅凭字段名称推断流水结构。
+
+## 硬件约束怎样影响映射
+
+以下是仓库验证设备 Ascend910_9382 的配置/探针结论，不是所有 Ascend 型号的通用常量。
+
+| 约束 | 对设计的影响 |
+|---|---|
+| 48 AIV、每核私有 UB 196608 B | batch 分核；缓冲容量限制长度与融合范围 |
+| 当前工具链/设备路径无可用 SIMT | 不使用 CUDA warp shuffle 作为局部交换机制 |
+| 矢量 UB 偏移要求 32 B 对齐 | 小配对距离需 K-plane 重排，不能直接发任意偏移矢量指令 |
+| 已验证 Level-0 fp32 mask 上限 64、repeat 上限 255 | lane/repeat/批折叠必须分片与钳制；profile 的 128-lane 字段不代表本指令可用 mask |
+| UB 不跨 AIV 共享，跨核数据经 GM | 同步标志不能替代数据传输；跨核阶段角色需要额外交接设计 |
+| Cube 使用独立 AIC 数据通路 | 不能在纯 AIV kernel 中简单替换一条蝶形指令成 Mmad |
+
+换设备先运行 [硬件探针](https://github.com/TruNcat3/ascend-fft/blob/master/scripts/hw_probe.sh)，再审核 [profile](https://github.com/TruNcat3/ascend-fft/blob/master/config/ascend910_93_profile.json)、模型与合法候选。当前 profile 有历史字段，不能仅靠加载 JSON 就认为完成自动校准。
+
+## 当前实现与方法空间的边界
+
+| 能力 | 当前状态 |
+|---|---|
+| 单核片上阶段时间复用 | c2c 生产路径已实现 |
+| batch 数据空间并行与单核时间遍历 | 已实现 |
+| 小长度批折叠 D、K-plane 布局选型 | 已实现，受步长/repeat/并发约束 |
+| 局部 radix-4 与 radix-2 混合 | 已实现；不是任意高 radix 的通用 lowering |
+| 独立阶段角色跨 AIV 驻留并重叠 | 尚未形成生产 FFT 路径 |
+| AIC Cube 与 AIV 联合 FFT 流水 | 仅有 Cube 探针，尚未实现完整 FFT |
+| 任意长度、跨卡、其他蝶形算子 | 不在当前已验证生产覆盖中 |
+
+大 batch 能提升活跃核利用率、摊销固定开销，但在硬件饱和后，吞吐由每组指令、交换和搬运成本决定。不能据此承诺规模越大越领先。
+
+下一页：[计算核心与合法实现](kernels.md)；实数布局见 [r2c/c2r](real-transforms.md)，性能证据见 [实验结果](../benchmarks/results.md)，计时协议见 [测试方法](../benchmarks/methodology.md)。
