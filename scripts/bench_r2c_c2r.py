@@ -7,7 +7,7 @@
     torch.npu.synchronize 计时；
   * aclRfft1D —— 复用 results/e2e.json 各点的 bare_dev（无则该列留空）。
 
-  python3 scripts/bench_r2c_c2r.py --ns 64,...,4096 --bs 1,...,4096 --out results/r2c_c2r.json
+  python3 scripts/bench_r2c_c2r.py --ns 64,...,8192 --bs 1,...,4096 --out results/r2c_c2r.json
 
 输出 JSON 行：
   {n, b, r2c, c2r, r2c_ok, c2r_ok, ok, torch_rfft, torch_irfft,
@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
 PY = abenv.python_bin()
 
-NS = [64, 128, 256, 512, 1024, 2048, 4096]
+NS = [64, 128, 256, 512, 1024, 2048, 4096, 8192]
 BS = [1, 4, 16, 64, 256, 1024, 4096]
 ROUNDS = 3
 
@@ -174,7 +174,8 @@ def main():
     print("geo ours c2r      %8.2f us" % geo([d["c2r"] for d in rows if d["c2r"]]))
     print("geo torch rfft    %8.2f us (same pts)"
           % geo([d["torch_rfft"] for d in rows if d["n"] in common]))
-    print("geo torch irfft   %8.2f us" % geo([d["torch_irfft"] for d in rows]))
+    print("geo torch irfft   %8.2f us (paired points)"
+          % geo([d["torch_irfft"] for d in rows if d["c2r"] and d["torch_irfft"]]))
     print("geo aclRfft1D     %8.2f us (same pts)"
           % geo([d["acl_rfft"] for d in rows if d["n"] in common]))
     g_ours_r2c = geo([d["r2c"] for d in rows if d["r2c"] and d["n"] in common])
@@ -183,9 +184,10 @@ def main():
     print("r2c vs torch rfft : %5.2fx faster" % (g_torch_r2c / g_ours_r2c))
     if not math.isnan(g_acl):
         print("r2c vs aclRfft1D  : %5.2fx faster" % (g_acl / g_ours_r2c))
+    paired_c2r = [d for d in rows if d["c2r"] and d["torch_irfft"]]
     print("c2r vs torch irfft: %5.2fx faster"
-          % (geo([d["torch_irfft"] for d in rows])
-             / geo([d["c2r"] for d in rows if d["c2r"]])))
+          % (geo([d["torch_irfft"] for d in paired_c2r])
+             / geo([d["c2r"] for d in paired_c2r])))
     return 0
 
 

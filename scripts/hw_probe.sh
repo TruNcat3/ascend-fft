@@ -7,7 +7,7 @@
 #   scripts/hw_probe.sh --only a,b   # 只跑指定探针
 #
 # 探针（名字 = 输出小标题）：
-#   limits   test_limits —— 18 项 ABI/边界门禁
+#   limits   test_limits —— 30 项 ABI/边界门禁
 #   hw       probe_hw via launch —— 核数 / 子核 / 架构号 / 标量 GM 写出可见性
 #   stride   stride_probe —— Level-0 mask/repeat 硬上限（23 PASS + 7 预期 FAIL）
 #   gather   gather_probe —— Gather 索引与偏移单位
@@ -54,11 +54,11 @@ need() { # need <bin> <build.sh target...>
 for k in "${SEL[@]}"; do
   case "$k" in
   limits)
-    step "limits —— 18 项 ABI/边界门禁（tests/test_limits.cpp）"
+    step "limits —— 30 项 ABI/边界门禁（tests/test_limits.cpp）"
     need test_limits limits || continue
     L=$(./build/test_limits 2>&1 | tail -1)
     echo "  $L"
-    case "$L" in *"18 passed, 0 failed"*) PASS "test_limits" ;; *) FAIL "test_limits: $L" ;; esac
+    case "$L" in *"30 passed, 0 failed"*) PASS "test_limits" ;; *) FAIL "test_limits: $L" ;; esac
     ;;
 
   hw)

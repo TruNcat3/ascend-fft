@@ -52,7 +52,7 @@ static uint32_t readArgSize(const char* path){
     return 0;
 }
 
-// ---- 应用形状输入（AB_INPUT，默认 sin，保持既有门禁/矩阵口径不变）----------
+// ---- 输入模式（AB_INPUT，默认 sin，保持既有门禁/矩阵口径不变）------------
 // 三类典型应用共用同一套确定性 PRNG，公式与 scripts/bench_native_npu.py 的
 // --input 实现逐位一致（xorshift32 三轮，seed = b*2654435761 + k*40503）：
 //   ofdm  16-QAM 子载波（DC/保护带置零、每 12 个子载波一个导频）—— 多载波通信
@@ -64,6 +64,54 @@ static inline uint32_t appHash(uint32_t b, uint32_t k){
     x ^= x<<13; x ^= x>>17; x ^= x<<5;
     x ^= x<<13; x ^= x>>17; x ^= x<<5;
     return x;
+}
+
+static bool isInputMode(const char* mode){
+    static const char* modes[] = {
+        "sin", "deterministic-sin-cos", "zero", "impulse", "constant", "tone",
+        "single-tone", "alternating", "nyquist-alternating", "random",
+        "random-seeded", "dynamic", "high-dynamic-range", "near-cancellation",
+        "ofdm", "radar", "dl"
+    };
+    for(const char* candidate : modes)
+        if(strcmp(mode, candidate)==0) return true;
+    return false;
+}
+
+// 数值回归向量。每个模式都是确定性的，便于失败后原样复现。
+static void genNumericalInput(std::vector<float>& hIn, uint32_t n, uint32_t batch,
+                              const char* mode){
+    const uint32_t seed = getenv("AB_SEED") ? (uint32_t)strtoul(getenv("AB_SEED"), nullptr, 0) : 0u;
+    for(uint32_t b=0;b<batch;b++){
+        const uint32_t toneBin = 1u + b%7u;
+        for(uint32_t k=0;k<n;k++){
+            float re=0.f, im=0.f;
+            if(strcmp(mode,"impulse")==0){
+                re = (k == b%n) ? 1.f : 0.f;
+            }else if(strcmp(mode,"constant")==0){
+                re = 0.25f; im = -0.5f;
+            }else if(strcmp(mode,"tone")==0 || strcmp(mode,"single-tone")==0){
+                const double phase = 2.0*M_PI*(double)toneBin*(double)k/(double)n;
+                re = (float)std::cos(phase); im = (float)std::sin(phase);
+            }else if(strcmp(mode,"alternating")==0 || strcmp(mode,"nyquist-alternating")==0){
+                re = (k&1u) ? -1.f : 1.f;
+            }else if(strcmp(mode,"random")==0 || strcmp(mode,"random-seeded")==0){
+                const uint32_t x1=appHash(b^seed,k), x2=appHash(b^seed,k^0x9e37u);
+                re = (float)((int32_t)(x1&0xffffu)-32768)*(1.f/32768.f);
+                im = (float)((int32_t)(x2&0xffffu)-32768)*(1.f/32768.f);
+            }else if(strcmp(mode,"dynamic")==0 || strcmp(mode,"high-dynamic-range")==0){
+                static const float scale[4] = {1.f, 1e-2f, 1e-4f, 1e-6f};
+                const float s = scale[k&3u];
+                re = (k&1u) ? -s : s;
+                im = (k&2u) ? 0.5f*s : -0.5f*s;
+            }else if(strcmp(mode,"near-cancellation")==0){
+                re = (k&1u) ? -1.f+1e-6f : 1.f;
+                im = (k&1u) ? 0.5f-1e-6f : -0.5f;
+            }
+            hIn[2u*((size_t)b*n+k)]   = re;
+            hIn[2u*((size_t)b*n+k)+1] = im;
+        }
+    }
 }
 
 static void genAppInput(std::vector<float>& hIn, uint32_t n, uint32_t batch,
@@ -195,26 +243,38 @@ int main(int argc, char** argv){
     const auto tBoot1=std::chrono::steady_clock::now();
 
     std::vector<float> hIn(inElems, 0.f);
-    // AB_INPUT=sin（默认）| ofdm | radar | dl —— 见上面 genAppInput 的注释。
+    // AB_INPUT=sin（默认）| 数值回归模式 | ofdm | radar | dl。
     // c2r 固定用 genHalfInput（任意半谱），AB_INPUT 对它不生效。
     const char* inMode = getenv("AB_INPUT") ? getenv("AB_INPUT") : "sin";
+    if(!isInputMode(inMode)){
+        printf("unsupported AB_INPUT mode: %s\n", inMode);
+        return 2;
+    }
     if(isC2R){
         genHalfInput(hIn, n, batch);
     }else if(isR2C){
-        if(strcmp(inMode,"sin")==0){
+        if(strcmp(inMode,"sin")==0 || strcmp(inMode,"deterministic-sin-cos")==0){
             for(size_t i=0;i<inElems;i++)
                 hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
-        }else{
+        }else if(strcmp(inMode,"ofdm")==0 || strcmp(inMode,"radar")==0 ||
+                 strcmp(inMode,"dl")==0){
             std::vector<float> cx(elements);           // 应用形状是复数的，取实部当实输入
             genAppInput(cx, n, batch, inMode);
             for(size_t i=0;i<inElems;i++) hIn[i]=cx[2*i];
+        }else{
+            std::vector<float> cx(elements);
+            genNumericalInput(cx, n, batch, inMode);
+            for(size_t i=0;i<inElems;i++) hIn[i]=cx[2*i];
         }
     }else{
-        if(strcmp(inMode,"sin")==0){
+        if(strcmp(inMode,"sin")==0 || strcmp(inMode,"deterministic-sin-cos")==0){
             for(size_t i=0;i<elements;i++)
                 hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
-        }else{
+        }else if(strcmp(inMode,"ofdm")==0 || strcmp(inMode,"radar")==0 ||
+                 strcmp(inMode,"dl")==0){
             genAppInput(hIn, n, batch, inMode);
+        }else{
+            genNumericalInput(hIn, n, batch, inMode);
         }
     }
     std::vector<float> hOut(outElems,0.f);

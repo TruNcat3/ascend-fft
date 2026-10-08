@@ -20,7 +20,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-docs.txt
       - run: python -m pip install -r requirements-docs.txt
-      - run: python -m unittest discover -s tests -p 'test_docs_*.py'
+      - name: Run hardware-independent tests
+        run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Check published generated artifacts
         run: |
           if test -f results/published/ascend910_9382-cann9.0.0/manifest.json; then

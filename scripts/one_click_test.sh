@@ -40,35 +40,36 @@ EXPECT() { # EXPECT <实际> <期望> <说明>  —— 字符串相等即通过
   if [ "$1" = "$2" ]; then PASS "$3 ($1)"; else FAIL "$3: got '$1' want '$2'"; fi
 }
 
-step "0/5 编译（kernel + check + framework + limits + stride_probe）"
+step "0/6 编译（kernel + check + framework + limits + stride_probe）"
 ./scripts/build.sh all stride || FAIL "build"
 
-step "1/5 门禁 A：test_limits（18 项边界/上限）"
+step "1/6 门禁 A：test_limits（30 项边界/上限）"
 L=$(./build/test_limits 2>&1 | tail -1)
-EXPECT "$(echo "$L" | grep -oE '[0-9]+ passed, [0-9]+ failed')" "18 passed, 0 failed" "test_limits"
+EXPECT "$(echo "$L" | grep -oE '[0-9]+ passed, [0-9]+ failed')" "30 passed, 0 failed" "test_limits"
 
-step "2/5 门禁 B：test_framework（选型闭环 + 真实验收，4 个抽样点）"
+step "2/6 门禁 B：test_framework（选型闭环 + 实数边界 + 真实验收）"
 FW_FAIL=0
 for p in "64 4096" "1024 4096" "2048 192" "4096 1"; do
   set -- $p
   s=$(./build/test_framework config/ascend910_93_profile.json \
       config/butterfly_space.json build/fft_radix2.o "$1" "$2" 2>&1)
-  if echo "$s" | grep -q "^PASS$" && echo "$s" | grep -q "selected:"; then
+  if echo "$s" | grep -q "^PASS$" && echo "$s" | grep -q "selected:" && \
+     echo "$s" | grep -q "real boundary coverage: 4 passed, 0 skipped"; then
     printf '  \033[32m[ PASS ]\033[0m n=%-5s b=%-5s %s\n' "$1" "$2" \
       "$(echo "$s" | grep -oE 'eta=[0-9.]+ us  measured=[0-9.]+ us' | tail -1)"
   else
-    FAIL "test_framework n=$1 b=$2"; FW_FAIL=1
+    FAIL "test_framework n=$1 b=$2（含实数边界，不允许 skip）"; FW_FAIL=1
   fi
 done
 
-step "3/5 门禁 C：stride_probe（Level-0 mask/repeat 上限，23 PASS + 7 个预期 FAIL）"
+step "3/6 门禁 C：stride_probe（Level-0 mask/repeat 上限，23 PASS + 7 个预期 FAIL）"
 SP=$OUT/stride_probe.log
 ./build/stride_probe > "$SP" 2>&1
 NP=$(grep -c -- "-> PASS" "$SP"); NF=$(grep -c -- "-> FAIL" "$SP")
 EXPECT "$NP" "23" "stride_probe PASS 数"
 EXPECT "$NF" "7"  "stride_probe 预期 FAIL 数（mask>64 属 Level-0 硬上限）"
 
-step "4/5 门禁 D：fft_check 抽样（正确性 maxRel ≤ 1e-4）"
+step "4/6 门禁 D：fft_check 抽样（正确性 maxRel ≤ 1e-4）"
 export AB_FFT_O="${AB_FFT_O:-build/fft_radix2.o}"
 SPOT_FAIL=0
 for p in "64 4096" "1024 4096" "4096 4096" "2048 144"; do
@@ -82,9 +83,17 @@ for p in "64 4096" "1024 4096" "4096 4096" "2048 144"; do
   fi
 done
 
+step "5/6 门禁 E：确定性数值输入（零/冲激/常量/单频/Nyquist/随机）"
+if "$AB_PY" scripts/run_test_profile.py smoke --components numeric --trials 1 --reps 1 \
+    --out "$OUT/numeric"; then
+  PASS "numeric smoke"
+else
+  FAIL "numeric smoke"
+fi
+
 SCORE="-"; ETA_OVER="-"; ETA_MEAN="-"; ETA_MAX="-"; CORRECT="-"; ROWS="-"; BOLD="-"; TOTAL="-"
 if [ "$DO_MATRIX" -eq 1 ]; then
-  step "5/5 性能矩阵（自研 vs CANN 原生）"
+  step "6/6 性能矩阵（自研 vs CANN 原生）"
   NS=64,128,256,512,1024,2048,4096
   BS=1,4,16,64,256,1024,4096
   if [ "$QUICK" -eq 1 ]; then NS=64,1024,4096; BS=1,64,4096; fi
@@ -99,7 +108,7 @@ if [ "$DO_MATRIX" -eq 1 ]; then
   TOTAL=$(grep -cE '^\| *[0-9]+ *\| *[0-9]+ *\|' "$M" || true)
   SCORE="$BOLD/$TOTAL"
   [ "$CORRECT" = "$ROWS" ] || FAIL "矩阵正确性 $CORRECT_STR（应 $ROWS/$ROWS）"
-  [ "$BOLD" = "$TOTAL" ]   || FAIL "矩阵比值 $SCORE（应全 ≥1×，自研不慢于原生）"
+  # 外部库胜负是实验结果，不是 correctness gate。性能回归必须绑定冻结的本库基线与容差。
   ETA_OVER=$("$AB_PY" - "$M" <<'PY'
 import re,sys
 pat=re.compile(r"\| (\d+) \| (\d+) \| ([\d,.]+) \| ([\d,.]+) \| ([\d,.]+) \| ([\d,.]+) \| (?:\*\*([\d.]+)×\*\*|([\d.]+)×) \| ([\d,.]+) \| ([+-][\d.]+)% \|")
@@ -125,17 +134,18 @@ PY
       fi ;;
   esac
 else
-  step "5/5 性能矩阵 —— 已按 --no-matrix 跳过"
+  step "6/6 性能矩阵 —— 已按 --no-matrix 跳过"
 fi
 
 step "结论"
-printf '  %-26s %s\n' "门禁 A test_limits"    "18 项边界"
-printf '  %-26s %s\n' "门禁 B test_framework" "4 点抽样"
+printf '  %-26s %s\n' "门禁 A test_limits"    "30 项边界"
+printf '  %-26s %s\n' "门禁 B test_framework" "4 点抽样 + 实数上下界/往返"
 printf '  %-26s %s\n' "门禁 C stride_probe"    "23 PASS / 7 预期 FAIL"
 printf '  %-26s %s\n' "门禁 D fft_check 抽样"  "4 点"
+printf '  %-26s %s\n' "门禁 E numeric smoke"    "7 模式 × 3 shape"
 if [ "$DO_MATRIX" -eq 1 ]; then
   printf '  %-26s %s\n' "正确性"                "$CORRECT_STR"
-  printf '  %-26s %s\n' "自研 ≥ 原生 的点"      "$SCORE"
+  printf '  %-26s %s\n' "自研 ≥ 原生 的点（报告）" "$SCORE"
   printf '  %-26s %s\n' "|η/实测−1|>15% 的点"   "$ETA_OVER / $ROWS（均值 ${ETA_MEAN}%、最大 ${ETA_MAX}%）"
 fi
 printf '  %-26s %s\n' "结果目录" "$OUT"

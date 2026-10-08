@@ -222,7 +222,7 @@ def main():
       "自研与原生各自对双精度 CPU 参考；numpy/torch 另经 `scripts/bench_stdlib.py check` "
       "交叉验证）。\n")
     A("## 边界与负例\n")
-    A("`tests/test_limits.cpp`：**18 passed / 0 failed**。覆盖 n 下界、非 2 幂 n、UB 上界、"
+    A("`tests/test_limits.cpp`：**30 passed / 0 failed**。覆盖 n 下界、非 2 幂 n、UB 上界、"
       "非典型 batch、`goff` 32 位溢出边界；正确性判据与 `test_framework` 共用 "
       "`bfly::maxRelScaled`（口径统一后三处一致）。UB 上限 `196608` 字节。\n")
     A("`src/host/stride_probe.cpp`：**23 PASS / 7 预期 FAIL** —— 7 个 FAIL 全部是 "

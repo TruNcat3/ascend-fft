@@ -98,8 +98,9 @@ R2C/C2R 已有实现，但历史性能数据尚未按当前逐行门禁协议重
 
 ```bash
 scripts/init.sh --check          # 环境和硬件体检
-scripts/init.sh                 # 编译并运行四道正确性门禁
+scripts/init.sh                 # 编译并运行五道正确性门禁
 scripts/init.sh --quick         # 再运行 9 点快速性能矩阵
+python3 scripts/run_test_profile.py smoke  # 配置驱动的扩展正确性矩阵
 ```
 
 完整 49 点实验使用 `scripts/repro.sh matrix`。安装与路径覆盖见
@@ -136,6 +137,7 @@ plan->run(host_input, host_output, 4096, 64);
 
 完整导航见 [GitHub Pages](https://truncat3.github.io/ascend-fft/) 或 [`docs/index.md`](docs/index.md)。
 后续工程实现、能力扩展和测试验收见[未来计划](docs/roadmap.md)。
+分层测试、硬件拐点与待扩展负载见[测试策略](docs/testing.md)。
 
 ## 复现实验
 

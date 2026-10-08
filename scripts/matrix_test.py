@@ -16,7 +16,7 @@
 
 输出 markdown 表到 stdout（进度到 stderr）。`--no-eta` 关掉可省掉选型开销。
 """
-import argparse, os, re, subprocess, sys
+import argparse, math, os, re, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,9 +26,20 @@ PY = abenv.python_bin()
 
 def sh(cmd, env=None, cwd=ROOT, timeout=3600):
     e = dict(os.environ); e.update(env or {})
-    r = subprocess.run(cmd, shell=True, cwd=cwd, env=e,
-                       capture_output=True, text=True, timeout=timeout)
-    return r.stdout + r.stderr
+    try:
+        return subprocess.run(cmd, shell=True, cwd=cwd, env=e,
+                              capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        return subprocess.CompletedProcess(cmd, 124, "", f"timeout after {exc.timeout}s")
+
+
+def output(result):
+    return result.stdout + result.stderr
+
+
+def valid_measurement(mean, minimum, error):
+    return (all(math.isfinite(value) for value in (mean, minimum, error))
+            and mean > 0 and minimum > 0 and 0 <= error <= 1e-4)
 
 
 def f(pat, s, d=float("nan")):
@@ -36,7 +47,7 @@ def f(pat, s, d=float("nan")):
     return float(m.group(1)) if m else d
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--ns", default="64,128,256,512,1024,2048,4096")
     ap.add_argument("--bs", default="1,4,16,64,256,1024,4096")
@@ -49,31 +60,59 @@ def main():
     run_name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ-matrix")
     ap.add_argument("--out", default=f"results/runs/{run_name}/matrix.md")
     ap.add_argument("--csv", default=None, help="结构化矩阵；默认与 --out 同目录")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     ns = [int(x) for x in a.ns.split(",")]
     bs = [int(x) for x in a.bs.split(",")]
-    rounds = max(1, a.rounds)
+    if a.rounds < 1 or a.reps < 1 or not ns or not bs or any(x < 1 for x in ns + bs):
+        ap.error("lengths, batches, reps and rounds must be positive")
+    if len(set(ns)) != len(ns) or len(set(bs)) != len(bs):
+        ap.error("lengths and batches must not contain duplicates")
+    rounds = a.rounds
+    expected = {(n, b) for n in ns for b in bs}
+    trials = []
+    native_status = {key: True for key in expected}
+    native_errors = {}
 
     nat, nat_ok = {}, True
     if not a.no_native:
         print(f"[1/3] CANN 原生复数 FFT  ({len(ns)}x{len(bs)} x{rounds}) ...", file=sys.stderr)
-        for _ in range(rounds):
-            out = sh(f"{PY} scripts/bench_native_npu.py --ns {a.ns} --bs {a.bs} "
+        for trial in range(1, rounds + 1):
+            result = sh(f"{PY} scripts/bench_native_npu.py --ns {a.ns} --bs {a.bs} "
                      f"--reps {max(a.reps, 20)}")
-            for ln in out.splitlines():
+            records = {key: [] for key in expected}
+            for ln in output(result).splitlines():
                 m = re.match(r"NATIVE n=(\d+) b=(\d+) native_us=([\d.]+) native_mean_us=([\d.]+) "
                              r"maxRel=([\d.eE+-]+) (\w+)", ln)
                 if not m:
                     continue
                 k = (int(m.group(1)), int(m.group(2)))
+                if k in records:
+                    records[k].append(m)
+            for k, matches in sorted(records.items()):
+                if len(matches) != 1:
+                    native_status[k] = nat_ok = False
+                    trials.append({"runner": "native", "trial": trial, "n": k[0], "batch": k[1],
+                                   "returncode": result.returncode, "correct": False,
+                                   "failure": f"expected one record, found {len(matches)}"})
+                    continue
+                m = matches[0]
                 nmin, nmean = float(m.group(3)), float(m.group(4))
+                error = float(m.group(5))
+                good = (result.returncode == 0 and m.group(6) == "PASS"
+                        and valid_measurement(nmean, nmin, error))
+                native_status[k] &= good
+                nat_ok &= good
+                native_errors[k] = max(native_errors.get(k, error), error)
+                trials.append({"runner": "native", "trial": trial, "n": k[0], "batch": k[1],
+                               "returncode": result.returncode, "mean_us": nmean, "min_us": nmin,
+                               "max_rel": error, "correct": good,
+                               "failure": "" if good else "command, PASS marker, timing or error check failed"})
                 prev = nat.get(k)
                 # 逐点各自取 min：min 列与 mean 列互不牵连
                 if prev is None:
                     nat[k] = [nmin, nmean]
                 else:
                     nat[k] = [min(prev[0], nmin), min(prev[1], nmean)]
-                nat_ok &= (m.group(6) == "PASS")
         print(f"    native {len(nat)} 点 {'PASS' if nat_ok else 'FAIL'}", file=sys.stderr)
 
     print(f"[2/3] 自研 kfft_fwd ({len(ns)}x{len(bs)}, reps={a.reps} x{rounds}) ...",
@@ -83,18 +122,26 @@ def main():
         for b in bs:
             cmd = f"./build/fft_check {n} {b} {a.reps}"
             best_mean = best_min = float("nan")
-            rel = float("nan"); ok = False
-            for _ in range(rounds):
-                s = sh(cmd)
+            rel = float("nan"); ok = True
+            for trial in range(1, rounds + 1):
+                result = sh(cmd)
+                s = output(result)
                 mn, mi = f(r"kfft_fwd: ([\d.]+) us/call", s), f(r"\(min ([\d.]+) us\)", s)
-                if mn != mn:
-                    continue
-                ok = ok or bool(re.search(r"^PASS$", s, re.M))
                 r = f(r"maxRel=([\d.eE+-]+)", s)
+                good = (result.returncode == 0 and bool(re.search(r"^PASS$", s, re.M))
+                        and not bool(re.search(r"^FAIL\b", s, re.M))
+                        and valid_measurement(mn, mi, r))
+                ok &= good
+                trials.append({"runner": "self", "trial": trial, "n": n, "batch": b,
+                               "returncode": result.returncode, "mean_us": mn, "min_us": mi,
+                               "max_rel": r, "correct": good,
+                               "failure": "" if good else "command, PASS marker, timing or error check failed"})
                 if r == r:
-                    rel = r if rel != rel else min(rel, r)
-                best_mean = mn if best_mean != best_mean else min(best_mean, mn)
-                best_min = mi if best_min != best_min else min(best_min, mi)
+                    rel = r if rel != rel else max(rel, r)
+                if math.isfinite(mn):
+                    best_mean = mn if best_mean != best_mean else min(best_mean, mn)
+                if math.isfinite(mi):
+                    best_min = mi if best_min != best_min else min(best_min, mi)
             ours[(n, b)] = {"mean": best_mean, "min": best_min, "maxRel": rel, "ok": ok}
             print(f"    n={n:<5} b={b:<5} {'PASS' if ok else 'FAIL'}"
                   f"  {best_mean:.1f} us", file=sys.stderr)
@@ -104,8 +151,8 @@ def main():
         print("[3/3] 框架 η / 选型闭环 ...", file=sys.stderr)
         for n in ns:
             for b in bs:
-                s = sh(f"./build/test_framework config/ascend910_93_profile.json "
-                       f"config/butterfly_space.json build/fft_radix2.o {n} {b}")
+                s = output(sh(f"./build/test_framework config/ascend910_93_profile.json "
+                              f"config/butterfly_space.json build/fft_radix2.o {n} {b}"))
                 e = f(r"eta=([\d.]+) us", s)
                 ok = "selected:" in s and "no feasible" not in s
                 eta[(n, b)] = e
@@ -119,7 +166,8 @@ def main():
             o = ours[(n, b)]
             nm, nmean = nat.get((n, b), (float("nan"), float("nan")))
             e = eta.get((n, b), float("nan"))
-            rows.append((n, b, o["mean"], o["min"], o["maxRel"], nm, nmean, e, o["ok"]))
+            good = o["ok"] and (a.no_native or native_status[(n, b)])
+            rows.append((n, b, o["mean"], o["min"], o["maxRel"], nm, nmean, e, good))
 
     def fmt(x, d=1):
         return "—" if x != x else f"{x:,.{d}f}"
@@ -132,6 +180,8 @@ def main():
       "（编译+门禁+矩阵一键）· [`scripts/calib_eta.py`](../scripts/calib_eta.py)（η 列）。\n")
     L(f"> 硬件 Ascend910_9382（48 AIV）；reps={a.reps}；"
       f"`自研 mean` 与 `原生 mean` 同口径、`自研 min` 与 `原生 min` 同口径。\n")
+    L(f"> 每点 {rounds} trials；所有启用 runner 的每轮必须成功、PASS 且完整覆盖；"
+      "耗时保留 min-of-means，maxRel 取所有自研轮次最大值。\n")
     L("> **η** 来自框架选型闭环（`test_framework`），同一行的 `η/实测` 列给出模型相对"
       "`自研 mean` 的偏差；`原生/自研` > 1 表示自研更快。\n")
     L("| n | batch | 自研 mean | 自研 min | CANN 原生 mean | CANN 原生 min | 原生/自研(mean) "
@@ -148,7 +198,7 @@ def main():
             ed = f"{(e - om) / om * 100:+.1f}%"
         else:
             ed = "—"
-        good = ok and (nm == nm)
+        good = ok
         n_ok += 1 if good else 0
         # nat = (min, mean)，列序与表头一致：原生 mean | 原生 min
         L(f"| {n} | {b} | {fmt(om)} | {fmt(omin)} | {fmt(nmean)} | {fmt(nm)} | {rs} "
@@ -157,7 +207,9 @@ def main():
     lines.append("")
     L(f"**正确性：{n_ok}/{len(rows)} PASS**（判据 maxRel ≤ 1e-4，"
       f"自研与原生各自对双精度 CPU 参考；原生 "
-      f"{'全部 PASS' if nat_ok else '有 FAIL'}）")
+      f"{'未启用' if a.no_native else ('全部 PASS' if nat_ok else '有 FAIL')}）")
+    failures = [record for record in trials if not record["correct"]]
+    L(f"**逐轮验收：{len(trials) - len(failures)}/{len(trials)} PASS；失败 {len(failures)} 轮。**")
     body = "\n".join(lines) + "\n"
     if a.out:
         os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
@@ -171,11 +223,24 @@ def main():
             writer = csv.writer(handle)
             writer.writerow(["n", "batch", "ours_us", "ours_min_us", "max_rel", "native_min_us", "native_us", "eta_us", "correct"])
             writer.writerows(rows)
+        with open(os.path.join(os.path.dirname(a.out), "trials.csv"), "w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["runner", "trial", "n", "batch", "returncode",
+                                                       "mean_us", "min_us", "max_rel", "correct", "failure"])
+            writer.writeheader()
+            writer.writerows(trials)
         with open(os.path.join(os.path.dirname(a.out), "summary.json"), "w", encoding="utf-8") as handle:
             json.dump({"operator": "c2c", "precision": "fp32", "direction": "forward",
                        "timing": "device-only", "reps": a.reps, "rounds": rounds,
                        "ns": ns, "batches": bs, "correctness_threshold": 1e-4,
-                       "correct_points": n_ok, "total_points": len(rows)}, handle, indent=2)
+                       "correct_points": n_ok, "total_points": len(rows),
+                       "native_enabled": not a.no_native, "total_trials": len(trials),
+                       "failed_trials": len(failures),
+                       "failures": [{key: (None if isinstance(value, float) and not math.isfinite(value) else value)
+                                     for key, value in record.items()} for record in failures],
+                       "native_max_rel": [{"n": n, "batch": b, "max_rel": error}
+                                          for (n, b), error in sorted(native_errors.items())
+                                          if math.isfinite(error)]},
+                      handle, indent=2, allow_nan=False)
             handle.write("\n")
     print(body)
     return 0 if n_ok == len(rows) else 1
