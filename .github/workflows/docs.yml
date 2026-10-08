@@ -14,6 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # publish_results.py --check 校验 manifest commit 是 HEAD 的祖先，
+          # 浅克隆没有历史对象会把检查变成 "not a valid commit name"。
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
