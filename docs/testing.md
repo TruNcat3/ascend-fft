@@ -38,8 +38,12 @@
 `numeric_patterns`、`applications` 和 `requirements` 是整层验收清单；只运行 C2C 不能将整层
 标为完成。`scripts/run_test_profile.py` 会执行当前可用的 C2C、实数、数值和应用代理；`stress`
 由专用预算化 runner `scripts/run_stress.py` 接管（`run_test_profile.py stress` 转发到它）：
-它在任何分配之前按档位预算 host/device/输出/workspace/参考内存并预留余量，以 RSS 与 HBM
-前后差检查泄漏，用进程级生命周期与强触 OOM 恢复探针验证失败可解释、可恢复。
+它在任何分配之前按档位预算 host/device/输出/workspace/参考内存并预留余量——预算模型
+是方向感知的精确张量求和（`exact-directional-v2`：C2C 按交错复数、R2C 按实数输入加
+dA、C2R 按真实半谱 `4*(N+16)*B` 推 batch，索引按 foldD 最坏 48 计），以 RSS 与 HBM
+前后差检查泄漏，用进程级生命周期验证失败可解释。强触 OOM 恢复探针为显式 opt-in：
+`--oom-probe --device N` 要求指明设备、先做空闲预检（≥90% 空闲），并把异常文本与
+失败前已分配字节记录进探针行——默认运行不会主动耗尽 HBM。
 `future-long-fft` 仍明确拒绝直接运行：分段长后端（G1，8192..65536）已在 `fft_check`
 落地并通过验收抽样，但 E01..E08 证据采集与 G2/G3 未完成，不能伪装成已支持。
 长 FFT 的假设、变量、退出条件和空数据合同分别见[目的化实验计划](benchmarks/long-fft-plan.md)
@@ -50,6 +54,7 @@ python3 scripts/run_test_profile.py --list
 python3 scripts/run_test_profile.py smoke --build
 python3 scripts/run_test_profile.py regression --trials 3
 python3 scripts/run_test_profile.py stress --dry-run   # 预算计划，不落任何分配
+python3 scripts/run_stress.py --oom-probe --device 0  # 显式 opt-in，仅限空闲独占设备
 python3 scripts/run_test_profile.py future-long-fft  # 明确拒绝，不能伪装成已支持
 ```
 
@@ -113,18 +118,29 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   Ascend910_9382 完成采集：五道门禁、`smoke` 65/65、`regression` 349×3=1047/1047、
   `publication` 253×3=759/759（含 48D±1 边界批次、`2^20`/`2^24` 定总点数对照、实数
   上下界、两种数值模式与 STFT 帧代理）；49 点性能矩阵以逐 trial 协议复测，自研与原生
-  各 3 轮共 294/294 PASS。逐例记录见 `results/runs/<UTC>-<profile>/`（`cases.csv` +
-  `summary.json`；性能矩阵另存 `matrix.md`/`matrix.csv`/`trials.csv`/`summary.json`，
-  均不进版本库）。
+  各 3 轮共 294/294 PASS。**759/759 与 294/294 的可审计原始证据已进版本库**：
+  `results/evidence/publication-759/`（`summary.json`+`cases.csv`）与
+  `results/evidence/matrix-294/`（`summary.json`/`matrix.csv`/`trials.csv`）。
+  其余逐例记录仍在本地 `results/runs/<UTC>-<profile>/`，属未发布的本地观测，不作公开引用。
 - P1：预算化压力 runner 已实现并完成采集（`run_test_profile.py stress` 转发到
-  `scripts/run_stress.py`）：1 MiB/64 MiB/256 MiB/1 GiB 四档共 28 行全部通过预算门，
-  四档各 10,000 次 Plan 复用 soak（RSS 增长 ≤0.5 MiB）、20 次进程级生命周期与强触 OOM
-  恢复探针全部通过，HBM 跑后前后差 +1 MiB（余量 3276 MiB）；逐行记录见
-  `results/runs/<UTC>-stress/`。独立模型验证仍待完成；R2C/C2R 新协议发布快照已完成（见
-  [当前结果 · 实数变换](benchmarks/results.md)）。
+  `scripts/run_stress.py`）：预算模型为**方向感知精确张量求和**（`exact-directional-v2`，
+  C2R 按半谱 `4*(N+16)*B` 推 batch，索引按 foldD 最坏 48 计），1 MiB/64 MiB/256 MiB/1 GiB
+  四档 28 行全部通过预算门；默认运行（**不含强触 OOM**）加 20 次进程级生命周期共
+  29/29 PASS，四档 10,000 次 Plan 复用 soak 中最长两档 RSS 增长 ≤0.023 MiB，HBM 跑后
+  前后差 0 MiB。强触 OOM 探针为显式 opt-in（`--oom-probe --device 0`，空闲预检 ≥90% 空闲）：
+  单独运行 30/30 PASS，OOM 异常文本与失败前已分配字节（64 GiB）入档且恢复确认。
+  证据归档 `results/evidence/stress-default-30/` 与 `results/evidence/stress-oomprobe-30/`。
+  P1-A：长 FFT 动态输入契约通过——G1 全包络 12/12 点（N=8192..65536 × B=1/3/47）
+  A/B/A 文件序列无重建重执行、无 STALE，E2E 每次执行恰 1 次逻辑输入 + 1 次输出
+  （`E2E transfers: in=1 out=1 boundary=2`），证据归档
+  `results/evidence/long-fft-acceptance/`。P1-B：R2C/C2R 已按 5-trial 对称协议重采
+  56/56 行，发布进新不可变快照 `ascend910_9382-cann9.0.0-v2`（含 `raw_trials`、协议、
+  raw/derived 哈希与 UTC 起止），新汇总见[当前结果 · 实数变换](benchmarks/results.md)；
+  旧 min 口径的 1.91x/3.35x 不再被引用。独立模型验证仍待完成。
 - P2：分段长 FFT 后端（G1）已实现（宿主四步 Cooley-Tukey + 设备行 FFT，8192..65536
-  验收抽样通过，见长 FFT 计划的 G0/G1 落地记录）；多 AIV/G2 可搜索映射、E01..E08
-  采集与长卷积代理仍待做，显式记录阶段交接、重排、GM 流量和同步后再测。
+  验收抽样与动态输入证据见 `results/evidence/long-fft-acceptance/` 与长 FFT 计划的
+  G0/G1 落地记录）；多 AIV/G2 可搜索映射、E01..E08 采集与长卷积代理仍待做，
+  显式记录阶段交接、重排、GM 流量和同步后再测。
 - P3：逆向 C2C、2D/stride、其他精度和非二次幂。补零不得冒充原长度 DFT。
 
 这些是待完成工作，不是新增支持声明。整体工程依赖与验收见[未来计划](roadmap.md)，

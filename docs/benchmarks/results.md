@@ -85,31 +85,43 @@ Ascend-FFT 更快。结果说明当前 C2C kernel 优势覆盖整个发布网格
 
 ## 7. 实数变换 R2C/C2R 的发布证据
 
-R2C/C2R 已按当前逐行门禁协议在本快照重采：每一行先过正确性门禁（`maxRel <= 1e-4`，
-全部 trial PASS 才进入计时），与同卡 `torch_npu` 的同语义变换同 reps 政策对比。
-网格为 R2C `N=128..8192`、C2R `N=64..4096`，`B=1..4096`，各 49 点：
+R2C/C2R 已按 **P1-B 对称协议** 在新快照 `ascend910_9382-cann9.0.0-v2` 重采：每个点
+5 个独立 trial，每个 trial 先做一次丢弃的 warmup 执行再计时，trial 值取该 trial 样本的
+median；自研侧逐 trial 正确性门禁（`maxRel <= 1e-4` 且 PASS 才准入 timing，`maxAbs`/
+`maxRel`/status 逐行留存进 `raw_trials`），torch 侧同 reps 政策、同 trial 结构。汇总只由
+有效 raw 行派生（median / p10 / p90 / CV），失败与不支持的行保留在 raw 中。网格为
+R2C `N=128..8192`、C2R `N=64..4096`，`B=1..4096`，各 49 点：
 
 ![R2C/C2R win-tie-loss heatmap vs torch_npu](../figures/fig10_real_speedup_heatmap.png)
 
 | 实验 | 点数 | vs torch_npu 几何均值 | 胜 / 平 / 负 | 参照 |
 |---|---:|---:|---:|---|
-| R2C vs `torch.fft.rfft` | 49 | **1.91x** | **43 / 0 / 6** | vs `aclRfft1D` 3.27x（42 个有裸基线的配对点） |
-| C2R vs `torch.fft.irfft` | 49 | **3.35x** | **47 / 1 / 1** | CANN 无 c2r，无同语义裸基线 |
+| R2C vs `torch.fft.rfft` | 49 | **1.10x** | **29 / 7 / 13** | vs `aclRfft1D` 1.85x（42 个有裸基线的配对点） |
+| C2R vs `torch.fft.irfft` | 49 | **1.69x** | **44 / 3 / 2** | CANN 无 c2r，无同语义裸基线 |
 
 胜 `>1.05x`、平 `0.95x..1.05x`、负 `<0.95x`；胜负是实验结果，不是 correctness 门禁。
-负点如实呈现：R2C 在 `B=4096` 的 `N=128/256/512/1024`（**0.50x..0.72x**）与
-`N=8192` 的 `B=256/1024`（**0.95x/0.81x**）慢于 torch；C2R 在 `N=1024, B=4096`
-（**0.92x**）。这些行不与 C2C 几何均值混合——变换语义与基线不同，
-但同属这份 correctness-gated 快照。
+**与旧的 min 口径快照（1.91x/3.35x）不可比**：旧汇总对自研取单进程 `min(reps)`、对
+torch 取跨轮 min-of-medians，聚合协议不对称；本节全部数字按对称 trial 协议重算，
+旧 aggregate 不再支撑任何公开表述。负点如实呈现：R2C 慢于 torch 的 13 点为
+`N=128: B=1024/4096 (0.82x/0.40x)`、`N=256: B=1024/4096 (0.94x/0.50x)`、
+`N=512: B=1024/4096 (0.79x/0.62x)`、`N=1024: B=1024/4096 (0.93x/0.64x)`、
+`N=8192: B=1/16/64/256/1024 (0.89x/0.95x/0.78x/0.83x/0.74x)`；C2R 负点为
+`N=1024, B=4096 (0.87x)` 与 `N=4096, B=1024 (0.89x)`。这些行不与 C2C
+几何均值混合——变换语义与基线不同，但同属这份 correctness-gated 快照。
 
 ## 原始数据与复现
 
 - [C2C 49 点矩阵](../generated/matrix.md)
 - [多基线完整明细](../generated/comparison.md)
-- [R2C/C2R 发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0/r2c_c2r.json)
-- [端到端发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0/e2e.json)
-- [应用 shape 发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0/e2e_app.json)
-- [发布 manifest](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0/manifest.json)
+- [R2C/C2R 发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/r2c_c2r.json)
+- [R2C/C2R 逐 trial raw（json）](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/r2c_c2r.raw_trials.json)
+- [R2C/C2R 逐 trial raw（csv）](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/r2c_c2r.raw_trials.csv)
+- [端到端发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/e2e.json)
+- [应用 shape 发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/e2e_app.json)
+- [发布 manifest（含协议、raw/derived 哈希与 UTC 起止）](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/manifest.json)
+- [759/759 原始证据](https://github.com/TruNcat3/ascend-fft/blob/master/results/evidence/publication-759/summary.json) · [294/294 原始证据](https://github.com/TruNcat3/ascend-fft/blob/master/results/evidence/matrix-294/summary.json)
+- [压力 / OOM 探针证据](https://github.com/TruNcat3/ascend-fft/tree/master/results/evidence) · [长 FFT 动态输入验收](https://github.com/TruNcat3/ascend-fft/blob/master/results/evidence/long-fft-acceptance/acceptance.json)
 - [图表生成器](https://github.com/TruNcat3/ascend-fft/blob/master/scripts/plot_results.py)
 
 图、摘要和原始数据必须来自同一发布快照；禁止从不同日期、硬件或协议的文件拼接结论。
+legacy 快照 `ascend910_9382-cann9.0.0` 保留原样作历史对照，不再被任何图或结论引用。

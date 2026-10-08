@@ -1,0 +1,133 @@
+{
+  "cann_path": "/usr/local/Ascend/ascend-toolkit/latest",
+  "cann_version": "9.0.0",
+  "commit": "0fa7fe8190997d2fabba30fd0736ef026e02aed7",
+  "created_utc": "2026-10-08T14:30:24.943880+00:00",
+  "derived_artifact_hashes": {
+    "generated/comparison.md": "afe9b41034bc3eb0c59fc7dca4fd0acf3d9a9af8353b71d739f943bf5d4a4908",
+    "generated/matrix.md": "fb3e679aaf4ad5e2535dd0fb2fd356d56ed98b540b87cf19f6cdd5df542581af",
+    "matrix.csv": "5e748aa623d5e83eac2a412c9814549d7835f5fd3379f955f844b02dc9bfa58a"
+  },
+  "dirty": true,
+  "ended_utc": "2026-10-08T13:55:00+00:00",
+  "experiments": [
+    {
+      "command": "python3 scripts/matrix_test.py --reps 20 --rounds 3",
+      "ended_utc": "2026-10-08T08:47:28+00:00",
+      "evidence_source": "results/evidence/matrix-294/ (summary.json, matrix.md, trials.csv)",
+      "exit_code": 0,
+      "name": "matrix",
+      "started_utc": "2026-10-08T08:47:28+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/gen_stdlib_doc.py",
+      "ended_utc": "2026-10-08T08:50:00+00:00",
+      "evidence_source": "results/published/ascend910_9382-cann9.0.0/sixway.md",
+      "exit_code": 0,
+      "name": "sixway",
+      "started_utc": "2026-10-08T08:40:00+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --reps 10 --rounds 3",
+      "ended_utc": "2026-10-08T08:50:00+00:00",
+      "evidence_source": "results/published/ascend910_9382-cann9.0.0/e2e.json",
+      "exit_code": 0,
+      "name": "e2e",
+      "started_utc": "2026-10-08T08:40:00+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --app all --reps 10 --rounds 3",
+      "ended_utc": "2026-10-08T08:50:00+00:00",
+      "evidence_source": "results/published/ascend910_9382-cann9.0.0/e2e_app.json",
+      "exit_code": 0,
+      "name": "e2e-app",
+      "started_utc": "2026-10-08T08:40:00+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/bench_r2c_c2r.py --trials 5 --out results/runs/20261008T131313Z-r2c-c2r/r2c_c2r.json",
+      "ended_utc": "2026-10-08T13:55:00+00:00",
+      "evidence_source": "results/runs/20261008T131313Z-r2c-c2r/ (r2c_c2r.json + raw_trials)",
+      "exit_code": 0,
+      "name": "r2c-c2r",
+      "started_utc": "2026-10-08T13:13:13+00:00",
+      "status": "complete"
+    }
+  ],
+  "figures": {
+    "fig10_real_speedup_heatmap.png": "r2c_c2r.json",
+    "fig8_speedup_boxplot.png": "e2e.json",
+    "overview_performance.png": "matrix.md"
+  },
+  "hardware_id": "unknown",
+  "hardware_profile_sha256": {
+    "config/ascend910_93_profile.json": "42768522dcdd2d3088dfe5ffbaf7d73a5c1041a8199b4f6c5a1fef27a4ee006f"
+  },
+  "npu_smi": "+------------------------------------------------------------------------------------------------------------------+\n| npu-smi 26.1.1                              Version: 26.1.1                                                      |\n+---------------------------+---------------+----------------------------------------------------------------------+\n| NPU   Name                | Health        | Power(W)             Temp(C)                 Hugepages-Usage(page)   |\n| Chip  Phy-ID              | Bus-Id        | AICore(%)            Memory-Usage(MB)        HBM-Usage(MB)           |\n+==============",
+  "protocol": {
+    "c2c_matrix": {
+      "reps": 20,
+      "rounds": 3,
+      "source": "matrix_test.py",
+      "statistic": "min-of-means",
+      "timing": "device-only"
+    },
+    "correctness_threshold": 0.0001,
+    "e2e": {
+      "reps": 10,
+      "rounds": 3,
+      "statistic": "min-of-means",
+      "timing": "end-to-end pinned"
+    },
+    "r2c_c2r": {
+      "correctness_gate": "every Ascend-FFT trial PASS with maxRel<=1e-4 before timing admission",
+      "raw": "r2c_c2r.raw_trials.{json,csv}, one row per (impl,N,B,trial)",
+      "reps_policy": "nB<=4096:50, nB<=2^20:30, else 10",
+      "statistic": "per-trial median; summary median/p10/p90/CV over valid raw rows",
+      "trials": 5,
+      "warmup": "one discarded full-reps execution inside every trial"
+    },
+    "sixway": {
+      "command": "gen_stdlib_doc.py",
+      "timing": "device-only"
+    }
+  },
+  "provenance": "trial5-symmetric-protocol-v2",
+  "provenance_note": "R2C/C2R re-measured under the symmetric 5-trial per-trial-median protocol (P1-B); matrix/sixway/e2e artifacts re-published unchanged from the legacy snapshot with archived audit evidence.",
+  "published_artifacts": {
+    "e2e.json": "9d73001c043cbb949fc0910e163cf89c258fa71bff802fb95a4c886550cd3772",
+    "e2e_app.json": "dcc3fc5d2b71796e26086dad22353921fd7b07e24d314deb2a3c6296fcabacf4",
+    "figures.json": "4fc71727b0576326828d631131bc6c045289983ab2a8819bff50788a6d573592",
+    "matrix.csv": "5e748aa623d5e83eac2a412c9814549d7835f5fd3379f955f844b02dc9bfa58a",
+    "matrix.md": "e9e770b9cfc7aed2a61989ada881b4943a53f0775911e8efc8b643fbe2f8f22d",
+    "protocol.json": "49523a8b63ba8a06fe9e8c52e41bc1fc51ef76e48c598a70ff3943303c7af006",
+    "r2c_c2r.json": "aa8d6a417f19037d490d6c4dd8ed43c81c6cb569fbc018c0576fe5bf0fee8ca4",
+    "r2c_c2r.raw_trials.csv": "d660f8025a5a3d00f62fcdc259ffd1583c2286015272be9ceb8297f3be5b2617",
+    "r2c_c2r.raw_trials.json": "5dbb97c01551474f2c6754e5ece5e0bb975ef0cae54f9b05d253f0a4e5e1733f",
+    "sixway.md": "551622e7d2157c60c936fcbf4d5bfb97369f853241426cc16ce899c5e209876d",
+    "summary.json": "b8ec38b326db918bf580126977d28fbf43d546f7722401f9f6c4e51a7faab599"
+  },
+  "raw_artifact_hashes": {
+    "e2e.json": "9d73001c043cbb949fc0910e163cf89c258fa71bff802fb95a4c886550cd3772",
+    "e2e_app.json": "dcc3fc5d2b71796e26086dad22353921fd7b07e24d314deb2a3c6296fcabacf4",
+    "figures.json": "4fc71727b0576326828d631131bc6c045289983ab2a8819bff50788a6d573592",
+    "matrix.md": "e9e770b9cfc7aed2a61989ada881b4943a53f0775911e8efc8b643fbe2f8f22d",
+    "protocol.json": "49523a8b63ba8a06fe9e8c52e41bc1fc51ef76e48c598a70ff3943303c7af006",
+    "r2c_c2r.json": "aa8d6a417f19037d490d6c4dd8ed43c81c6cb569fbc018c0576fe5bf0fee8ca4",
+    "r2c_c2r.raw_trials.csv": "d660f8025a5a3d00f62fcdc259ffd1583c2286015272be9ceb8297f3be5b2617",
+    "r2c_c2r.raw_trials.json": "5dbb97c01551474f2c6754e5ece5e0bb975ef0cae54f9b05d253f0a4e5e1733f",
+    "sixway.md": "551622e7d2157c60c936fcbf4d5bfb97369f853241426cc16ce899c5e209876d",
+    "summary.json": "b8ec38b326db918bf580126977d28fbf43d546f7722401f9f6c4e51a7faab599"
+  },
+  "schema_version": 2,
+  "soc": "unknown",
+  "started_utc": "2026-10-08T08:40:00+00:00",
+  "updated_utc": "2026-10-08T13:55:00+00:00",
+  "versions": {
+    "cann": "9.0.0",
+    "python": "3.11.15"
+  }
+}

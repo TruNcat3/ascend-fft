@@ -6,7 +6,7 @@
   --std     results/published/.../sixway.md  多基线上下文
   --e2e     results/published/.../e2e.json   C2C 端到端
   --e2e-app results/published/.../e2e_app.json 代表应用 shape
-  --real    results/r2c_c2r.json       R2C/C2R 实数变换（fig10 胜/平/负热图）
+  --real    results/published/<snapshot>/r2c_c2r.json   R2C/C2R 实数变换（fig10）
 
   python3 scripts/plot_results.py --out docs/figures
 
@@ -32,7 +32,7 @@ PALE = plt.get_cmap("tab20")
 apply_publication_style()
 
 
-PUBLISHED = "results/published/ascend910_9382-cann9.0.0"
+PUBLISHED = "results/published/ascend910_9382-cann9.0.0-v2"
 
 
 def num(s):
@@ -555,7 +555,7 @@ def main():
     ap.add_argument("--std", default=f"{PUBLISHED}/sixway.md")
     ap.add_argument("--e2e", default=f"{PUBLISHED}/e2e.json")
     ap.add_argument("--e2e-app", default=f"{PUBLISHED}/e2e_app.json")
-    ap.add_argument("--real", default="results/r2c_c2r.json")
+    ap.add_argument("--real", default=f"{PUBLISHED}/r2c_c2r.json")
     ap.add_argument("--out", default="docs/figures")
     a = ap.parse_args()
 
@@ -627,7 +627,8 @@ def main():
         print(f"{a.e2e_app} 不存在，fig8 只画两箱", file=sys.stderr)
 
     try:
-        real_rows = json.load(open(ap_(a.real), encoding="utf-8"))
+        loaded = json.load(open(ap_(a.real), encoding="utf-8"))
+        real_rows = loaded if isinstance(loaded, list) else loaded.get("rows", [])
         if real_rows:
             print(f"real: {len(real_rows)} points")
             made.append("fig10_real_speedup_heatmap.png")

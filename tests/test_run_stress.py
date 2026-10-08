@@ -40,37 +40,114 @@ class TestStressRunner(unittest.TestCase):
         self.assertTrue((ROOT / self.profile["runner"]).is_file())
 
     def test_derive_batch_matches_input_buffer_tiers(self):
-        self.assertEqual(runner.derive_batch(1024, runner.MIB, 8), 128)
-        self.assertEqual(runner.derive_batch(8192, runner.MIB, 4), 32)
-        self.assertEqual(runner.derive_batch(64, 32, 8), 0)
-        self.assertEqual(runner.derive_batch(0, runner.MIB, 8), 0)
+        self.assertEqual(runner.derive_batch(1024, runner.MIB, "c2c"), 128)
+        self.assertEqual(runner.derive_batch(8192, runner.MIB, "r2c"), 32)
+        self.assertEqual(runner.derive_batch(64, 32, "c2c"), 0)
+        self.assertEqual(runner.derive_batch(0, runner.MIB, "c2c"), 0)
 
-    def test_budget_runs_when_headroom_covers_estimate(self):
-        budget = runner.budget_case(runner.GIB, self.big_host,
+    def test_c2r_tier_size_uses_half_spectrum_input(self):
+        for n in (64, 4096):
+            self.assertEqual(runner.input_bytes_for("c2r", n, 7),
+                             4 * (n + 16) * 7)
+            batch = runner.derive_batch(n, 4 * (n + 16) * 10, "c2r")
+            self.assertEqual(batch, 10)
+            self.assertEqual(runner.input_bytes_for("c2r", n, batch),
+                             4 * (n + 16) * 10)
+        rows = runner.plan(self.profile, self.big_host, self.big_device_free,
+                           self.big_device_total)
+        for row in rows:
+            if row["direction"] == "c2r":
+                self.assertEqual(row["input_bytes"],
+                                 4 * (row["n"] + 16) * row["batch"])
+
+    def test_budget_runs_and_records_exact_model_totals(self):
+        budget = runner.budget_case("c2c", 1024, 128, self.big_host,
                                     self.big_device_free, self.big_device_total)
         self.assertEqual(budget["decision"], "run")
         self.assertEqual(budget["host_needed"],
-                         int(runner.GIB * runner.HOST_FACTOR) + runner.HOST_FIXED)
+                         runner.host_bytes_exact("c2c", 1024, 128))
         self.assertEqual(budget["device_needed"],
-                         int(runner.GIB * runner.DEVICE_FACTOR) + runner.DEVICE_FIXED)
+                         runner.device_bytes_exact("c2c", 1024, 128))
+        self.assertEqual(budget["input_bytes"],
+                         runner.input_bytes_for("c2c", 1024, 128))
 
     def test_budget_refuses_when_device_headroom_would_break(self):
-        budget = runner.budget_case(runner.GIB, self.big_host, 5 * runner.GIB,
-                                    self.big_device_total)
+        budget = runner.budget_case("c2c", 8192, 8192, self.big_host,
+                                    5 * runner.GIB, self.big_device_total)
         self.assertEqual(budget["decision"], "skip")
         self.assertIn("device budget", budget["reason"])
 
     def test_budget_refuses_when_host_headroom_would_break(self):
-        budget = runner.budget_case(256 * runner.MIB, 512 * runner.MIB,
+        budget = runner.budget_case("c2c", 4096, 1024, 512 * runner.MIB,
                                     self.big_device_free, self.big_device_total)
         self.assertEqual(budget["decision"], "skip")
         self.assertIn("host budget", budget["reason"])
 
     def test_budget_refuses_offset_limit_shapes(self):
-        budget = runner.budget_case(5 * runner.GIB, self.big_host,
+        budget = runner.budget_case("c2c", 64, 40_000_000, self.big_host,
                                     self.big_device_free, self.big_device_total)
         self.assertEqual(budget["decision"], "skip")
         self.assertIn("offset-limit", budget["reason"])
+
+    def test_r2c_exact_accounting_skips_where_factor_estimate_runs(self):
+        n, batch = 8192, 8192
+        input_bytes = runner.input_bytes_for("r2c", n, batch)
+        old_device_estimate = int(input_bytes * 2.5) + 64 * runner.MIB
+        exact = runner.device_bytes_exact("r2c", n, batch)
+        self.assertGreater(exact, old_device_estimate)
+        device_free = 4850 * runner.MIB
+        headroom = max(4 * runner.GIB,
+                       int(0.05 * self.big_device_total))
+        self.assertGreaterEqual(device_free - headroom, old_device_estimate)
+        budget = runner.budget_case("r2c", n, batch, self.big_host,
+                                    device_free, self.big_device_total)
+        self.assertEqual(budget["decision"], "skip")
+        self.assertIn("device budget", budget["reason"])
+
+    def test_probe_verdict_distinguishes_oom_from_other_failures(self):
+        recovered_oom = ("EXCEPTION:NPU out of memory while allocating\n"
+                         "ALLOCATED:4294967296\nOOM\nRECOVERED\n")
+        ok, detail = runner.classify_probe(recovered_oom, 0)
+        self.assertTrue(ok)
+        self.assertIn("out of memory", detail)
+
+        ok, detail = runner.classify_probe(
+            "EXCEPTION:ACL error 500001\nALLOCATED:-1\nNOT_OOM\nRECOVERED\n", 0)
+        self.assertFalse(ok)
+        self.assertIn("not confirmed", detail)
+
+        ok, detail = runner.classify_probe(
+            "EXCEPTION:system memory error\nALLOCATED:123\nOOM\n"
+            "RECOVERY_FAILED:allocator still full\n", 1)
+        self.assertFalse(ok)
+        self.assertIn("recovery failed", detail)
+
+        ok, detail = runner.classify_probe("NO_OOM\n", 1)
+        self.assertFalse(ok)
+        self.assertIn("NO_OOM", detail)
+
+        ok, detail = runner.classify_probe("", 1, timed_out=True)
+        self.assertFalse(ok)
+        self.assertIn("timeout", detail)
+
+    def test_oom_probe_requires_explicit_device(self):
+        with self.assertRaises(SystemExit):
+            runner.main(["--oom-probe"])
+
+    def test_plan_totals_are_deterministic_and_exact(self):
+        rows_a = runner.plan(self.profile, self.big_host, self.big_device_free,
+                             self.big_device_total)
+        rows_b = runner.plan(self.profile, self.big_host, self.big_device_free,
+                             self.big_device_total)
+        self.assertEqual(rows_a, rows_b)
+        for row in rows_a:
+            if row["decision"] == "run":
+                self.assertEqual(row["device_needed"],
+                                 runner.device_bytes_exact(
+                                     row["direction"], row["n"], row["batch"]))
+                self.assertEqual(row["host_needed"],
+                                 runner.host_bytes_exact(
+                                     row["direction"], row["n"], row["batch"]))
 
     def test_plan_covers_all_tiers_and_soaks_canonical_shape(self):
         rows = runner.plan(self.profile, self.big_host, self.big_device_free,

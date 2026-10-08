@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "profile": "stress",
+  "tiers": [
+    1048576,
+    67108864,
+    268435456,
+    1073741824
+  ],
+  "repeat_execution": 10000,
+  "lifecycle_cycles": 20,
+  "planned_rows": 28,
+  "executed": 29,
+  "skipped": 0,
+  "passed": 29,
+  "failed": 0,
+  "gate_failures": [],
+  "hbm_before_mb": 3120,
+  "hbm_after_mb": 3120,
+  "hbm_growth_mb": 0,
+  "hbm_allowance_mb": 3276,
+  "host_avail_before_mb": 1296659,
+  "host_avail_after_mb": 1298554,
+  "oom_probe": "oom probe is opt-in; pass --oom-probe --device N",
+  "oom_probe_enabled": false,
+  "memory_model": "exact-directional-v2",
+  "correctness_threshold": 0.0001,
+  "status": "pass"
+}

@@ -33,13 +33,24 @@
 
 ## 统计规则
 
-每个点执行若干 warmup，然后进行 `rounds` 轮测量；每轮取 `reps` 次均值，最终采用
-min-of-means。该规则用于降低共享服务器上的瞬态干扰，但不会替代对温度、频率和系统负载的记录。
+分两套协议，逐点记录进各自 raw 行，不混算：
+
+- **C2C 矩阵 / 端到端**：每个点执行若干 warmup，然后进行 `rounds` 轮测量；每轮取 `reps`
+  次均值，最终采用 min-of-means。该规则用于降低共享服务器上的瞬态干扰，但不会替代对温度、
+  频率和系统负载的记录。
+- **R2C/C2R 对比（P1-B 对称协议）**：自研与 torch 两侧同一口径——5 个独立 trial，
+  每个 trial 先做一次丢弃的 warmup 执行，再做 `reps` 次计时样本；trial 值取该 trial 样本的
+  **median**，逐 trial 校验（自研侧 `maxRel <= 1e-4` 且 PASS 才准入 timing，`maxAbs`/
+  `maxRel`/status 逐行留存）；跨 trial 汇总只由有效 raw 行派生，报告 median、p10、p90 与 CV。
+  失败、超时、不支持的行保留在 `raw_trials` 中，不从分母抹去。
+
 汇总 speedup 使用逐点比值的几何均值，同时报告最小值、最大值、胜出点数和总点数。
 
 ## 必需元数据
 
-发布结果必须带 `manifest.json`，至少记录：Git 提交与 dirty 状态、SoC、CANN、硬件配置哈希、
-变换语义、精度、shape 网格、warmup/reps/rounds、计时区间、基线、选择策略和正确性阈值。
+发布结果必须带 `manifest.json`，至少记录：Git 提交与 dirty 状态、UTC 起止时间、SoC/硬件 ID
+与 profile 哈希、CANN/Python 等软件版本、逐实验命令、协议（protocol）、原始产物哈希与派生产物
+哈希、变换语义、精度、shape 网格、warmup/reps/rounds、计时区间、基线、选择策略和正确性阈值。
+`publish_results.py --check` 会在任何产物哈希、图形输入或 manifest commit 漂移时失败。
 
 当前发布快照的详细数值见[结果](results.md)，复现入口见[复现实验](reproducibility.md)。

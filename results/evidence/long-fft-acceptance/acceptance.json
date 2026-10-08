@@ -1,0 +1,380 @@
+{
+ "generated_utc": "2026-10-08T14:33:31.945323+00:00",
+ "git_sha": "0fa7fe8190997d2fabba30fd0736ef026e02aed7",
+ "git_dirty": true,
+ "command": "python3 scripts/collect_long_fft_evidence.py",
+ "binary": "build/fft_check (AB_INPUT_SEQ A/B/A file inputs)",
+ "threshold": 0.0001,
+ "grid": {
+  "ns": [
+   8192,
+   16384,
+   32768,
+   65536
+  ],
+  "bs": [
+   1,
+   3,
+   47
+  ]
+ },
+ "points": [
+  {
+   "n": 8192,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 1.02e-07,
+   "max_abs": 0.0007197,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_1.bin",
+     "max_rel": 1.192e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_1.bin",
+     "max_rel": 1.47e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_1.bin",
+     "max_rel": 1.192e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 8192,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 1.158e-07,
+   "max_abs": 0.0007197,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_3.bin",
+     "max_rel": 1.788e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_3.bin",
+     "max_rel": 1.769e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_3.bin",
+     "max_rel": 1.788e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 8192,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 1.989e-07,
+   "max_abs": 0.0007442,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_47.bin",
+     "max_rel": 2.384e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_47.bin",
+     "max_rel": 2.155e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_47.bin",
+     "max_rel": 2.384e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 16384,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.001571,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_1.bin",
+     "max_rel": 1.192e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_1.bin",
+     "max_rel": 1.919e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_1.bin",
+     "max_rel": 1.192e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 16384,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.001571,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_3.bin",
+     "max_rel": 1.788e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_3.bin",
+     "max_rel": 2.077e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_3.bin",
+     "max_rel": 1.788e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 16384,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.001989,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_47.bin",
+     "max_rel": 2.384e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_47.bin",
+     "max_rel": 2.215e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_47.bin",
+     "max_rel": 2.384e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 32768,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 4.14e-08,
+   "max_abs": 0.001029,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_1.bin",
+     "max_rel": 1.192e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_1.bin",
+     "max_rel": 2.122e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_1.bin",
+     "max_rel": 1.192e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 32768,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 9.733e-08,
+   "max_abs": 0.001545,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_3.bin",
+     "max_rel": 1.788e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_3.bin",
+     "max_rel": 1.905e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_3.bin",
+     "max_rel": 1.788e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 32768,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 1.307e-07,
+   "max_abs": 0.002785,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_47.bin",
+     "max_rel": 2.384e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_47.bin",
+     "max_rel": 2.38e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_47.bin",
+     "max_rel": 2.384e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 65536,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 8.04e-08,
+   "max_abs": 0.002003,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_1.bin",
+     "max_rel": 1.192e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_1.bin",
+     "max_rel": 3.018e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_1.bin",
+     "max_rel": 1.192e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 65536,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 1.406e-07,
+   "max_abs": 0.003516,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_3.bin",
+     "max_rel": 1.788e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_3.bin",
+     "max_rel": 3.246e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_3.bin",
+     "max_rel": 1.788e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  },
+  {
+   "n": 65536,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 2.267e-07,
+   "max_abs": 0.00558,
+   "seq": [
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_47.bin",
+     "max_rel": 2.384e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_47.bin",
+     "max_rel": 3.185e-07,
+     "pass": true
+    },
+    {
+     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_47.bin",
+     "max_rel": 2.384e-07,
+     "pass": true
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "pass": true,
+   "e2e_transfers": ""
+  }
+ ],
+ "short_control": {
+  "n": 4096,
+  "b": 3,
+  "rc": 0,
+  "max_rel": 1.35e-07,
+  "max_abs": 0.0002374,
+  "seq": [
+   {
+    "input": "impulse",
+    "max_rel": 0.0,
+    "pass": true
+   },
+   {
+    "input": "random-seeded",
+    "max_rel": 1.414e-07,
+    "pass": true
+   },
+   {
+    "input": "impulse",
+    "max_rel": 0.0,
+    "pass": true
+   }
+  ],
+  "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+  "pass": true,
+  "path": "short"
+ },
+ "e2e_transfers": {
+  "rc": 0,
+  "transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+  "line": "E2E n=8192 batch=1 reps=3 e2e_us=225.7 e2e_min_us=221.3 first_us=222.4 boot_us=687436.2 plan_us=561.6 warmup_us=720.1 mode=async host=chain input=sin"
+ },
+ "status": "pass"
+}

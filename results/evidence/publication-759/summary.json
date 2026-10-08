@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profile": "publication",
+  "components": [
+    "c2c",
+    "real",
+    "numeric",
+    "applications"
+  ],
+  "cases": 253,
+  "trials": 3,
+  "executions": 759,
+  "passed": 759,
+  "failed": 0,
+  "correctness_threshold": 0.0001,
+  "status": "pass"
+}

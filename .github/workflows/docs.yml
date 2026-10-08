@@ -29,6 +29,9 @@ jobs:
           if test -f results/published/ascend910_9382-cann9.0.0/manifest.json; then
             python scripts/publish_results.py --check
           fi
+          if test -f results/published/ascend910_9382-cann9.0.0-v2/manifest.json; then
+            python scripts/publish_results.py --check --snapshot ascend910_9382-cann9.0.0-v2
+          fi
       - run: mkdocs build --strict
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

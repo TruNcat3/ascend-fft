@@ -26,10 +26,8 @@ from run_test_profile import DEFAULT_CONFIG, command_for, load_config
 MIB = 1024 ** 2
 GIB = 1024 ** 3
 OFFSET_LIMIT = 1 << 32
-DEVICE_FACTOR = 2.5
-DEVICE_FIXED = 64 * MIB
-HOST_FACTOR = 2.2
-HOST_FIXED = 256 * MIB
+HOST_MARGIN = 0.02
+DEVICE_HEADROOM = 0.05
 QUICK_REPS = 3
 RSS_SAMPLE_S = 0.5
 RSS_MIN_WALL_S = 20.0
@@ -39,35 +37,107 @@ FIELDS = ("stage", "tier_bytes", "direction", "n", "batch", "reps", "input",
           "host_needed", "device_needed", "decision", "reason", "returncode",
           "wall_ms", "max_rel", "rss_growth_mb", "correct", "failure")
 
+# ---- 方向感知精确内存模型（P1-C）---------------------------------------------
+# 按 fft_check 每条方向链的实际张量求和：device = 各显存缓冲 + 行 twiddle/索引；
+# host = 输入/输出向量 + twiddle/索引副本 + FP64 参考校验暂存 + 输入生成暂存。
+# 索引按 foldD 最坏 48 计（与 budget 的保守口径一致）；C2R 输入用真实半谱
+# 4*(N+16)*B（不再按满谱 8*N*B 推 batch）。
+FOLD_WORST = 48
+
+
+def input_bytes_for(direction, n, batch):
+    """真实输入张量字节：c2c 交错复数、r2c 实数、c2r 半谱（含 16 行距）。"""
+    if direction == "c2r":
+        return 4 * (n + 16) * batch
+    if direction == "r2c":
+        return 4 * n * batch
+    return 8 * n * batch
+
+
+def derive_batch(n, tier_bytes, direction):
+    if n < 1 or tier_bytes < 1:
+        return 0
+    return tier_bytes // max(1, input_bytes_for(direction, n, 1))
+
+
+def _tw_idx_bytes(len_):
+    """单段 twiddle(2 个 planar 表) + 索引张量的字节（foldD 最坏 48）。"""
+    tw = 2 * (len_ + 16) * 4
+    idx = (4 * len_ + 2 * len_ * FOLD_WORST) * 4
+    return tw + idx
+
+
+def device_bytes_exact(direction, n, batch):
+    if direction == "r2c":
+        inner = n // 2
+        p_pad = ((n // 4 + 1) + 7) & ~7
+        return (4 * n * batch + 4 * (n + 16) * batch + 4 * n * batch  # dIn dOut dA
+                + 2 * p_pad * 4 + _tw_idx_bytes(inner))
+    if direction == "c2r":
+        return (4 * (n + 16) * batch + 4 * n * batch                  # dIn dOut
+                + 8 * n * batch + 8 * n * batch                       # dA dB 满谱
+                + _tw_idx_bytes(n))
+    return 16 * n * batch + _tw_idx_bytes(n)                          # dIn dOut
+
+
+def host_bytes_exact(direction, n, batch):
+    if direction == "r2c":
+        gen_scratch = 8 * n * batch if batch else 0
+        verify = 16 * n + 8 * n + 8 * n                               # y cin refFlat
+        return 4 * n * batch + 4 * (n + 16) * batch + gen_scratch + verify \
+            + _tw_idx_bytes(n // 2)
+    if direction == "c2r":
+        verify = 16 * n + 16 * n + 8 * n + 4 * n                      # X y cin refFlat
+        return 4 * (n + 16) * batch + 4 * n * batch + verify \
+            + _tw_idx_bytes(n)
+    verify = 16 * n + 8 * n                                           # y refFlat
+    return 16 * n * batch + verify + _tw_idx_bytes(n)
+
 OOM_PROBE = """
 import sys
 import torch
 import torch_npu
 
-torch.npu.set_device(0)
+device = {device}
+torch.npu.set_device(device)
 chunks = []
-probe = None
-c = None
 failed = False
+exc_msg = ""
+allocated = -1
 while not failed and len(chunks) < 160:
     try:
         c = torch.empty(1 << 30, dtype=torch.uint8, device="npu")
         c.zero_()
         chunks.append(c)
-    except RuntimeError:
+    except RuntimeError as exc:
         failed = True
+        exc_msg = str(exc).replace("\\n", " ")[:400]
+        try:
+            allocated = torch.npu.memory_allocated(device)
+        except Exception:
+            allocated = -1
 if len(chunks) >= 160:
     print("NO_OOM")
     sys.exit(1)
 if not chunks:
     print("FIRST_ALLOC_FAILED")
     sys.exit(1)
-chunks.clear()
-c = None
-torch.npu.empty_cache()
-probe = torch.zeros(1 << 20, dtype=torch.uint8, device="npu")
-del probe
-print("RECOVERED")
+low = exc_msg.lower()
+confirmed = any(k in low for k in ("out of memory", "not enough memory", "oom",
+                                   "malloc", "memory is not enough", "alloc"))
+print("EXCEPTION:" + exc_msg)
+print("ALLOCATED:" + str(allocated))
+print("OOM" if confirmed else "NOT_OOM")
+try:
+    chunks.clear()
+    del c
+    torch.npu.empty_cache()
+    probe = torch.zeros(1 << 20, dtype=torch.uint8, device="npu")
+    del probe
+    print("RECOVERED")
+except Exception as exc:
+    print("RECOVERY_FAILED:" + str(exc).replace("\\n", " ")[:300])
+    sys.exit(1)
 """
 
 
@@ -98,28 +168,19 @@ def read_hbm(chip=0):
     return parse_hbm_table(result.stdout, chip)
 
 
-def input_bytes_per_elem(direction):
-    return 4 if direction == "r2c" else 8
-
-
-def derive_batch(n, tier_bytes, per_elem):
-    if n < 1 or tier_bytes < 1 or per_elem < 1:
-        return 0
-    return tier_bytes // (n * per_elem)
-
-
-def budget_case(input_bytes, host_avail, device_free, device_total):
-    device_headroom = max(4 * GIB, int(0.05 * device_total))
-    host_headroom = max(2 * GIB, int(0.02 * host_avail))
-    device_needed = int(input_bytes * DEVICE_FACTOR) + DEVICE_FIXED
-    host_needed = int(input_bytes * HOST_FACTOR) + HOST_FIXED
-    budget = {"decision": "run", "reason": "", "host_needed": host_needed,
-              "device_needed": device_needed, "device_headroom": device_headroom,
-              "host_headroom": host_headroom}
-    if input_bytes > OFFSET_LIMIT - MIB:
+def budget_case(direction, n, batch, host_avail, device_free, device_total):
+    input_bytes = input_bytes_for(direction, n, batch)
+    device_headroom = max(4 * GIB, int(DEVICE_HEADROOM * device_total))
+    host_headroom = max(2 * GIB, int(HOST_MARGIN * host_avail))
+    device_needed = device_bytes_exact(direction, n, batch)
+    host_needed = host_bytes_exact(direction, n, batch)
+    budget = {"decision": "run", "reason": "", "input_bytes": input_bytes,
+              "host_needed": host_needed, "device_needed": device_needed,
+              "device_headroom": device_headroom, "host_headroom": host_headroom}
+    if 2 * n * batch > OFFSET_LIMIT - 1:
         budget.update(decision="skip",
-                      reason=f"offset-limit: input {input_bytes} B has no uint32 "
-                             f"byte-offset headroom below {OFFSET_LIMIT} B")
+                      reason=f"offset-limit: goff 2*N*B={2 * n * batch} has no "
+                             f"uint32 headroom below {OFFSET_LIMIT} elements")
         return budget
     if device_needed > device_free - device_headroom:
         budget.update(decision="skip",
@@ -146,19 +207,20 @@ def plan(profile, host_avail, device_free, device_total):
     soak_n = 1024 if 1024 in c2c_ns else (c2c_ns[len(c2c_ns) // 2] if c2c_ns else 0)
     rows = []
 
-    def add(tier, stage, direction, n, reps, per_elem, input_mode):
-        batch = derive_batch(n, tier, per_elem)
-        input_bytes = n * batch * per_elem if batch else 0
+    def add(tier, stage, direction, n, reps, input_mode):
+        batch = derive_batch(n, tier, direction)
         if batch:
-            budget = budget_case(input_bytes, host_avail, device_free, device_total)
+            budget = budget_case(direction, n, batch, host_avail, device_free,
+                                 device_total)
         else:
             budget = {"decision": "skip",
-                      "reason": f"tier {tier} B cannot hold one n={n} input row",
-                      "host_needed": "", "device_needed": "", "device_headroom": "",
-                      "host_headroom": ""}
+                      "reason": f"tier {tier} B cannot hold one n={n} {direction} "
+                                f"input row",
+                      "input_bytes": 0, "host_needed": "", "device_needed": "",
+                      "device_headroom": "", "host_headroom": ""}
         row = {"stage": stage, "tier_bytes": tier, "direction": direction, "n": n,
                "batch": batch, "reps": reps, "input": input_mode,
-               "input_bytes": input_bytes, "host_avail": host_avail,
+               "input_bytes": budget["input_bytes"], "host_avail": host_avail,
                "device_free": device_free, "device_total": device_total,
                "host_needed": budget["host_needed"],
                "device_needed": budget["device_needed"],
@@ -171,11 +233,11 @@ def plan(profile, host_avail, device_free, device_total):
         for n in c2c_ns:
             stage = "soak" if n == soak_n else "case"
             reps = soak_reps if stage == "soak" else QUICK_REPS
-            add(tier, stage, "c2c", n, reps, 8, "random-seeded")
+            add(tier, stage, "c2c", n, reps, "random-seeded")
         for n in real.get("r2c_ns", []):
-            add(tier, "case", "r2c", int(n), QUICK_REPS, 4, "random-seeded")
+            add(tier, "case", "r2c", int(n), QUICK_REPS, "random-seeded")
         for n in real.get("c2r_ns", []):
-            add(tier, "case", "c2r", int(n), QUICK_REPS, 8, "half-spectrum")
+            add(tier, "case", "c2r", int(n), QUICK_REPS, "half-spectrum")
     return rows
 
 
@@ -288,7 +350,38 @@ def run_lifecycle(row, cycles):
     return row
 
 
-def run_probe(timeout_s=300.0):
+def classify_probe(stdout, returncode, timed_out=False):
+    """把探测输出归类：OOM+恢复才通过；OOM 未恢复、非 OOM 失败、超时各自成因。"""
+    lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+    verdict = lines[-1] if lines else "NO_OUTPUT"
+    detail = "; ".join(line for line in lines
+                       if line.startswith(("EXCEPTION:", "ALLOCATED:")))
+    confirmed = any(line == "OOM" for line in lines)
+    if timed_out:
+        return False, f"oom probe timeout{(': ' + detail) if detail else ''}"
+    if verdict == "RECOVERED":
+        if confirmed:
+            return True, detail
+        return False, ("allocation failure not confirmed as OOM "
+                       f"(verdict {verdict!r}{'; ' + detail if detail else ''})")
+    if confirmed:
+        return False, (f"OOM confirmed but recovery failed (verdict {verdict!r}"
+                       f"{'; ' + detail if detail else ''})")
+    return False, (f"oom probe verdict {verdict!r} rc={returncode}"
+                   f"{'; ' + detail if detail else ''}")
+
+
+def probe_idle_preflight(device, min_free_fraction=0.90):
+    """OOM 探测前的空闲预检：只允许在几乎无占用的设备上主动打 OOM。"""
+    used_mb, total_mb = read_hbm(device)
+    free_mb = total_mb - used_mb
+    if free_mb < min_free_fraction * total_mb:
+        return False, (f"device {device} is not idle: used {used_mb} / "
+                       f"total {total_mb} B (need >= {min_free_fraction:.0%} free)")
+    return True, f"device {device} idle: used {used_mb} B of {total_mb} B"
+
+
+def run_probe(device, timeout_s=300.0):
     row = {"stage": "probe", "tier_bytes": 0, "direction": "c2c", "n": 0, "batch": 0,
            "reps": 0, "input": "random-seeded", "input_bytes": 0, "host_avail": "",
            "device_free": "", "device_total": "", "host_needed": "",
@@ -297,22 +390,26 @@ def run_probe(timeout_s=300.0):
            "failure": ""}
     started = time.perf_counter()
     try:
-        result = subprocess.run([sys.executable, "-c", OOM_PROBE], cwd=ROOT,
-                                capture_output=True, text=True, timeout=timeout_s)
+        result = subprocess.run([sys.executable, "-c",
+                                 OOM_PROBE.format(device=device)],
+                                cwd=ROOT, capture_output=True, text=True,
+                                timeout=timeout_s)
     except subprocess.TimeoutExpired:
-        row.update(returncode=124, wall_ms=round((time.perf_counter() - started) * 1000, 1),
-                   correct=False, failure=f"oom probe timeout after {timeout_s:.0f} s")
+        row.update(returncode=124,
+                   wall_ms=round((time.perf_counter() - started) * 1000, 1),
+                   correct=False, failure=f"oom probe timeout after {timeout_s} s")
         return row
-    stdout_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    verdict = stdout_lines[-1] if stdout_lines else "NO_OUTPUT"
-    passed = result.returncode == 0 and verdict == "RECOVERED"
-    failure = ""
-    if not passed:
-        stderr_tail = "\n".join(result.stderr.strip().splitlines()[-3:])
-        failure = f"oom probe verdict {verdict!r} rc={result.returncode} stderr={stderr_tail}"
+    # 判据只看 stdout：stderr 里可能混有 torch_npu 自己的 OOM 日志行，
+    # 合并会把最后一行从探针自己的 verdict 变成第三方日志。
+    stdout = result.stdout
+    passed, failure = classify_probe(stdout, result.returncode)
+    if not passed and result.stderr.strip():
+        tail = " / ".join(result.stderr.strip().splitlines()[-2:])
+        failure = f"{failure} | stderr: {tail}"
     row.update(returncode=result.returncode,
                wall_ms=round((time.perf_counter() - started) * 1000, 1),
-               correct=passed, failure=failure)
+               correct=passed, reason=failure if passed else "",
+               failure="" if passed else failure)
     return row
 
 
@@ -332,11 +429,21 @@ def main(argv=None):
     parser.add_argument("--out", default="")
     parser.add_argument("--build", action="store_true", help="run scripts/build.sh all first")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--oom-probe", action="store_true",
+                        help="opt-in: deliberately exhaust HBM to prove OOM recovery "
+                             "(requires --device; run only on an idle device)")
+    parser.add_argument("--device", type=int, default=None,
+                        help="NPU device index for the OOM probe (required with "
+                             "--oom-probe)")
     parser.add_argument("--soak-reps", type=int, default=None,
                         help="override profile repeat_execution (debug only)")
     parser.add_argument("--lifecycle-cycles", type=int, default=None,
                         help="override lifecycle cycles (debug only)")
     args = parser.parse_args(argv)
+    if args.oom_probe and args.device is None:
+        parser.error("--oom-probe requires an explicit --device")
+    if args.device is not None and args.device < 0:
+        parser.error("--device must be non-negative")
 
     document = load_config(args.config)
     if "stress" not in document["profiles"]:
@@ -416,16 +523,41 @@ def main(argv=None):
             print(lifecycle_row["failure"], file=sys.stderr)
 
     index += 1
-    print(f"[{index}/{total}] oom recovery probe", flush=True)
-    probe_row = run_probe()
-    executed.append(probe_row)
-    if not probe_row["correct"]:
-        print(probe_row["failure"], file=sys.stderr)
+    if args.oom_probe:
+        print(f"[{index}/{total}] oom recovery probe device={args.device}",
+              flush=True)
+        idle_ok, idle_detail = probe_idle_preflight(args.device)
+        if not idle_ok:
+            probe_row = {"stage": "probe", "tier_bytes": 0, "direction": "c2c",
+                         "n": 0, "batch": 0, "reps": 0, "input": "random-seeded",
+                         "input_bytes": 0, "host_avail": "", "device_free": "",
+                         "device_total": "", "host_needed": "", "device_needed": "",
+                         "decision": "skip", "reason": idle_detail, "returncode": "",
+                         "wall_ms": "", "max_rel": "", "rss_growth_mb": "",
+                         "correct": False, "failure": idle_detail}
+            print(idle_detail, file=sys.stderr)
+        else:
+            print(f"idle preflight: {idle_detail}", flush=True)
+            probe_row = run_probe(args.device)
+            executed.append(probe_row)
+            if not probe_row["correct"]:
+                print(probe_row["failure"], file=sys.stderr)
+    else:
+        print(f"[{index}/{total}] oom recovery probe skipped "
+              f"(opt-in: --oom-probe --device N)", flush=True)
+        probe_row = {"stage": "probe", "tier_bytes": 0, "direction": "c2c",
+                     "n": 0, "batch": 0, "reps": 0, "input": "random-seeded",
+                     "input_bytes": 0, "host_avail": "", "device_free": "",
+                     "device_total": "", "host_needed": "", "device_needed": "",
+                     "decision": "skip",
+                     "reason": "oom probe is opt-in; pass --oom-probe --device N",
+                     "returncode": "", "wall_ms": "", "max_rel": "",
+                     "rss_growth_mb": "", "correct": "", "failure": ""}
 
     gate_failures = []
     if not lifecycle_ok and lifecycle_template is None:
         gate_failures.append(lifecycle_row["failure"])
-    if not probe_row["correct"]:
+    if args.oom_probe and not probe_row["correct"]:
         gate_failures.append(probe_row["failure"])
     try:
         time.sleep(3.0)
@@ -476,7 +608,11 @@ def main(argv=None):
         "hbm_allowance_mb": hbm_allowance // MIB,
         "host_avail_before_mb": host_before // MIB,
         "host_avail_after_mb": host_after // MIB,
-        "oom_probe": "recovered" if probe_row["correct"] else probe_row["failure"],
+        "oom_probe": ("recovered" if probe_row["correct"] is True
+                      else probe_row["failure"] or probe_row["reason"]
+                      or "disabled"),
+        "oom_probe_enabled": bool(args.oom_probe),
+        "memory_model": "exact-directional-v2",
         "correctness_threshold": 1e-4,
         "status": status,
     }

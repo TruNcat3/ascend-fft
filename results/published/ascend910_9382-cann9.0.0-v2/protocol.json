@@ -1,0 +1,28 @@
+{
+  "c2c_matrix": {
+    "reps": 20,
+    "rounds": 3,
+    "source": "matrix_test.py",
+    "statistic": "min-of-means",
+    "timing": "device-only"
+  },
+  "correctness_threshold": 0.0001,
+  "e2e": {
+    "reps": 10,
+    "rounds": 3,
+    "statistic": "min-of-means",
+    "timing": "end-to-end pinned"
+  },
+  "r2c_c2r": {
+    "correctness_gate": "every Ascend-FFT trial PASS with maxRel<=1e-4 before timing admission",
+    "raw": "r2c_c2r.raw_trials.{json,csv}, one row per (impl,N,B,trial)",
+    "reps_policy": "nB<=4096:50, nB<=2^20:30, else 10",
+    "statistic": "per-trial median; summary median/p10/p90/CV over valid raw rows",
+    "trials": 5,
+    "warmup": "one discarded full-reps execution inside every trial"
+  },
+  "sixway": {
+    "command": "gen_stdlib_doc.py",
+    "timing": "device-only"
+  }
+}

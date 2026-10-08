@@ -1,15 +1,3 @@
-# Published Benchmark Summary
-
-Source commit: `0fa7fe8190997d2fabba30fd0736ef026e02aed7`. SoC: `unknown`.
-
-C2C device-only: **49 checked points**, geometric mean speedup **3.010x** against CANN native.
-
-This mean covers only the published C2C matrix, not end-to-end or real transforms.
-
-[Full matrix](matrix.md). Protocol and provenance are in the published manifest.
-
-## Matched Multi-Baseline Detail
-
 # 性能对比：标准库 vs CANN 原生算子 vs 自研 kernel（全网格 49 点）
 
 > **复现脚本**：[`scripts/gen_stdlib_doc.py`](https://github.com/TruNcat3/ascend-fft/blob/9dccfec/scripts/gen_stdlib_doc.py)（本文是它的输出）· [`scripts/bench_stdlib.py`](https://github.com/TruNcat3/ascend-fft/blob/9dccfec/scripts/bench_stdlib.py) · [`scripts/bench_native_npu.py`](https://github.com/TruNcat3/ascend-fft/blob/9dccfec/scripts/bench_native_npu.py) · [`scripts/repro.sh sixway`](https://github.com/TruNcat3/ascend-fft/blob/9dccfec/scripts/repro.sh)。

@@ -160,6 +160,21 @@ static void genAppInput(std::vector<float>& hIn, uint32_t n, uint32_t batch,
 // c2r 输入：任意半谱（确定性 hash，行距 n+16 float，Nyquist 虚部置 0）。
 // 非 Hermitian 一致的中间 bin 也照收 —— prep 按镜像规则补全满谱，参考实现同式，
 // 因此这是对展开逻辑本身的更强测试（不是「输入即合法 rfft 输出」的恒等检验）。
+// c2c 输入选择（与 AB_INPUT 语义同口径）：sin 默认 / 应用形状 / 数值回归模式。
+// 供 main 的 c2c 分支与 AB_INPUT_SEQ 序列换入共用 —— 序列模式保证换了输入但
+// 不重建 plan（旋转因子/索引/工作区均输入无关）。
+static void genC2CInput(std::vector<float>& h, uint32_t n, uint32_t batch, const char* mode){
+    const size_t elements=2ull*(size_t)n*batch;
+    if(strcmp(mode,"sin")==0 || strcmp(mode,"deterministic-sin-cos")==0){
+        for(size_t i=0;i<elements;i++)
+            h[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
+    }else if(strcmp(mode,"ofdm")==0 || strcmp(mode,"radar")==0 || strcmp(mode,"dl")==0){
+        genAppInput(h, n, batch, mode);
+    }else{
+        genNumericalInput(h, n, batch, mode);
+    }
+}
+
 static void genHalfInput(std::vector<float>& h, uint32_t n, uint32_t batch){
     const uint32_t m = n >> 1, st = n + 16u;
     for(uint32_t b=0;b<batch;b++){
@@ -300,15 +315,7 @@ int main(int argc, char** argv){
             for(size_t i=0;i<inElems;i++) hIn[i]=cx[2*i];
         }
     }else{
-        if(strcmp(inMode,"sin")==0 || strcmp(inMode,"deterministic-sin-cos")==0){
-            for(size_t i=0;i<elements;i++)
-                hIn[i]=(float)(std::sin(0.011*i)+0.25*std::cos(0.037*i));
-        }else if(strcmp(inMode,"ofdm")==0 || strcmp(inMode,"radar")==0 ||
-                 strcmp(inMode,"dl")==0){
-            genAppInput(hIn, n, batch, inMode);
-        }else{
-            genNumericalInput(hIn, n, batch, inMode);
-        }
+        genC2CInput(hIn, n, batch, inMode);
     }
     std::vector<float> hOut(outElems,0.f);
     // AB_INPUT_FILE=<path>：整块覆盖 hIn（任意模式），供链路中间量交叉验证。
@@ -413,19 +420,12 @@ int main(int argc, char** argv){
         }
     }
 
-    // ---- 长后端宿主段数据（一次性 plan 准备）----
-    // hT：输入转置（行 r=b·N2+j 持 A[·][j]，行长 N1）；wT：W_N^{j·k1}（与 b 无关）。
-    // hMid/hD：逐次 launch 的段间缓冲（pass1 输出 / twiddle+转置输出）。
+    // ---- 长后端 plan 状态：只留输入无关内容 ----
+    // wT = W_N^{j·k1}（输入无关）；hT/hMid/hD 仅为 workspace，hT 每次执行都从
+    // 当前输入重新转置（动态输入契约：plan 不得携带数据相关缓冲，见 PR 评论 P1-A）。
     std::vector<float> hT, hMid, hD, wT;
     if(isLong){
         hT.assign(inElems, 0.f);
-        for(uint32_t b=0;b<batch;b++)
-            for(uint32_t i=0;i<longN1;i++)
-                for(uint32_t j=0;j<longN2;j++){
-                    size_t src=2ull*((size_t)b*n + (size_t)i*longN2 + j);
-                    size_t dst=2ull*(((size_t)b*longN2 + j)*longN1 + i);
-                    hT[dst]=hIn[src]; hT[dst+1]=hIn[src+1];
-                }
         wT.assign(2ull*(size_t)n, 0.f);
         for(uint32_t j=0;j<longN2;j++)
             for(uint32_t k1=0;k1<longN1;k1++){
@@ -561,20 +561,38 @@ int main(int argc, char** argv){
         uint32_t blk = rows<48u?rows:48u;
         return aclrtLaunchKernelWithHostArgs(f,blk,s,nullptr,ab.data(),ab.size(),nullptr,0);
     };
+    // device_only 口径：每次 launch 用事件对量取各内核在 device 上的 span 之和
+    // （不含宿主段、不含段间拷贝），由 aclrtEventElapsedTime 给出。
+    aclrtEvent ev0=nullptr, ev1=nullptr;
+    CK(aclrtCreateEvent(&ev0)); CK(aclrtCreateEvent(&ev1));
+    double devSpanMs=-1;
     // 一次 launch = 整条方向链（多内核在同一流上串行），末尾一次同步 => 计的是整链 device 时间
     auto launch=[&](){
         aclError e=ACL_SUCCESS;
+        devSpanMs=-1;
         if(isLong){
             // 四步 Cooley-Tukey（G1，见 docs/benchmarks/long-fft-plan.md）：
             //   宿主转置入 -> 行FFT(N1) -> 宿主 twiddle+转置 -> 行FFT(N2) -> 宿主重排出。
-            // 每次 launch 全链重跑（宿主段计入 us/call；测量计划如实声明该口径）。
+            // 每次执行都从当前 hIn 重新转置（动态输入契约，PR 评论 P1-A）；传输计数：
+            //   逻辑输入 H2D x1、逻辑输出 D2H x1（pass2 出数）、段边界 x2。
+            for(uint32_t b=0;b<batch;b++)
+                for(uint32_t i=0;i<longN1;i++)
+                    for(uint32_t j=0;j<longN2;j++){
+                        size_t src=2ull*((size_t)b*n + (size_t)i*longN2 + j);
+                        size_t dst=2ull*(((size_t)b*longN2 + j)*longN1 + i);
+                        hT[dst]=hIn[src]; hT[dst+1]=hIn[src+1];
+                    }
+            float dm0=-1.f, dm1=-1.f;
             e=aclrtMemcpyAsync(dIn, inElems*4u, hT.data(), inElems*4u,
                                ACL_MEMCPY_HOST_TO_DEVICE, s);
+            if(!e) e=aclrtRecordEvent(ev0, s);
             if(!e) e=issuePass(dA, dIn, longN1, longN2*batch,
                                dTwR, dTwI, dIdx, pp1.packArg);
+            if(!e) e=aclrtRecordEvent(ev1, s);
             if(!e) e=aclrtMemcpyAsync(hMid.data(), inElems*4u, dA, inElems*4u,
                                       ACL_MEMCPY_DEVICE_TO_HOST, s);
             if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
+            if(!e) aclrtEventElapsedTime(&dm0, ev0, ev1);
             if(!e){ // 宿主段①：twiddle W_N^{j·k1} + 转置成 pass2 行布局
                 for(uint32_t b=0;b<batch;b++)
                     for(uint32_t j=0;j<longN2;j++)
@@ -590,11 +608,14 @@ int main(int argc, char** argv){
             }
             if(!e) e=aclrtMemcpyAsync(dIn, inElems*4u, hD.data(), inElems*4u,
                                       ACL_MEMCPY_HOST_TO_DEVICE, s);
+            if(!e) e=aclrtRecordEvent(ev0, s);
             if(!e) e=issuePass(dOut, dIn, longN2, longN1*batch,
                                dTw2R, dTw2I, dIdx2, pp2.packArg);
+            if(!e) e=aclrtRecordEvent(ev1, s);
             if(!e) e=aclrtMemcpyAsync(hMid.data(), inElems*4u, dOut, outElems*4u,
                                       ACL_MEMCPY_DEVICE_TO_HOST, s);
             if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
+            if(!e) aclrtEventElapsedTime(&dm1, ev0, ev1);
             if(!e){ // 宿主段②：E[k1][k2] -> X[k1+N1·k2] 自然序
                 for(uint32_t b=0;b<batch;b++)
                     for(uint32_t k1=0;k1<longN1;k1++)
@@ -605,20 +626,23 @@ int main(int argc, char** argv){
                             hOut[di]=hMid[si]; hOut[di+1]=hMid[si+1];
                         }
             }
-            // 自然序结果回写 dOut：外层收尾 D2H / AB_DUMP / E2E 的 D2H 口径不变
-            if(!e) e=aclrtMemcpyAsync(dOut, outElems*4u, hOut.data(), outElems*4u,
-                                      ACL_MEMCPY_HOST_TO_DEVICE, s);
-            if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
+            // 结果就地留在 hOut：pass2 的 D2H 就是唯一逻辑输出传输，不再回写 dOut
             if(e){ printf("long launch=%d\n",(int)e); return false; }
+            devSpanMs = (dm0>=0.f && dm1>=0.f) ? (double)(dm0+dm1) : -1.0;  // ms
             return true;
         }
+        float dm=-1.f;
+        if(!e) e=aclrtRecordEvent(ev0, s);
         if(isR2C)      { e=issueFwd(dA,dIn);
                          if(!e) e=issueReal(fPost,dOut,dA, dPW,(char*)dPW+(size_t)pPad*4); }
         else if(isC2R) { e=issueReal(fPrep,dA,dIn);     if(!e) e=issueFwd(dB,dA);
                          if(!e) e=issueReal(fPost,dOut,dB); }
         else           { e=issueFwd(dOut,dIn); }
+        if(!e) e=aclrtRecordEvent(ev1, s);
         if(e){ printf("launch=%d\n",(int)e); return false; }
         { aclError se=aclrtSynchronizeStream(s); if(se){ printf("sync=%d\n",(int)se); return false; } }
+        aclrtEventElapsedTime(&dm, ev0, ev1);
+        devSpanMs = dm>=0.f ? (double)dm : -1.0;   // ms
         return true;
     };
 
@@ -626,7 +650,11 @@ int main(int argc, char** argv){
     // 在冷启动 warmup 之前截断，供端到端报告一次性开销。
     const auto tSetup1=std::chrono::steady_clock::now();
 
+    const auto tu0=std::chrono::steady_clock::now();
     if(!launch()) return 1;
+    const double firstUseUs=std::chrono::duration<double,std::micro>(
+        std::chrono::steady_clock::now()-tu0).count();
+    const double planUs=std::chrono::duration<double,std::micro>(tSetup1-tPlan0).count();
 
     // ---- 端到端口径（AB_E2E=1，默认关闭，不影响矩阵/门禁解析）----
     // 每次重复：H2D(输入) -> 变换链 -> D2H(输出)，与 bench_native_npu.py --e2e 的
@@ -650,7 +678,7 @@ int main(int argc, char** argv){
         const char* hostMode = getenv("AB_E2E_HOST");
         const bool wantPinned = !(hostMode && strcmp(hostMode,"pageable")==0);
         float* pIn = nullptr; float* pOut = nullptr;
-        if(wantPinned){
+        if(wantPinned && !isLong){
             void *a=nullptr, *b=nullptr;
             const size_t nbi=inElems*4u, nbo=outElems*4u;
             const int ei=aclrtMallocHost(&a, nbi), eo=aclrtMallocHost(&b, nbo);
@@ -665,12 +693,16 @@ int main(int argc, char** argv){
         }
         const float* src = pIn ? pIn : hIn.data();
         float*       dst = pOut ? pOut : hOut.data();
-        const char*  hostTag = pIn ? "pinned" : "pageable";
+        const char*  hostTag = isLong ? "chain" : (pIn ? "pinned" : "pageable");
         double sumE=0, minE=0, firstE=0;
         const auto t0e=std::chrono::steady_clock::now();
         for(int i=0;i<ereps;i++){
             auto a0=std::chrono::steady_clock::now();
-            if(useAsync){
+            if(isLong && !xferOnly){
+                // 长链自带唯一一次逻辑输入 H2D（当前输入转置后上传）与唯一一次
+                // 逻辑输出 D2H（pass2 出数到宿主）；外层不再包裹任何传输。
+                if(!launch()) return 1;
+            }else if(useAsync){
                 CK(aclrtMemcpyAsync(dIn, inElems*4u, src, inElems*4u,
                                     ACL_MEMCPY_HOST_TO_DEVICE, s));
                 CK(aclrtSynchronizeStream(s));
@@ -691,29 +723,54 @@ int main(int argc, char** argv){
         }
         double e=sumE/ereps;
         double bootUs=std::chrono::duration<double,std::micro>(tBoot1-tInit0).count();
-        double planUs=std::chrono::duration<double,std::micro>(tSetup1-tPlan0).count();
         double spanUs=std::chrono::duration<double,std::micro>(t0e-tSetup1).count();
         printf("E2E n=%u batch=%u reps=%d e2e_us=%.1f e2e_min_us=%.1f first_us=%.1f "
                "boot_us=%.1f plan_us=%.1f warmup_us=%.1f mode=%s host=%s input=%s\n",
                n,batch,ereps,e,minE,firstE,bootUs,planUs,spanUs,
                useAsync?"async":"sync", hostTag, inMode);
+        // 传输计数断言口径：每次执行恰 1 次逻辑输入 + 1 次逻辑输出；
+        // 段边界传输（长链 pass1 出数 / pass2 入数）单列，不算逻辑传输。
+        printf("E2E transfers: in=1 out=1 boundary=%d per_execution\n",
+               (isLong && !xferOnly) ? 2 : 0);
         fflush(stdout);
         if(pIn){ aclrtFreeHost(pIn); aclrtFreeHost(pOut); }
     }
 
     // 逐次 launch 计时：均值与最小值都报。均值与 §8.5 的 η 标定同口径，
     // 最小值与 bench_native_npu.py 的统计量同口径 —— 两边可以各自对齐比。
-    double sumUs=0, minUs=0;
+    // device_only 取各次 launch 内核 span（事件对测量）的最小值。
+    double sumUs=0, minUs=0, devMinUs=-1;
+    std::vector<double> samples; samples.reserve(reps);
     for(int i=0;i<reps;i++){
         auto a0=std::chrono::steady_clock::now();
         if(!launch()) return 1;
         auto a1=std::chrono::steady_clock::now();
         double u=std::chrono::duration<double,std::micro>(a1-a0).count();
-        sumUs+=u; if(i==0||u<minUs) minUs=u;
+        sumUs+=u; if(i==0||u<minUs) minUs=u; samples.push_back(u);
+        if(devSpanMs>=0 && (devMinUs<0 || devSpanMs*1000.0<devMinUs))
+            devMinUs=devSpanMs*1000.0;
     }
     double us=sumUs/reps;
+    double medUs=0;
+    if(!samples.empty()){
+        std::vector<double> sorted=samples;
+        size_t m=sorted.size()/2;
+        std::nth_element(sorted.begin(), sorted.begin()+m, sorted.end());
+        medUs=sorted[m];
+        if(sorted.size()%2==0){
+            double lo=*std::max_element(sorted.begin(), sorted.begin()+m);
+            medUs=(lo+medUs)/2.0;
+        }
+    }
 
-    CK(aclrtMemcpy(hOut.data(), outElems*4u, dOut, outElems*4u, ACL_MEMCPY_DEVICE_TO_HOST));
+    // 四个计时口径显式成行（PR 评论 P1-A）：plan 一次性准备、首次执行、
+    // 同步 host 端到端（含宿主段与段间拷贝）、纯 device 内核 span。
+    printf("scopes: plan_setup=%.1f us first_use=%.1f us host_end_to_end mean=%.1f "
+           "min=%.1f us device_only=%.1f us reps=%d\n",
+           planUs, firstUseUs, us, minUs, devMinUs, reps);
+
+    if(!isLong)   // 长链的逻辑输出 D2H 已在 launch 内完成，结果就在 hOut
+        CK(aclrtMemcpy(hOut.data(), outElems*4u, dOut, outElems*4u, ACL_MEMCPY_DEVICE_TO_HOST));
 
     // AB_DUMP=<prefix> 时导出输入/输出，供 scripts/bench_stdlib.py 与 torch/numpy 交叉验证
     if(const char* dp=getenv("AB_DUMP")){
@@ -741,10 +798,10 @@ int main(int argc, char** argv){
 
     // 判据：与 bfly::maxRelScaled 完全同一口径（分母 = max|ref| 按 float 分量，
     // 口径统一说明见 include/butterfly/reference.hpp）。maxAbs/worst 仍按复数模打印，
-    // 只作诊断、不参与 PASS/FAIL。
-    double maxAbs=0, maxRel=0;
-    uint32_t worst=0;
-    if(!isReal){
+    // 只作诊断、不参与 PASS/FAIL。c2c 分支抽成闭包：主验证与 AB_INPUT_SEQ 换入
+    // 后的逐次复核共用同一口径（P1-A：每次换入都对独立 FP64 参考复核）。
+    auto verifyC2C=[&](double& maxAbs, double& maxRel, uint32_t& worst)->void{
+        maxAbs=0; maxRel=0; worst=0;
         std::vector<std::complex<double>> y(n);
         std::vector<float> refFlat(2*n);
         for(uint32_t bi=0;bi<batch;bi++){
@@ -760,7 +817,11 @@ int main(int argc, char** argv){
             }
             maxRel=std::max(maxRel, bfly::maxRelScaled(&hOut[bi*2*n], refFlat.data(), 2*n));
         }
-    }else if(isR2C){
+    };
+    double maxAbs=0, maxRel=0;
+    uint32_t worst=0;
+    if(!isReal) verifyC2C(maxAbs, maxRel, worst);
+    else if(isR2C){
         // 参考：n 点复 FFT（虚部 0）取前 n/2+1 个 bin == numpy.fft.rfft
         const uint32_t m=n>>1;
         const uint32_t halfLen=2u*(m+1u);
@@ -802,10 +863,70 @@ int main(int argc, char** argv){
             maxRel=std::max(maxRel, bfly::maxRelScaled(got, refFlat.data(), n));
         }
     }
+    // ---- AB_INPUT_SEQ=<tok>,<tok>[,...]：同一 plan 换入再执行（P1-A 动态输入契约）----
+    // token = AB_INPUT 模式名（重新生成）或原始 float32 文件路径（大小须等于 inElems*4）。
+    // 每项：换入 ->（短路径重传 dIn；长链每次执行自行转置当前输入）-> launch -> 取回
+    // 输出 -> FP64 逐点复核；相邻不同输入的输出必须彼此不同（陈旧缓冲检测）。
+    bool seqOk=true;
+    if(const char* sq=getenv("AB_INPUT_SEQ")){
+        if(isReal){
+            printf("AB_INPUT_SEQ only supported for c2c (set AB_DIR=c2c)\n");
+            return 2;
+        }
+        std::vector<std::string> toks;
+        for(const char* p=sq; *p; ){
+            const char* c=strchr(p, ',');
+            size_t len = c ? (size_t)(c-p) : strlen(p);
+            if(len) toks.emplace_back(p, len);
+            if(!c) break;
+            p=c+1;
+        }
+        if(toks.size()<2){
+            printf("AB_INPUT_SEQ needs at least two inputs (A,B[,A])\n");
+            return 2;
+        }
+        std::vector<float> prevIn, prevOut;
+        for(size_t t=0;t<toks.size();t++){
+            const std::string& tok=toks[t];
+            if(isInputMode(tok.c_str())){
+                genC2CInput(hIn, n, batch, tok.c_str());
+            }else{
+                FILE* fp=fopen(tok.c_str(),"rb");
+                if(!fp || fread(hIn.data(),4,inElems,fp)!=inElems){
+                    printf("AB_INPUT_SEQ[%zu] read failed: %s\n", t, tok.c_str());
+                    return 2;
+                }
+                fclose(fp);
+            }
+            if(!isLong)
+                CK(aclrtMemcpy(dIn, inElems*4u, hIn.data(), inElems*4u,
+                               ACL_MEMCPY_HOST_TO_DEVICE));
+            if(!launch()) return 1;
+            if(!isLong)
+                CK(aclrtMemcpy(hOut.data(), outElems*4u, dOut, outElems*4u,
+                               ACL_MEMCPY_DEVICE_TO_HOST));
+            double sa=0, sr=0; uint32_t sw=0;
+            verifyC2C(sa, sr, sw);
+            const bool ok = sr<=1e-4;
+            bool stale=false;
+            if(!prevIn.empty()){
+                const bool inDiff = !std::equal(hIn.begin(), hIn.end(), prevIn.begin());
+                const bool outDiff = !std::equal(hOut.begin(), hOut.end(), prevOut.begin());
+                stale = inDiff && !outDiff;   // 输入变了而输出按位未变 => 复用了旧结果
+            }
+            printf("seq[%zu]=%.80s maxRel=%.3e %s%s\n", t, tok.c_str(), sr,
+                   ok?"PASS":"FAIL", stale?" STALE-OUTPUT":"");
+            if(!ok || stale) seqOk=false;
+            prevIn=hIn; prevOut=hOut;
+        }
+        printf("seq: %zu inputs re-executed under one plan (no rebuild), stale-check on -> %s\n",
+               toks.size(), seqOk?"PASS":"FAIL");
+    }
     printf("n=%u batch=%u blocks=%u  maxAbs=%.3e maxRel=%.3e (worst idx %u)\n",
            n,batch,blocks,maxAbs,maxRel,worst);
     const char* kname = isR2C ? "kfft_r2c" : (isC2R ? "kfft_c2r" : "kfft_fwd");
-    printf("%s: %.1f us/call over %d reps (min %.1f us)\n", kname, us, reps, minUs);
-    printf("%s\n", maxRel<=1e-4?"PASS":"FAIL");
-    return maxRel<=1e-4?0:1;
+    printf("%s: %.1f us/call over %d reps (min %.1f us) med %.1f us\n",
+           kname, us, reps, minUs, medUs);
+    printf("%s\n", (maxRel<=1e-4 && seqOk)?"PASS":"FAIL");
+    return (maxRel<=1e-4 && seqOk)?0:1;
 }

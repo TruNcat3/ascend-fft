@@ -1,0 +1,280 @@
+{
+  "operator": "c2c",
+  "precision": "fp32",
+  "direction": "forward",
+  "timing": "device-only",
+  "reps": 20,
+  "rounds": 3,
+  "ns": [
+    64,
+    128,
+    256,
+    512,
+    1024,
+    2048,
+    4096
+  ],
+  "batches": [
+    1,
+    4,
+    16,
+    64,
+    256,
+    1024,
+    4096
+  ],
+  "correctness_threshold": 0.0001,
+  "correct_points": 49,
+  "total_points": 49,
+  "native_enabled": true,
+  "total_trials": 294,
+  "failed_trials": 0,
+  "failures": [],
+  "native_max_rel": [
+    {
+      "n": 64,
+      "batch": 1,
+      "max_rel": 1.837e-07
+    },
+    {
+      "n": 64,
+      "batch": 4,
+      "max_rel": 2.136e-07
+    },
+    {
+      "n": 64,
+      "batch": 16,
+      "max_rel": 1.874e-07
+    },
+    {
+      "n": 64,
+      "batch": 64,
+      "max_rel": 1.549e-07
+    },
+    {
+      "n": 64,
+      "batch": 256,
+      "max_rel": 2.112e-07
+    },
+    {
+      "n": 64,
+      "batch": 1024,
+      "max_rel": 2.217e-07
+    },
+    {
+      "n": 64,
+      "batch": 4096,
+      "max_rel": 2.401e-07
+    },
+    {
+      "n": 128,
+      "batch": 1,
+      "max_rel": 1.938e-07
+    },
+    {
+      "n": 128,
+      "batch": 4,
+      "max_rel": 2.887e-07
+    },
+    {
+      "n": 128,
+      "batch": 16,
+      "max_rel": 2.829e-07
+    },
+    {
+      "n": 128,
+      "batch": 64,
+      "max_rel": 2.428e-07
+    },
+    {
+      "n": 128,
+      "batch": 256,
+      "max_rel": 2.463e-07
+    },
+    {
+      "n": 128,
+      "batch": 1024,
+      "max_rel": 2.956e-07
+    },
+    {
+      "n": 128,
+      "batch": 4096,
+      "max_rel": 3.493e-07
+    },
+    {
+      "n": 256,
+      "batch": 1,
+      "max_rel": 8.964e-08
+    },
+    {
+      "n": 256,
+      "batch": 4,
+      "max_rel": 1.013e-07
+    },
+    {
+      "n": 256,
+      "batch": 16,
+      "max_rel": 1.053e-07
+    },
+    {
+      "n": 256,
+      "batch": 64,
+      "max_rel": 1.169e-07
+    },
+    {
+      "n": 256,
+      "batch": 256,
+      "max_rel": 1.143e-07
+    },
+    {
+      "n": 256,
+      "batch": 1024,
+      "max_rel": 1.546e-07
+    },
+    {
+      "n": 256,
+      "batch": 4096,
+      "max_rel": 1.23e-07
+    },
+    {
+      "n": 512,
+      "batch": 1,
+      "max_rel": 1.465e-07
+    },
+    {
+      "n": 512,
+      "batch": 4,
+      "max_rel": 1.699e-07
+    },
+    {
+      "n": 512,
+      "batch": 16,
+      "max_rel": 1.395e-07
+    },
+    {
+      "n": 512,
+      "batch": 64,
+      "max_rel": 1.953e-07
+    },
+    {
+      "n": 512,
+      "batch": 256,
+      "max_rel": 2.148e-07
+    },
+    {
+      "n": 512,
+      "batch": 1024,
+      "max_rel": 1.917e-07
+    },
+    {
+      "n": 512,
+      "batch": 4096,
+      "max_rel": 1.831e-07
+    },
+    {
+      "n": 1024,
+      "batch": 1,
+      "max_rel": 1.464e-07
+    },
+    {
+      "n": 1024,
+      "batch": 4,
+      "max_rel": 1.468e-07
+    },
+    {
+      "n": 1024,
+      "batch": 16,
+      "max_rel": 1.467e-07
+    },
+    {
+      "n": 1024,
+      "batch": 64,
+      "max_rel": 1.916e-07
+    },
+    {
+      "n": 1024,
+      "batch": 256,
+      "max_rel": 1.685e-07
+    },
+    {
+      "n": 1024,
+      "batch": 1024,
+      "max_rel": 1.721e-07
+    },
+    {
+      "n": 1024,
+      "batch": 4096,
+      "max_rel": 1.877e-07
+    },
+    {
+      "n": 2048,
+      "batch": 1,
+      "max_rel": 1.741e-07
+    },
+    {
+      "n": 2048,
+      "batch": 4,
+      "max_rel": 1.847e-07
+    },
+    {
+      "n": 2048,
+      "batch": 16,
+      "max_rel": 1.442e-07
+    },
+    {
+      "n": 2048,
+      "batch": 64,
+      "max_rel": 1.667e-07
+    },
+    {
+      "n": 2048,
+      "batch": 256,
+      "max_rel": 1.954e-07
+    },
+    {
+      "n": 2048,
+      "batch": 1024,
+      "max_rel": 2.255e-07
+    },
+    {
+      "n": 2048,
+      "batch": 4096,
+      "max_rel": 1.94e-07
+    },
+    {
+      "n": 4096,
+      "batch": 1,
+      "max_rel": 1.595e-07
+    },
+    {
+      "n": 4096,
+      "batch": 4,
+      "max_rel": 1.835e-07
+    },
+    {
+      "n": 4096,
+      "batch": 16,
+      "max_rel": 1.634e-07
+    },
+    {
+      "n": 4096,
+      "batch": 64,
+      "max_rel": 1.701e-07
+    },
+    {
+      "n": 4096,
+      "batch": 256,
+      "max_rel": 1.892e-07
+    },
+    {
+      "n": 4096,
+      "batch": 1024,
+      "max_rel": 2.059e-07
+    },
+    {
+      "n": 4096,
+      "batch": 4096,
+      "max_rel": 2.213e-07
+    }
+  ]
+}
