@@ -18,6 +18,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+          cache-dependency-path: requirements-docs.txt
       - run: python -m pip install -r requirements-docs.txt
       - run: python -m unittest discover -s tests -p 'test_docs_*.py'
       - name: Check published generated artifacts
