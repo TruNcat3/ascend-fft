@@ -26,6 +26,8 @@ reg test-smoke  "docs/testing.md"                               "配置驱动的
     "python3 scripts/run_test_profile.py smoke"
 reg test-regression "docs/testing.md"                           "配置驱动的硬件拐点/数值/实数夜间回归" \
     "python3 scripts/run_test_profile.py regression"
+reg stress      "docs/testing.md"                               "预算化压力层（档位预算、Plan 复用、泄漏与 OOM 恢复）" \
+    "python3 scripts/run_test_profile.py stress"
 reg matrix      "docs/benchmarks/results.md"                   "49 点性能矩阵（权威结果）" \
     "python3 scripts/matrix_test.py --reps 20 --rounds 3"
 reg matrix-archive "docs/archive/decisions.md"                  "矩阵复测（历史原文仅归档，不覆盖）" \

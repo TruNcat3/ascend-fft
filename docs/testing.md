@@ -37,7 +37,10 @@
 `runnable=true` 只表示该层的 C2C shape 矩阵可由现有执行路径运行。`real`、
 `numeric_patterns`、`applications` 和 `requirements` 是整层验收清单；只运行 C2C 不能将整层
 标为完成。`scripts/run_test_profile.py` 会执行当前可用的 C2C、实数、数值和应用代理；`stress`
-和 `future-long-fft` 明确禁止直接运行，分别依赖预算化 runner 和新后端。
+由专用预算化 runner `scripts/run_stress.py` 接管（`run_test_profile.py stress` 转发到它）：
+它在任何分配之前按档位预算 host/device/输出/workspace/参考内存并预留余量，以 RSS 与 HBM
+前后差检查泄漏，用进程级生命周期与强触 OOM 恢复探针验证失败可解释、可恢复。
+`future-long-fft` 仍明确拒绝直接运行，依赖新后端。
 长 FFT 的假设、变量、退出条件和空数据合同分别见[目的化实验计划](benchmarks/long-fft-plan.md)
 与[预声明数据表](generated/long-fft-tables.md)；机器清单以 `config/long_fft_experiments.json` 为准。
 
@@ -45,6 +48,7 @@
 python3 scripts/run_test_profile.py --list
 python3 scripts/run_test_profile.py smoke --build
 python3 scripts/run_test_profile.py regression --trials 3
+python3 scripts/run_test_profile.py stress --dry-run   # 预算计划，不落任何分配
 python3 scripts/run_test_profile.py future-long-fft  # 明确拒绝，不能伪装成已支持
 ```
 
@@ -111,7 +115,11 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   各 3 轮共 294/294 PASS。逐例记录见 `results/runs/<UTC>-<profile>/`（`cases.csv` +
   `summary.json`；性能矩阵另存 `matrix.md`/`matrix.csv`/`trials.csv`/`summary.json`，
   均不进版本库）。
-- P1：独立模型验证和预算化压力 runner；R2C/C2R 新协议发布快照已完成（见
+- P1：预算化压力 runner 已实现并完成采集（`run_test_profile.py stress` 转发到
+  `scripts/run_stress.py`）：1 MiB/64 MiB/256 MiB/1 GiB 四档共 28 行全部通过预算门，
+  四档各 10,000 次 Plan 复用 soak（RSS 增长 ≤0.5 MiB）、20 次进程级生命周期与强触 OOM
+  恢复探针全部通过，HBM 跑后前后差 +1 MiB（余量 3276 MiB）；逐行记录见
+  `results/runs/<UTC>-stress/`。独立模型验证仍待完成；R2C/C2R 新协议发布快照已完成（见
   [当前结果 · 实数变换](benchmarks/results.md)）。
 - P2：分段/多 AIV 长 FFT；显式记录阶段交接、重排、GM 流量和同步后，再测长卷积代理。
 - P3：逆向 C2C、2D/stride、其他精度和非二次幂。补零不得冒充原长度 DFT。

@@ -37,9 +37,27 @@ class TestProfileTests(unittest.TestCase):
         self.assertIn((4096, 4096), points)
         self.assertIn((64, 16384), points)
 
-    def test_future_profiles_are_not_runnable(self):
-        self.assertFalse(self.document["profiles"]["stress"]["runnable"])
+    def test_long_fft_profile_stays_non_runnable(self):
         self.assertFalse(self.document["profiles"]["future-long-fft"]["runnable"])
+        self.assertIsNone(runner.dedicated_runner(self.document["profiles"]["future-long-fft"]))
+
+    def test_stress_profile_dispatches_to_budgeted_runner(self):
+        profile = self.document["profiles"]["stress"]
+        self.assertTrue(profile["runnable"])
+        runner_path = runner.dedicated_runner(profile)
+        self.assertIsNotNone(runner_path)
+        self.assertTrue(Path(runner_path).is_file())
+        self.assertIsNone(runner.dedicated_runner(self.document["profiles"]["smoke"]))
+
+    def test_forwarded_argv_drops_profile_and_keeps_flags(self):
+        self.assertEqual(runner.forwarded_argv("stress", ["stress", "--dry-run"]),
+                         ["--dry-run"])
+        self.assertEqual(runner.forwarded_argv("stress", ["--config", "c.json"]),
+                         ["--config", "c.json"])
+
+    def test_dedicated_runner_rejects_generic_repetition_flags(self):
+        with self.assertRaises(SystemExit):
+            runner.main(["stress", "--reps", "3"])
 
     def test_seed_is_only_exported_when_nonzero(self):
         case = runner._case("numeric", "c2c", 64, 1, "random-seeded", 42)

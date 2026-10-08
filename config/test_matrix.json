@@ -70,8 +70,9 @@
     },
     "stress": {
       "id": "stress",
-      "description": "Memory-aware soak and lifecycle tests; a dedicated budgeted runner is required.",
-      "runnable": false,
+      "description": "Memory-aware soak and lifecycle tests executed by the dedicated budgeted runner (scripts/run_stress.py).",
+      "runnable": true,
+      "runner": "scripts/run_stress.py",
       "c2c": {"ns": [64, 1024, 4096], "batches": []},
       "real": {"r2c_ns": [128, 8192], "c2r_ns": [64, 4096], "batches": []},
       "numeric_patterns": ["random-seeded"],

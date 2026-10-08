@@ -135,6 +135,23 @@ def run_case(case, reps, trial):
                 output_tail="\n".join(output.splitlines()[-12:]) if not passed else "")
 
 
+def dedicated_runner(profile):
+    runner = profile.get("runner")
+    return str(ROOT / runner) if runner else None
+
+
+def forwarded_argv(profile_name, argv):
+    raw = list(argv) if argv is not None else sys.argv[1:]
+    forwarded = []
+    dropped_profile = False
+    for token in raw:
+        if not dropped_profile and token == profile_name:
+            dropped_profile = True
+            continue
+        forwarded.append(token)
+    return forwarded
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("profile", nargs="?", default="smoke")
@@ -159,6 +176,17 @@ def main(argv=None):
     if args.profile not in profiles:
         parser.error(f"unknown profile {args.profile!r}; use --list")
     profile = profiles[args.profile]
+    runner = dedicated_runner(profile)
+    if runner:
+        forwarded = forwarded_argv(args.profile, argv)
+        for token in forwarded:
+            head = token.split("=", 1)[0]
+            if head in ("--reps", "--trials", "--components"):
+                parser.error(f"profile {args.profile!r} owns its repetition budget; "
+                             f"{head} is managed by {runner}")
+        if not Path(runner).is_file():
+            parser.error(f"dedicated runner {runner} is missing")
+        return subprocess.call([sys.executable, runner, *forwarded])
     if not profile.get("runnable"):
         parser.error(f"profile {args.profile!r} is an acceptance target, not runnable")
     components = tuple(item.strip() for item in args.components.split(",") if item.strip())
