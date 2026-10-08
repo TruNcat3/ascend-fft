@@ -40,7 +40,8 @@
 由专用预算化 runner `scripts/run_stress.py` 接管（`run_test_profile.py stress` 转发到它）：
 它在任何分配之前按档位预算 host/device/输出/workspace/参考内存并预留余量，以 RSS 与 HBM
 前后差检查泄漏，用进程级生命周期与强触 OOM 恢复探针验证失败可解释、可恢复。
-`future-long-fft` 仍明确拒绝直接运行，依赖新后端。
+`future-long-fft` 仍明确拒绝直接运行：分段长后端（G1，8192..65536）已在 `fft_check`
+落地并通过验收抽样，但 E01..E08 证据采集与 G2/G3 未完成，不能伪装成已支持。
 长 FFT 的假设、变量、退出条件和空数据合同分别见[目的化实验计划](benchmarks/long-fft-plan.md)
 与[预声明数据表](generated/long-fft-tables.md)；机器清单以 `config/long_fft_experiments.json` 为准。
 
@@ -121,7 +122,9 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   恢复探针全部通过，HBM 跑后前后差 +1 MiB（余量 3276 MiB）；逐行记录见
   `results/runs/<UTC>-stress/`。独立模型验证仍待完成；R2C/C2R 新协议发布快照已完成（见
   [当前结果 · 实数变换](benchmarks/results.md)）。
-- P2：分段/多 AIV 长 FFT；显式记录阶段交接、重排、GM 流量和同步后，再测长卷积代理。
+- P2：分段长 FFT 后端（G1）已实现（宿主四步 Cooley-Tukey + 设备行 FFT，8192..65536
+  验收抽样通过，见长 FFT 计划的 G0/G1 落地记录）；多 AIV/G2 可搜索映射、E01..E08
+  采集与长卷积代理仍待做，显式记录阶段交接、重排、GM 流量和同步后再测。
 - P3：逆向 C2C、2D/stride、其他精度和非二次幂。补零不得冒充原长度 DFT。
 
 这些是待完成工作，不是新增支持声明。整体工程依赖与验收见[未来计划](roadmap.md)，

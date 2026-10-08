@@ -84,7 +84,7 @@
     },
     "future-long-fft": {
       "id": "future-long-fft",
-      "description": "Research acceptance targets only; current single-AIV C2C implementation does not support these lengths.",
+      "description": "Research acceptance targets only; the segmented long backend covers forward C2C 8192..65536 in fft_check pending the evidence campaign, larger lengths and 2D remain unsupported.",
       "experiment_manifest": "config/long_fft_experiments.json",
       "runnable": false,
       "c2c": {"ns": [8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576], "batches": [1, 4, 16], "fixed_total_points": [1048576, 16777216, 67108864]},
@@ -102,8 +102,8 @@
   "future_work": [
     {"id": "numeric-runner", "status": "implemented", "acceptance": "Execute all required patterns and seeds with all-trial correctness gates."},
     {"id": "real-transform-gates", "status": "published", "acceptance": "R2C n=8192 and R2C/C2R round-trip gates pass on hardware; current-protocol rows with per-row correctness are published in the snapshot with a win/tie/loss heatmap."},
-    {"id": "stress-runner", "status": "planned", "acceptance": "Memory-budgeted soak and lifecycle report without unbounded allocations."},
-    {"id": "long-fft-backend", "status": "not-implemented", "acceptance": "Long-length correctness and same-total-point throughput matrix with complete boundary costs."},
+    {"id": "stress-runner", "status": "implemented", "acceptance": "Memory-budgeted soak and lifecycle report without unbounded allocations."},
+    {"id": "long-fft-backend", "status": "in-progress", "acceptance": "Long-length correctness and same-total-point throughput matrix with complete boundary costs."},
     {"id": "fft2d-and-strides", "status": "not-implemented", "acceptance": "Rectangular 2D and non-contiguous contracts including transpose and gather/scatter costs."},
     {"id": "inverse-and-precision", "status": "not-implemented", "acceptance": "Public inverse C2C, normalization and each precision have independent numerical gates."}
   ]
