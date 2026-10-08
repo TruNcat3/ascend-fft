@@ -54,3 +54,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 This repository links against `libascendcl` from the Huawei CANN toolkit and
 compiles device code with the CANN `ccec` compiler. Those components are **not**
 redistributed here and are covered by their own license terms.
+
+## University of Science and Technology of China identifier
+
+`docs/assets/ustc-logo.png` is an institutional identifier obtained from the
+[official USTC website](https://www.ustc.edu.cn/images/zkdlogo.png). It is used
+only to state the maintainer's research affiliation. The USTC name and mark are
+not granted under this repository's Apache-2.0 license and remain the property
+of their respective owner. Their appearance does not imply that USTC or the
+Suzhou Institute for Advanced Research officially releases, certifies, sponsors,
+or endorses Ascend-FFT.

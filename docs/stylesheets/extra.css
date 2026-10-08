@@ -1,0 +1,42 @@
+.project-affiliation {
+  align-items: center;
+  border-block: 1px solid var(--md-default-fg-color--lightest);
+  display: flex;
+  gap: 1.5rem;
+  margin: 1.5rem 0 1rem;
+  padding: 1.25rem 0;
+}
+
+.project-affiliation__logo {
+  flex: 0 1 19rem;
+}
+
+.project-affiliation__logo img {
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+.project-affiliation__text {
+  flex: 1 1 18rem;
+  line-height: 1.65;
+}
+
+.institution-mark img {
+  display: block;
+  height: auto;
+  max-width: min(100%, 29rem);
+}
+
+@media screen and (max-width: 44rem) {
+  .project-affiliation {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .project-affiliation__logo {
+    flex-basis: auto;
+    max-width: 22rem;
+  }
+}

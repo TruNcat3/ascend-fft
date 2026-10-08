@@ -4,6 +4,22 @@ Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实�
 
 它是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 混合空间-时间映射方法的 Ascend 迁移实例：继承架构范式，但针对 AIV、UB、MTE 和 GM 独立实现物理 lowering，不复用 CUDA kernel。
 
+<div class="project-affiliation">
+  <a class="project-affiliation__logo" href="https://www.ustc.edu.cn/">
+    <img src="assets/ustc-logo.png" alt="University of Science and Technology of China">
+  </a>
+  <div class="project-affiliation__text">
+    <strong>Teng Wang</strong><br>
+    High Efficient Intelligent Computing Lab<br>
+    <a href="https://sz.ustc.edu.cn/en/index.html">Suzhou Institute for Advanced Research,
+    University of Science and Technology of China</a><br>
+    Suzhou, China · <a href="mailto:wangt635@ustc.edu.cn">wangt635@ustc.edu.cn</a>
+  </div>
+</div>
+
+本项目由作者独立维护；机构名称与标识用于说明研究归属，不表示学校或研究院对项目作官方背书。
+[项目与作者](about.md)记录完整归属、联系和标识使用说明。
+
 ## 使用库
 
 1. [安装与环境检查](getting-started/installation.md)：准备工具链，构建并验证。

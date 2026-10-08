@@ -10,6 +10,22 @@
 Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件，并用硬件 profile、参数化设计空间、
 成本模型和实测回填为每个工作负载选择执行计划，而不是固化一组尺寸或一种计算核心。
 
+<p align="center">
+  <a href="https://www.ustc.edu.cn/">
+    <img src="docs/assets/ustc-logo.png" width="376" alt="University of Science and Technology of China">
+  </a>
+</p>
+<p align="center">
+  <strong>Teng Wang</strong><br>
+  High Efficient Intelligent Computing Lab<br>
+  <a href="https://sz.ustc.edu.cn/en/index.html">Suzhou Institute for Advanced Research,
+  University of Science and Technology of China</a> · Suzhou, China<br>
+  <a href="mailto:wangt635@ustc.edu.cn">wangt635@ustc.edu.cn</a>
+</p>
+
+> Ascend-FFT 是作者独立维护的研究软件。机构名称和标识仅用于说明作者归属，不表示中国科学技术大学
+> 或相关机构对本项目作官方发布、认证或背书。详情见[项目与作者](docs/about.md)。
+
 ## 与 cuButterfly 的关系
 
 本项目是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 方法在 Ascend 上的迁移实例：
@@ -116,6 +132,7 @@ plan->run(host_input, host_output, 4096, 64);
 | 理解方法 | [设计动机](docs/design/motivation.md) -> [架构](docs/design/architecture.md) -> [kernel](docs/design/kernels.md) -> [性能模型](docs/design/performance-model.md) |
 | 检查实验 | [基准方法](docs/benchmarks/methodology.md) -> [当前结果](docs/benchmarks/results.md) -> [复现](docs/benchmarks/reproducibility.md) |
 | 贡献设计点 | [仓库结构](docs/development/repository-layout.md) -> [增加设计点](docs/development/adding-design-points.md) -> [验证发布](docs/development/validation-and-release.md) |
+| 了解项目 | [项目与作者](docs/about.md) -> [未来计划](docs/roadmap.md) -> [引用信息](CITATION.cff) |
 
 完整导航见 [GitHub Pages](https://truncat3.github.io/ascend-fft/) 或 [`docs/index.md`](docs/index.md)。
 后续工程实现、能力扩展和测试验收见[未来计划](docs/roadmap.md)。
@@ -142,7 +159,8 @@ scripts/repro.sh r2c-c2r
   year         = {2026},
   url          = {https://github.com/TruNcat3/ascend-fft},
   organization = {High Efficient Intelligent Computing Lab,
-                  Suzhou Institute for Advanced Research of USTC}
+                  Suzhou Institute for Advanced Research,
+                  University of Science and Technology of China}
 }
 ```
 

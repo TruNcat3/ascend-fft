@@ -24,6 +24,8 @@ theme:
     - navigation.sections
     - navigation.top
     - content.code.copy
+extra_css:
+  - stylesheets/extra.css
 plugins:
   - search:
       lang: [zh, en]
@@ -65,6 +67,7 @@ nav:
       - 支持范围: reference/support.md
       - 术语: reference/glossary.md
   - 未来计划与验收: roadmap.md
+  - 项目与作者: about.md
   - 历史归档:
       - 演进与优化决策: archive/decisions.md
 validation:
@@ -73,3 +76,17 @@ validation:
   links:
     not_found: warn
     unrecognized_links: info
+copyright: >-
+  Copyright &copy; 2026 Teng Wang · High Efficient Intelligent Computing Lab ·
+  Suzhou Institute for Advanced Research, USTC
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/TruNcat3
+      name: Teng Wang on GitHub
+    - icon: fontawesome/solid/envelope
+      link: mailto:wangt635@ustc.edu.cn
+      name: Email Teng Wang
+    - icon: fontawesome/solid/building-columns
+      link: https://sz.ustc.edu.cn/en/index.html
+      name: Suzhou Institute for Advanced Research, USTC

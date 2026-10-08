@@ -6,7 +6,7 @@ authors:
   - given-names: "Teng"
     family-names: "Wang"
     email: "wangt635@ustc.edu.cn"
-    affiliation: "High Efficient Intelligent Computing Lab, Suzhou Institute for Advanced Research of USTC, Suzhou, China"
+    affiliation: "High Efficient Intelligent Computing Lab, Suzhou Institute for Advanced Research, University of Science and Technology of China, Suzhou, China"
 repository-code: "https://github.com/TruNcat3/ascend-fft"
 url: "https://github.com/TruNcat3/ascend-fft"
 version: 0.1.0
