@@ -44,6 +44,22 @@ class PlotResultsTests(unittest.TestCase):
         self.assertEqual(sum(map(len, groups)), 12)
         self.assertEqual(len(union), 12)
 
+    def test_wtl_counts_uses_five_percent_parity_band(self):
+        wins, ties, losses, total = plots.wtl_counts(
+            [1.06, 1.05, 1.0, 0.95, 0.94, None, float("nan")])
+        self.assertEqual((wins, ties, losses, total), (1, 3, 1, 5))
+
+    def test_fig_real_renders_win_tie_loss_heatmap(self):
+        rows = [
+            {"n": 128, "b": 1, "r2c_vs_torch": 2.0, "c2r_vs_torch": 3.0},
+            {"n": 8192, "b": 4096, "r2c_vs_torch": 0.9, "c2r_vs_torch": 1.2},
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            plots.fig_real(rows, temporary)
+            image = Path(temporary) / "fig10_real_speedup_heatmap.png"
+            self.assertTrue(image.is_file())
+            self.assertGreater(image.stat().st_size, 10_000)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,17 +23,25 @@
       "command": "python3 scripts/e2e_test.py --app all --reps 10 --rounds 3",
       "name": "e2e-app",
       "status": "complete"
+    },
+    {
+      "command": "python3 scripts/bench_r2c_c2r.py --out results/runs/20261008T070359-r2c-c2r-3281559/r2c_c2r.json",
+      "exit_code": 0,
+      "name": "r2c-c2r",
+      "status": "complete"
     }
   ],
   "provenance": "legacy-published-snapshot",
-  "provenance_note": "Existing checked-in results reorganized without remeasurement; R2C/C2R legacy JSON is excluded because it lacks per-row correctness fields required by the new publisher.",
+  "provenance_note": "Existing checked-in results reorganized without remeasurement; R2C/C2R re-measured 2026-10-08 under the current per-row correctness protocol (98/98 rows PASS, all trials gated before timing) and included in this snapshot; artifact copied from results/runs/20261008T070359-r2c-c2r-3281559.",
   "published_artifacts": {
     "e2e.json": "9d73001c043cbb949fc0910e163cf89c258fa71bff802fb95a4c886550cd3772",
     "e2e_app.json": "dcc3fc5d2b71796e26086dad22353921fd7b07e24d314deb2a3c6296fcabacf4",
     "matrix.csv": "5e748aa623d5e83eac2a412c9814549d7835f5fd3379f955f844b02dc9bfa58a",
     "matrix.md": "e9e770b9cfc7aed2a61989ada881b4943a53f0775911e8efc8b643fbe2f8f22d",
+    "r2c_c2r.json": "61f64a7adb7bae7d4ffe9a1f608999470509f6acf7b4954161919d6a903cff32",
     "sixway.md": "551622e7d2157c60c936fcbf4d5bfb97369f853241426cc16ce899c5e209876d"
   },
   "schema_version": 1,
-  "soc": "Ascend910_9382"
+  "soc": "Ascend910_9382",
+  "updated_utc": "2026-10-08T07:12:13.086378+00:00"
 }

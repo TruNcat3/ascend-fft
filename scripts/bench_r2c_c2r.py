@@ -176,14 +176,17 @@ def main():
           % geo([d["torch_rfft"] for d in rows if d["n"] in common]))
     print("geo torch irfft   %8.2f us (paired points)"
           % geo([d["torch_irfft"] for d in rows if d["c2r"] and d["torch_irfft"]]))
-    print("geo aclRfft1D     %8.2f us (same pts)"
-          % geo([d["acl_rfft"] for d in rows if d["n"] in common]))
+    print("geo aclRfft1D     %8.2f us (paired points)"
+          % geo([d["acl_rfft"] for d in rows if d["r2c"] and d["acl_rfft"]]))
     g_ours_r2c = geo([d["r2c"] for d in rows if d["r2c"] and d["n"] in common])
     g_torch_r2c = geo([d["torch_rfft"] for d in rows if d["n"] in common])
-    g_acl = geo([d["acl_rfft"] for d in rows if d["n"] in common])
+    paired_acl = [d for d in rows if d["r2c"] and d["acl_rfft"]]
+    g_acl = geo([d["acl_rfft"] for d in paired_acl])
     print("r2c vs torch rfft : %5.2fx faster" % (g_torch_r2c / g_ours_r2c))
     if not math.isnan(g_acl):
-        print("r2c vs aclRfft1D  : %5.2fx faster" % (g_acl / g_ours_r2c))
+        print("r2c vs aclRfft1D  : %5.2fx faster"
+              % (geo([d["acl_rfft"] for d in paired_acl])
+                 / geo([d["r2c"] for d in paired_acl])))
     paired_c2r = [d for d in rows if d["c2r"] and d["torch_irfft"]]
     print("c2r vs torch irfft: %5.2fx faster"
           % (geo([d["torch_irfft"] for d in paired_c2r])

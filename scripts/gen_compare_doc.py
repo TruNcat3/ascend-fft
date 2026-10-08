@@ -173,7 +173,7 @@ def main():
           f"**{min(r['ratio'] for r in _big):.1f}~{max(r['ratio'] for r in _big):.1f}×**"
           + ("；整张表没有任何一格跌破 1.0×。" if wins == len(mx) else "。")
           + "原因见 [图3](#图3-speedup-与延迟随-batch-缩放) 与"
-          "[「思路」第 2 条](设计思路与演进.md#12-kernel两段式布局把-batch-折进指令)。\n")
+          "[批折叠与核心组织](design/kernels.md#已实现的核心与组织)。\n")
 
     # 表1（带迷你条）
     A("### 表1　49 点详表（含迷你条，条越长越快）\n")
@@ -212,7 +212,7 @@ def main():
           f"（`n=4096` 从 {_p[2][1]['ours']:.1f} 走到 {_p[3][1]['ours']:.1f} µs，"
           f"B=64→4096）。\n")
     A("**读法：小 batch 赢在 launch 开销低，大 batch 赢在每元素算得少。**"
-      "机制见 [「思路」第 2 条](设计思路与演进.md#12-kernel两段式布局把-batch-折进指令)。\n")
+      "机制见 [批折叠与核心组织](design/kernels.md#已实现的核心与组织)。\n")
 
     # ---------------- 4 图4 ----------------
     A("---\n")
@@ -264,7 +264,7 @@ def main():
       "（`AB_FOLD_D` / `AB_PLANE_K`），这是选型闭环能跑起来的前提。\n")
     A("实测回填再补一刀：`Plan::measure()` 真跑一次把结果写回候选，"
       "`rank()` 按 `Measured > Feasible` 分层，估的和测的互相校正 —— "
-      "标定方法与系数含义见 [「思路」第 3 条](设计思路与演进.md#13-模型η-在-kernel-编译之前算账)。\n")
+      "标定方法与系数含义见 [性能模型 · 校准与证据边界](design/performance-model.md#校准与证据边界)。\n")
 
     # ---------------- 6 E2E ----------------
     A("---\n")
@@ -562,7 +562,11 @@ def main():
     destination = R(a.out)
     os.makedirs(os.path.dirname(destination), exist_ok=True)
     if os.path.commonpath([destination, os.path.join(ROOT, "docs", "generated")]) == os.path.join(ROOT, "docs", "generated"):
-        txt = txt.replace("](../scripts/", "](../../scripts/").replace("](figures/", "](../figures/")
+        txt = (txt.replace("](../scripts/", "](../../scripts/")
+               .replace("](figures/", "](../figures/")
+               .replace("](design/", "](../design/")
+               .replace("](matrix_test_a7.md", "](../matrix_test_a7.md")
+               .replace("](性能对比-标准库vs自研.md", "](../性能对比-标准库vs自研.md"))
     open(destination, "w", encoding="utf-8").write(txt)
     print(f"-> {a.out}  ({len(txt) // 1024 + 1} KB, {len(L)} lines)")
     return 0
