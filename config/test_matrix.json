@@ -100,7 +100,7 @@
   },
   "future_work": [
     {"id": "numeric-runner", "status": "implemented", "acceptance": "Execute all required patterns and seeds with all-trial correctness gates."},
-    {"id": "real-transform-gates", "status": "implemented-unpublished", "acceptance": "Publish modern R2C/C2R rows after the R2C n=8192 and round-trip gates pass on hardware."},
+    {"id": "real-transform-gates", "status": "published", "acceptance": "R2C n=8192 and R2C/C2R round-trip gates pass on hardware; current-protocol rows with per-row correctness are published in the snapshot with a win/tie/loss heatmap."},
     {"id": "stress-runner", "status": "planned", "acceptance": "Memory-budgeted soak and lifecycle report without unbounded allocations."},
     {"id": "long-fft-backend", "status": "not-implemented", "acceptance": "Long-length correctness and same-total-point throughput matrix with complete boundary costs."},
     {"id": "fft2d-and-strides", "status": "not-implemented", "acceptance": "Rectangular 2D and non-contiguous contracts including transpose and gather/scatter costs."},

@@ -6,6 +6,7 @@
   --std     results/published/.../sixway.md  多基线上下文
   --e2e     results/published/.../e2e.json   C2C 端到端
   --e2e-app results/published/.../e2e_app.json 代表应用 shape
+  --real    results/r2c_c2r.json       R2C/C2R 实数变换（fig10 胜/平/负热图）
 
   python3 scripts/plot_results.py --out docs/figures
 
@@ -500,6 +501,54 @@ def fig_box(rows, e2rows, approws, out):
     save(fig, out, "fig8_speedup_boxplot.png")
 
 
+# ------------------------------------------------------------------ fig10
+def wtl_counts(ratios):
+    """win/tie/loss with an explicit +/-5% parity band; NaN/None filtered."""
+    r = np.asarray([v for v in ratios if v is not None and v == v], dtype=float)
+    wins = int((r > 1.05).sum())
+    losses = int((r < 0.95).sum())
+    return wins, int(r.size - wins - losses), losses, int(r.size)
+
+
+def fig_real(rows, out):
+    """fig10: R2C/C2R device-only speedup vs torch_npu, full win/tie/loss grid."""
+    panels = [
+        ("R2C  vs  torch.fft.rfft  (n=128..8192)", "r2c_vs_torch"),
+        ("C2R  vs  torch.fft.irfft (n=64..4096)", "c2r_vs_torch"),
+    ]
+    fig, axes = plt.subplots(1, 2, figsize=(13.6, 5.4))
+    for ax, (title, key) in zip(axes, panels):
+        data = [{"n": r["n"], "b": r["b"], "ratio": r.get(key)}
+                for r in rows if r.get(key)]
+        if not data:
+            ax.set_visible(False)
+            continue
+        ns, bs, a = grid(data, "ratio")
+        im = ax.imshow(a, cmap="RdYlGn",
+                       norm=TwoSlopeNorm(vmin=min(0.9, float(np.nanmin(a))),
+                                         vcenter=1.0,
+                                         vmax=max(float(np.nanmax(a)), 1.01)),
+                       aspect="auto")
+        cell_label(ax, a, "{:.2f}", 7.5)
+        ax.set_xticks(range(len(bs)), [f"{b:,}" for b in bs])
+        ax.set_yticks(range(len(ns)), [f"{n:,}" for n in ns])
+        ax.set_xlabel("batch")
+        ax.set_ylabel("N")
+        wins, ties, losses, total = wtl_counts([r["ratio"] for r in data])
+        ax.set_title(f"{title}\n{wins} win / {ties} tie / {losses} "
+                     f"loss of {total} points", fontsize=10.5)
+        cb = fig.colorbar(im, ax=ax, shrink=0.8)
+        cb.set_label("speedup (torch / ours)", fontsize=8.5)
+        cb.ax.tick_params(labelsize=8)
+    fig.suptitle("Real transforms: device-only speedup vs torch_npu on the same card",
+                 fontsize=13, fontweight="bold")
+    fig.text(0.5, 0.015, "tie band 0.95x..1.05x; every point is correctness-gated "
+             "(maxRel <= 1e-4, PASS) before timing", ha="center", fontsize=9,
+             color="#555555")
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
+    save(fig, out, "fig10_real_speedup_heatmap.png")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--matrix", default=f"{PUBLISHED}/matrix.md")
@@ -576,6 +625,16 @@ def main():
             fig_applications(app_r, ap_(a.out))
     except (FileNotFoundError, ValueError):
         print(f"{a.e2e_app} 不存在，fig8 只画两箱", file=sys.stderr)
+
+    try:
+        real_rows = json.load(open(ap_(a.real), encoding="utf-8"))
+        if real_rows:
+            print(f"real: {len(real_rows)} points")
+            made.append("fig10_real_speedup_heatmap.png")
+            fig_real(real_rows, ap_(a.out))
+    except (FileNotFoundError, ValueError):
+        print(f"{a.real} 不存在或无法解析，跳过 fig10", file=sys.stderr)
+
     made.append("fig8_speedup_boxplot.png"); fig_box(rows, er, app_r, ap_(a.out))
 
     made.append("overview_performance.png")

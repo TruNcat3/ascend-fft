@@ -56,14 +56,16 @@ Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件
 | C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **3.01x** |
 | C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.66x** |
 | 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.70x** |
+| R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | 49 | **1.91x** |
+| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | 49 | **3.35x** |
 
 <!-- END GENERATED: benchmark-summary -->
 
 数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照。C2C device-only 为 49/49 点胜出；
-end-to-end 为 46/49 点胜出。每根柱子都标注自己的同语义基线，跨 GPU 数据不参与几何均值。
-R2C/C2R 已有实现，但历史性能数据尚未按当前逐行门禁协议重采，因此不进入本次快照总览。
-查看[实验结果](docs/benchmarks/results.md)、[测量协议](docs/benchmarks/methodology.md)和
-[完整矩阵](docs/generated/matrix.md)。
+end-to-end 为 46/49 点胜出。R2C/C2R 各 49 点分别 43 / 47 点胜出（负点如实列出，见
+[胜/平/负热图](docs/figures/fig10_real_speedup_heatmap.png)）。每根柱子都标注自己的同语义基线，
+跨 GPU 数据不参与几何均值。查看[实验结果](docs/benchmarks/results.md)、
+[测量协议](docs/benchmarks/methodology.md)和[完整矩阵](docs/generated/matrix.md)。
 
 ## 为什么这样设计
 

@@ -83,17 +83,30 @@ Ascend-FFT 更快。结果说明当前 C2C kernel 优势覆盖整个发布网格
 - `aclRfft1D` 是 R2C，不具备与 C2C 相同的语义和搬运量，只作调用路径参照。
 - `v1` 展示项目内部演进，不是外部专业库。
 
-## 7. 当前证据边界
+## 7. 实数变换 R2C/C2R 的发布证据
 
-R2C/C2R 已有实现和历史测量，但旧 JSON 缺少现行发布器要求的逐行正确性、环境和 trial 字段，且
-确实包含小于 1 的 shape。因此它们不再进入本页总览或 README 几何均值。按新协议重采、展示完整
-胜/平/负热图后，才能升级为当前发布证据。支持状态与性能证据是两件事，分别见
-[支持范围](../reference/support.md)和[未来计划](../roadmap.md)。
+R2C/C2R 已按当前逐行门禁协议在本快照重采：每一行先过正确性门禁（`maxRel <= 1e-4`，
+全部 trial PASS 才进入计时），与同卡 `torch_npu` 的同语义变换同 reps 政策对比。
+网格为 R2C `N=128..8192`、C2R `N=64..4096`，`B=1..4096`，各 49 点：
+
+![R2C/C2R win-tie-loss heatmap vs torch_npu](../figures/fig10_real_speedup_heatmap.png)
+
+| 实验 | 点数 | vs torch_npu 几何均值 | 胜 / 平 / 负 | 参照 |
+|---|---:|---:|---:|---|
+| R2C vs `torch.fft.rfft` | 49 | **1.91x** | **43 / 0 / 6** | vs `aclRfft1D` 3.27x（42 个有裸基线的配对点） |
+| C2R vs `torch.fft.irfft` | 49 | **3.35x** | **47 / 1 / 1** | CANN 无 c2r，无同语义裸基线 |
+
+胜 `>1.05x`、平 `0.95x..1.05x`、负 `<0.95x`；胜负是实验结果，不是 correctness 门禁。
+负点如实呈现：R2C 在 `B=4096` 的 `N=128/256/512/1024`（**0.50x..0.72x**）与
+`N=8192` 的 `B=256/1024`（**0.95x/0.81x**）慢于 torch；C2R 在 `N=1024, B=4096`
+（**0.92x**）。这些行不与 C2C 几何均值混合——变换语义与基线不同，
+但同属这份 correctness-gated 快照。
 
 ## 原始数据与复现
 
 - [C2C 49 点矩阵](../generated/matrix.md)
 - [多基线完整明细](../generated/comparison.md)
+- [R2C/C2R 发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0/r2c_c2r.json)
 - [端到端发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0/e2e.json)
 - [应用 shape 发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0/e2e_app.json)
 - [发布 manifest](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0/manifest.json)
