@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "status": "planned-not-runnable",
+  "description": "Predeclared long-FFT research experiments, not a declaration of current kernel support.",
+  "target": {
+    "transform": "c2c",
+    "precision": "fp32",
+    "direction": "forward",
+    "normalization": "none",
+    "layout": "dense-contiguous",
+    "primary_n": 65536,
+    "ns": [8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+  },
+  "protocol": {
+    "trials": 5,
+    "timing_scopes": ["device-only", "host-end-to-end", "plan-setup", "first-use"],
+    "statistics": ["median", "p10", "p90", "coefficient-of-variation"],
+    "rules": [
+      "Reject unsupported shapes before allocation; do not silently pad or substitute another transform.",
+      "All correctness trials must pass; retain failures, losing configurations and every raw trial.",
+      "Match transform, precision, direction, normalization, placement and timing scope across baselines.",
+      "Budget input, output, workspace, host staging and numerical references before launching.",
+      "Record hardware, software, revision, clocks, warmup, repeat and selected mapping for every run.",
+      "Freeze workload splits and the candidate search budget before collecting publication results."
+    ]
+  },
+  "experiments": [
+    {
+      "id": "E01", "slug": "capacity", "title": "Legal length and memory envelope", "runnable": false,
+      "hypothesis": "Segmented execution extends C2C beyond the single-AIV UB limit without hiding boundary storage costs.",
+      "shape_spec": {"ns": [2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576], "batches": [1]},
+      "controlled_variables": ["fp32 forward C2C", "dense layout", "available-memory budget", "reference policy"],
+      "metrics": ["correct", "max_scaled_error", "workspace_bytes", "peak_device_bytes", "segment_count", "materialized_boundaries"],
+      "baselines": ["Current single-AIV implementation: unsupported reference, never timed as a long-FFT baseline", "Available CANN/native long C2C with matched semantics"],
+      "required_artifacts": ["support-envelope.csv", "allocation-budget.csv", "correctness-trials.csv", "rejections.csv"],
+      "acceptance": ["65536 and all declared supported lengths pass every trial", "Unsupported or memory-infeasible points produce explicit reasons", "No hidden truncation or padding"]
+    },
+    {
+      "id": "E02", "slug": "latency", "title": "Single-transform and low-batch latency", "runnable": false,
+      "hypothesis": "Long FFT decomposition provides competitive latency while exposing setup and launch overhead separately.",
+      "shape_spec": {"ns": [8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576], "batches": [1, 4, 16]},
+      "controlled_variables": ["transform contract", "warmup/repeat", "placement", "randomized baseline order"],
+      "metrics": ["kernel_ms", "end_to_end_ms", "plan_setup_ms", "first_use_ms", "transforms_s", "speedup", "coefficient_of_variation"],
+      "baselines": ["Ascend FFT fixed legal segmented mapping", "Ascend FFT model-selected mapping", "Ascend FFT measured-search mapping", "Available CANN/native long C2C with matched semantics"],
+      "required_artifacts": ["raw-trials.csv", "latency-summary.csv", "latency-by-length.svg", "selected-configs.json"],
+      "acceptance": ["All 24 semantic shapes reported including failures and regressions", "Model and measured-search results are separately identified", "No universal speedup requirement is imposed"]
+    },
+    {
+      "id": "E03", "slug": "equal-work", "title": "Equal total points across FFT lengths", "runnable": false,
+      "hypothesis": "At equal total work, variation with FFT length reveals dependency, boundary and steady-state costs rather than merely data volume.",
+      "shape_spec": {"ns": [4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576], "fixed_total_points": [1048576, 16777216, 67108864]},
+      "controlled_variables": ["N times batch", "transform contract", "memory budget", "timing scope"],
+      "metrics": ["kernel_ms", "points_s", "gm_read_bytes", "gm_write_bytes", "workspace_bytes", "speedup", "boundary_bytes_per_point"],
+      "baselines": ["Ascend FFT fixed legal segmented mapping", "Ascend FFT model-selected mapping", "Ascend FFT measured-search mapping", "Available CANN/native long C2C with matched semantics"],
+      "required_artifacts": ["raw-trials.csv", "equal-work-summary.csv", "throughput-by-length.svg", "traffic-by-length.svg"],
+      "acceptance": ["Each row satisfies N times batch equals its declared total_points", "Each equal-work series reports all eight lengths", "Large-memory cases are explicitly skipped when budget is insufficient"]
+    },
+    {
+      "id": "E04", "slug": "saturation", "title": "Batch saturation and mapping breakpoints", "runnable": false,
+      "hypothesis": "Resident subgraph reuse amortizes fixed overhead but steady-state throughput depends on role balance and hardware-resource breakpoints.",
+      "shape_spec": {"ns": [16384, 65536, 262144], "batches": [1, 4, 16, 32, 47, 48, 49, 64, 95, 96, 97, 128, 143, 144, 145, 191, 192, 193, 256, 512, 1024]},
+      "hardware_note": "48D +/- 1 batches are provisional Ascend910_9382 controls for D=1..4. Recompute for the local AIV count and legal long-FFT mappings.",
+      "controlled_variables": ["N within each series", "hardware profile", "candidate budget", "placement", "memory budget"],
+      "metrics": ["kernel_ms", "points_s", "active_aivs", "tail_utilization", "selected_fold", "selected_roles", "speedup"],
+      "baselines": ["Ascend FFT fixed legal segmented mapping", "Ascend FFT model-selected mapping", "Available CANN/native long C2C with matched semantics"],
+      "required_artifacts": ["raw-trials.csv", "saturation-summary.csv", "throughput-by-batch.svg", "mapping-breakpoints.csv"],
+      "acceptance": ["65536 has all declared batch values", "Mapping changes and tails are recorded rather than smoothed away", "Hardware-dependent breakpoints are not claimed universal"]
+    },
+    {
+      "id": "E05", "slug": "ablation", "title": "Architecture and processing-unit ablations", "runnable": false,
+      "hypothesis": "Residence, overlap and online reorder provide separable benefits when arithmetic cores and legal resource envelopes are controlled.",
+      "shape_spec": {"ns": [16384, 65536, 262144], "batches": [1, 16, 256]},
+      "pairs": [
+        {"id": "residence", "control": "materialized-segment-execution", "treatment": "resident-subgraph", "hold_fixed": ["arithmetic core", "logical partition", "output order"]},
+        {"id": "overlap", "control": "serialized-producer-consumer", "treatment": "overlapped-producer-consumer", "hold_fixed": ["arithmetic core", "partition", "residence", "role allocation"]},
+        {"id": "reorder", "control": "explicit-boundary-reorder", "treatment": "fused-output-reorder", "hold_fixed": ["arithmetic core", "partition", "residence", "output semantics"]},
+        {"id": "role-organization", "control": "single-role-schedule", "treatment": "multi-role-schedule", "hold_fixed": ["arithmetic core", "partition", "residence", "output semantics"]},
+        {"id": "processing-unit", "control": "legal-reference-core", "treatment": "alternative-legal-core", "hold_fixed": ["architecture mapping", "transform semantics"]},
+        {"id": "partition", "control": "fixed-legal-partition", "treatment": "searched-legal-partition", "hold_fixed": ["candidate budget", "arithmetic core family", "transform semantics"]},
+        {"id": "selection", "control": "fixed-predeclared-mapping", "treatment": "model-selected-mapping", "hold_fixed": ["candidate set", "candidate budget", "transform semantics"]}
+      ],
+      "controlled_variables": ["Pair-specific controls", "legal lowering contract", "measured resource usage"],
+      "metrics": ["kernel_ms", "gm_read_bytes", "gm_write_bytes", "launch_count", "overlap_fraction", "synchronization_ms", "ub_bytes", "active_aivs"],
+      "baselines": ["Within-pair control implementation; unavailable controls are reported as not implemented"],
+      "required_artifacts": ["ablation-trials.csv", "ablation-summary.csv", "ablation-speedup.svg", "resource-contracts.json"],
+      "acceptance": ["Both pair members pass identical correctness contracts", "Infeasible exact pairs are reported rather than replaced silently", "Resource tradeoffs are disclosed; overlap is measured, not inferred from naming"]
+    },
+    {
+      "id": "E06", "slug": "numerical", "title": "Long-length numerical correctness", "runnable": false,
+      "hypothesis": "Reordered and segmented butterflies preserve FFT semantics with acceptable FP32 error as dependency depth grows.",
+      "shape_spec": {"ns": [8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576], "batches": [1, 3, 16]},
+      "inputs": ["zero", "impulse", "constant", "single-tone", "nyquist-alternating", "random-seeded", "high-dynamic-range", "near-cancellation"],
+      "random_seeds": [0, 1, 2],
+      "controlled_variables": ["Input and seed", "normalization", "declared length-dependent error policy", "higher-precision reference"],
+      "metrics": ["correct", "max_absolute_error", "max_scaled_error", "relative_l2_error", "finite_output", "failing_batch_indices"],
+      "baselines": ["Host higher-precision FFT reference", "Analytical output for zero, impulse, constant and single-tone inputs"],
+      "required_artifacts": ["numerical-trials.csv", "error-policy.json", "error-by-length.svg", "failures.json"],
+      "acceptance": ["Every input/seed/trial must pass the predeclared tolerance policy", "Near-zero outputs use an absolute-error guard", "Small-batch tests check all rows; larger tests declare coverage explicitly", "Inverse round-trip is added only after an inverse implementation exists"]
+    },
+    {
+      "id": "E07", "slug": "applications", "title": "Long-convolution and spectral workload proxies", "runnable": false,
+      "hypothesis": "Benefits persist on predeclared application-shaped workloads rather than only a favorable synthetic grid.",
+      "shape_spec": {"derive_from": "applications"},
+      "applications": [
+        {"id": "long-convolution-proxy", "ns": [4096, 8192, 16384, 65536, 262144], "batches": [1, 16, 64], "scope": "Forward C2C proxy only; full convolution requires inverse and pointwise multiplication"},
+        {"id": "scientific-spectrum-proxy", "ns": [65536, 262144, 1048576], "batches": [1, 4, 16], "scope": "Dense one-dimensional spectral transform, not a multidimensional application"}
+      ],
+      "controlled_variables": ["Application shape provenance", "transform contract", "timing scope", "predeclared workload list"],
+      "metrics": ["kernel_ms", "end_to_end_ms", "points_s", "speedup", "max_scaled_error", "workspace_bytes"],
+      "baselines": ["Available CANN/native long C2C with matched semantics", "Host numerical reference; not a device-performance baseline"],
+      "required_artifacts": ["application-trials.csv", "application-provenance.json", "application-summary.csv", "application-speedup.svg"],
+      "acceptance": ["Proxy results are labeled as proxies, not complete application speedups", "No unsupported R2C, inverse or 2D capability is implied", "All predeclared points including losing points are published"]
+    },
+    {
+      "id": "E08", "slug": "profile", "title": "Traffic, overlap and model attribution", "runnable": false,
+      "hypothesis": "Parameterized compute, traffic, synchronization and fill/drain terms explain long-FFT performance across held-out lengths and batches.",
+      "shape_spec": {"ns": [4096, 16384, 65536, 262144, 1048576], "batches": [1, 16, 256]},
+      "controlled_variables": ["Same verified binary and mapping as timing run", "profiler replay mode", "disjoint calibration and validation sets", "candidate search budget"],
+      "metrics": ["gm_read_bytes", "gm_write_bytes", "gm_bandwidth", "ub_traffic", "compute_time", "synchronization_time", "overlap_fraction", "fill_drain_time", "predicted_ms", "measured_ms", "selection_regret"],
+      "baselines": ["Fixed legal mapping", "Model-selected mapping", "Measured-search oracle under a declared finite candidate budget"],
+      "required_artifacts": ["profiler-raw/", "profile-summary.csv", "model-split.json", "prediction-vs-measurement.svg", "selection-regret.csv"],
+      "acceptance": ["65536 is profiled at low and high batch", "Calibration and held-out semantic keys do not overlap", "Predicted costs and model uncertainty are reported", "Profiler timings are not substituted for unprofiled latency measurements", "Unavailable counters are marked unavailable, not zero"]
+    }
+  ]
+}
