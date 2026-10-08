@@ -64,6 +64,7 @@ nav:
       - 配置: reference/configuration.md
       - 支持范围: reference/support.md
       - 术语: reference/glossary.md
+  - 未来计划与验收: roadmap.md
   - 历史归档:
       - 演进与优化决策: archive/decisions.md
 validation:

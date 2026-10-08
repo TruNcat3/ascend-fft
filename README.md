@@ -40,13 +40,12 @@ Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件
 | C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **3.01x** |
 | C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.66x** |
 | 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.70x** |
-| R2C device-only | `torch.fft.rfft` | 42 | **1.84x** |
-| C2R device-only | `torch.fft.irfft` | 49 | **3.06x** |
 
 <!-- END GENERATED: benchmark-summary -->
 
 数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照。C2C device-only 为 49/49 点胜出；
 end-to-end 为 46/49 点胜出。每根柱子都标注自己的同语义基线，跨 GPU 数据不参与几何均值。
+R2C/C2R 已有实现，但历史性能数据尚未按当前逐行门禁协议重采，因此不进入本次快照总览。
 查看[实验结果](docs/benchmarks/results.md)、[测量协议](docs/benchmarks/methodology.md)和
 [完整矩阵](docs/generated/matrix.md)。
 
@@ -119,6 +118,7 @@ plan->run(host_input, host_output, 4096, 64);
 | 贡献设计点 | [仓库结构](docs/development/repository-layout.md) -> [增加设计点](docs/development/adding-design-points.md) -> [验证发布](docs/development/validation-and-release.md) |
 
 完整导航见 [GitHub Pages](https://truncat3.github.io/ascend-fft/) 或 [`docs/index.md`](docs/index.md)。
+后续工程实现、能力扩展和测试验收见[未来计划](docs/roadmap.md)。
 
 ## 复现实验
 

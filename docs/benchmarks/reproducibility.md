@@ -34,6 +34,18 @@ python3 scripts/publish_results.py --check
 发布步骤更新 `results/published/`、`docs/generated/` 和受控的图表输入；手写的设计分析与
 结果解释不会被生成器整页覆盖。
 
+## 重绘图表
+
+```bash
+scripts/repro.sh figures
+# 等价于：python3 scripts/plot_results.py
+```
+
+绘图器默认从 `results/published/ascend910_9382-cann9.0.0/` 读取矩阵、端到端、应用 shape
+和多基线数据，不重新测量。输出统一写入 `docs/figures/`，当前画布均为 `1600x900`。若传入精简的
+5 列矩阵，device-only 图仍可生成，但因为没有 `eta` 字段会明确跳过模型图；不会从另一份历史表
+静默拼接模型数据。
+
 ## 结果检查
 
 发布前至少确认：

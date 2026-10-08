@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""从矩阵 / 基线 / 端到端数据生成对比图（PNG，docs/figures/）。
+"""从发布快照生成实验图（PNG，docs/figures/）。
 
-数据源（全部是已有文档/结果，不重复测量）：
-  --matrix  docs/generated/matrix.md       49 点 device-only 矩阵（自研 vs CANN 原生 + eta）
-  --std     docs/generated/comparison.md   六基线表（numpy/torch/aclRfft1D/v1/原生/自研）
-  --e2e     results/e2e.json             端到端测试输出（scripts/e2e_test.py）
+默认数据源来自同一份已发布快照；脚本只画图，不重新测量：
+  --matrix  results/published/.../matrix.md  C2C device-only 与模型校准字段
+  --std     results/published/.../sixway.md  多基线上下文
+  --e2e     results/published/.../e2e.json   C2C 端到端
+  --e2e-app results/published/.../e2e_app.json 代表应用 shape
 
   python3 scripts/plot_results.py --out docs/figures
 
@@ -30,25 +31,36 @@ PALE = plt.get_cmap("tab20")
 apply_publication_style()
 
 
+PUBLISHED = "results/published/ascend910_9382-cann9.0.0"
+
+
 def num(s):
     return float(str(s).replace("**", "").replace(",", "").replace("×", "")
-                  .replace("%", "").strip())
+                  .replace("x", "").replace("%", "").strip())
 
 
 def parse_matrix(path):
-    """-> list of dict(n,b,ours,nat,ratio,eta,dev,maxRel)"""
+    """Read both the rich archived table and the compact published table."""
     rows = []
-    for ln in open(path, encoding="utf-8"):
-        m = re.match(r"^\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([\d.,]+)\s*\|\s*([\d.,]+)\s*"
-                     r"\|\s*([\d.,]+)\s*\|\s*([\d.,]+)\s*\|\s*\**([\d.,]+)×\**\s*"
-                     r"\|\s*([\d.,]+)\s*\|\s*([+-]?[\d.,]+)%\s*\|\s*([\d.eE+-]+)\s*\|", ln)
-        if not m:
-            continue
-        rows.append(dict(n=int(m.group(1)), b=int(m.group(2)),
-                         ours=num(m.group(3)), ours_min=num(m.group(4)),
-                         nat=num(m.group(5)), nat_min=num(m.group(6)),
-                         ratio=num(m.group(7)), eta=num(m.group(8)),
-                         dev=num(m.group(9)), maxRel=num(m.group(10))))
+    with open(path, encoding="utf-8") as handle:
+        for ln in handle:
+            if not ln.startswith("|"):
+                continue
+            cells = [cell.strip() for cell in ln.strip().strip("|").split("|")]
+            if (len(cells) not in (5, 11) or not cells[0].isdigit()
+                    or not cells[1].isdigit()):
+                continue
+            if len(cells) == 5:
+                rows.append(dict(n=int(cells[0]), b=int(cells[1]),
+                                 ours=num(cells[2]), nat=num(cells[3]),
+                                 ratio=num(cells[4]), eta=float("nan"),
+                                 dev=float("nan"), maxRel=float("nan")))
+            else:
+                rows.append(dict(n=int(cells[0]), b=int(cells[1]),
+                                 ours=num(cells[2]), ours_min=num(cells[3]),
+                                 nat=num(cells[4]), nat_min=num(cells[5]),
+                                 ratio=num(cells[6]), eta=num(cells[7]),
+                                 dev=num(cells[8]), maxRel=num(cells[9])))
     return rows
 
 
@@ -98,21 +110,18 @@ def geo(values):
     return float(np.exp(np.mean(np.log(values)))) if values.size else float("nan")
 
 
-def fig_overview(rows, e2rows, approws, real_rows, out):
+def fig_overview(rows, e2rows, approws, out):
     """README headline: comparable groups, each with its baseline in the label."""
     groups = [
         ("C2C\ndevice-only", geo([r["ratio"] for r in rows]), "CANN native", len(rows)),
         ("C2C\nend-to-end", geo([r["e2e_ratio"] for r in e2rows]), "CANN native", len(e2rows)),
         ("Applications\nend-to-end", geo([r["e2e_ratio"] for r in approws]), "CANN native", len(approws)),
-        ("R2C\ndevice-only", geo([r.get("r2c_vs_torch") for r in real_rows]), "torch_npu", sum(r.get("r2c_vs_torch") is not None for r in real_rows)),
-        ("C2R\ndevice-only", geo([r.get("c2r_vs_torch") for r in real_rows]), "torch_npu", sum(r.get("c2r_vs_torch") is not None for r in real_rows)),
     ]
     groups = [g for g in groups if g[1] == g[1]]
     fig, ax = plt.subplots(figsize=(12.8, 6.3))
     x = np.arange(len(groups))
     values = [g[1] for g in groups]
-    colors = [COLORS["ours"], COLORS["e2e"], COLORS["application"],
-              COLORS["model"], "#8E6C8A"][:len(groups)]
+    colors = [COLORS["ours"], COLORS["e2e"], COLORS["application"]][:len(groups)]
     bars = ax.bar(x, values, width=.62, color=colors, edgecolor="white", linewidth=1.2)
     ax.axhline(1.0, color=COLORS["native"], linestyle="--", linewidth=1.6,
                label="baseline parity (1.0x)")
@@ -129,7 +138,7 @@ def fig_overview(rows, e2rows, approws, real_rows, out):
     fig.suptitle("Ascend-FFT performance summary", x=.06, y=.98, ha="left",
                  fontsize=19, fontweight="bold")
     ax.set_title(
-        "Ascend910_9382, FP32; each bar states its own strictly matched baseline",
+        "Ascend910_9382, FP32 C2C; correctness-gated results from one published snapshot",
         loc="left", fontsize=11, color=COLORS["neutral"], pad=12)
     ax.grid(axis="y", color=COLORS["grid"], linewidth=.8, alpha=.65)
     ax.set_axisbelow(True)
@@ -167,7 +176,7 @@ def fig_speedup(rows, out):
     ax.set_xlabel("batch")
     ax.set_ylabel("n")
     wins = int((a > 1).sum())
-    ax.set_title("Device-only speedup  =  ours / CANN native   (>1 = faster)\n"
+    ax.set_title("Device-only speedup = CANN native latency / Ascend-FFT latency\n"
                  f"{wins}/{a.size} points faster, geometric mean "
                  f"{np.exp(np.mean(np.log(a))):.2f}x", fontsize=11)
     for i in range(len(ns) + 1):
@@ -220,7 +229,7 @@ def fig_curves(rows, out):
         if key == "ratio":
             ax.axhline(1.0, color="k", ls="--", lw=1.2)
             ax.annotate("1.0x  (break-even)", xy=(1.2, 1.05), fontsize=8.5)
-            ax.set_ylabel("ours / native")
+            ax.set_ylabel("CANN native / Ascend-FFT")
         else:
             ax.set_yscale("log")
             ax.set_ylabel("us")
@@ -265,81 +274,117 @@ def fig_baselines(rows, out):
 
 # ------------------------------------------------------------------ fig5
 def fig_eta(rows, out):
-    m = np.array([[r["ours"], r["eta"]] for r in rows if r["eta"] > 0])
-    fig, ax = plt.subplots(figsize=(6.6, 6.0))
+    valid = [r for r in rows if r.get("eta", float("nan")) > 0]
+    if not valid:
+        return False
+    m = np.array([[r["ours"], r["eta"]] for r in valid])
+    fig, axes = plt.subplots(1, 2, figsize=(11.8, 5.3))
+    ax = axes[0]
     lo = max(1.0, m.min() * .8)
     g = np.linspace(lo, m.max() * 1.25, 50)
     ax.fill_between(g, g * .85, g * 1.15, color="0.85", label="+/-15% band")
     ax.plot(g, g, "k--", lw=1, label="ideal")
     ax.scatter(m[:, 0], m[:, 1], s=26, color=C_OURS, alpha=.85, zorder=3,
-               label=f"49 points (mean |dev| "
+               label=f"{len(valid)} points (mean |dev| "
                      f"{np.mean(np.abs(m[:, 1] / m[:, 0] - 1)) * 100:.1f}%)")
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("measured, ours (us)")
     ax.set_ylabel("model estimate  eta (us)")
-    ax.set_title("Cost model vs measurement", fontsize=11)
+    ax.set_title("Estimate vs measurement", fontsize=11)
     ax.grid(alpha=.3, which="both"); ax.legend(fontsize=9)
     ax.set_aspect("equal", adjustable="datalim")
+
+    ns, bs, residual = grid(valid, "dev")
+    ax = axes[1]
+    bound = max(15.0, float(np.nanmax(np.abs(residual))))
+    im = ax.imshow(residual, cmap="RdBu_r", vmin=-bound, vmax=bound, aspect="auto")
+    cell_label(ax, residual, "{:+.0f}%", 7.3)
+    ax.set_xticks(range(len(bs)), [f"{b:,}" for b in bs])
+    ax.set_yticks(range(len(ns)), [f"{n:,}" for n in ns])
+    ax.set_xlabel("batch")
+    ax.set_ylabel("n")
+    ax.set_title("Relative residual by shape", fontsize=11)
+    cb = fig.colorbar(im, ax=ax, shrink=.82, pad=.02)
+    cb.set_label("(estimate / measured - 1), %")
+    fig.suptitle("Cost-model calibration-grid check (not a held-out generalization test)",
+                 fontsize=12, y=1.01)
+    fig.tight_layout()
     save(fig, out, "fig5_eta_scatter.png")
+    return True
 
 
 # ------------------------------------------------------------------ fig6
 def fig_e2e(rows, out):
-    order = sorted(rows, key=lambda r: (r["n"], r.get("b", r.get("batch"))))
-    er = np.array([r["e2e_ratio"] for r in order])
-    dr = np.array([r["dev_ratio"] for r in order])
-    lab = [f"{r['n']}/{r.get('b', r.get('batch'))}" for r in order]
-    x = np.arange(len(order))
-
-    fig, axes = plt.subplots(2, 1, figsize=(12.4, 8.2),
-                             gridspec_kw={"height_ratios": [1.15, 1.0]})
-    ax = axes[0]
-    cols = ["#2ca02c" if v > 1 else "#d62728" for v in er]
-    ax.bar(x - .2, dr, .4, label="device-only (kernel launch + sync)",
-           color="0.72", edgecolor="0.45")
-    ax.bar(x + .2, er, .4, label="end-to-end (H2D + transform + D2H)",
-           color=cols)
-    ax.axhline(1.0, color="k", ls="--", lw=1.2)
-    ax.set_yscale("log")
-    ax.set_xticks(x); ax.set_xticklabels(lab, rotation=90, fontsize=6.4)
-    ax.set_ylabel("speedup  native / ours  (log)")
-    ax.set_title(f"End-to-end vs device-only speedup, 49 points   |   "
-                 f"device {int((dr > 1).sum())}/49 faster "
-                 f"(geo {np.exp(np.mean(np.log(dr))):.2f}x)   |   "
-                 f"e2e {int((er > 1).sum())}/49 faster "
-                 f"(geo {np.exp(np.mean(np.log(er))):.2f}x)", fontsize=10.5)
-    ax.grid(axis="y", alpha=.3, which="both"); ax.legend(fontsize=9, loc="upper left")
-
-    ax = axes[1]
-    ns = sorted({r["n"] for r in order})
-    bs = sorted({r["b"] for r in order})
-    mat = np.full((len(ns), len(bs)), np.nan)
-    ix, ib = {n: i for i, n in enumerate(ns)}, {b: i for i, b in enumerate(bs)}
-    for r in order:
-        mat[ix[r["n"]], ib[r["b"]]] = r["xfer_share"]
-    # LogNorm 对 0/NaN 非法：先裁掉非正值，退化时给出可用的区间
-    pos = mat[np.isfinite(mat) & (mat > 0)]
-    if pos.size == 0:
-        pos = np.array([1e-3, 1.0])
-    vmin, vmax = float(pos.min()), float(pos.max())
-    if not (vmax > vmin):
-        vmin, vmax = vmin * .1, vmin * 10
-    mat = np.where(np.isfinite(mat) & (mat > 0), mat, vmin)
-    im = ax.imshow(mat, cmap="magma", norm=LogNorm(vmin=vmin, vmax=vmax),
-                   aspect="auto")
-    for i in range(len(ns)):
-        for j in range(len(bs)):
-            if mat[i, j] == mat[i, j]:
-                ax.text(j, i, f"{mat[i, j] * 100:.0f}%", ha="center", va="center",
-                        fontsize=7.4, color="white")
-    ax.set_xticks(range(len(bs)), [f"{b:,}" for b in bs])
-    ax.set_yticks(range(len(ns)), [f"{n:,}" for n in ns])
-    ax.set_xlabel("batch"); ax.set_ylabel("n")
-    ax.set_title("Share of end-to-end time spent outside the kernel  "
-                 "(1 - device/e2e): H2D + D2H + sync", fontsize=10.5)
-    fig.colorbar(im, ax=ax, shrink=.8, pad=.01)
+    fig, axes = plt.subplots(1, 3, figsize=(13.6, 4.8), sharey=True)
+    panels = [
+        ("dev_ratio", "Device-only speedup", "speedup"),
+        ("e2e_ratio", "End-to-end speedup", "speedup"),
+        ("xfer_share", "Time outside device region", "share"),
+    ]
+    for ax, (key, title, kind) in zip(axes, panels):
+        ns, bs, mat = grid(rows, key)
+        if kind == "speedup":
+            finite = mat[np.isfinite(mat)]
+            norm = TwoSlopeNorm(vmin=min(.9, float(finite.min())), vcenter=1.0,
+                                vmax=float(finite.max()))
+            im = ax.imshow(mat, cmap="RdYlGn", norm=norm, aspect="auto")
+            cell_label(ax, mat, "{:.2f}", 7.2)
+            wins = int((finite > 1).sum())
+            title += f"\n{wins}/{finite.size} wins, geo {geo(finite):.2f}x"
+            cb_label = "CANN native / Ascend-FFT"
+        else:
+            im = ax.imshow(mat, cmap="magma", vmin=0.55, vmax=0.9, aspect="auto")
+            for i in range(mat.shape[0]):
+                for j in range(mat.shape[1]):
+                    if np.isfinite(mat[i, j]):
+                        ax.text(j, i, f"{mat[i, j] * 100:.0f}%", ha="center",
+                                va="center", fontsize=7.2, color="white")
+            title += "\n1 - device / end-to-end"
+            cb_label = "fraction"
+        ax.set_xticks(range(len(bs)), [f"{b:,}" for b in bs], rotation=45,
+                      ha="right")
+        ax.set_yticks(range(len(ns)), [f"{n:,}" for n in ns])
+        ax.set_xlabel("batch")
+        ax.set_title(title, fontsize=10.2)
+        cb = fig.colorbar(im, ax=ax, shrink=.78, pad=.02)
+        cb.set_label(cb_label, fontsize=8.5)
+    axes[0].set_ylabel("n")
+    fig.suptitle("How device-only gains propagate to the host-to-host path",
+                 fontsize=12.5, y=1.02)
     fig.tight_layout()
     save(fig, out, "fig6_end_to_end.png")
+
+
+APP_SHAPES = {
+    "OFDM": {(2048, 14), (2048, 140), (4096, 14), (4096, 140)},
+    "Radar": {(1024, 64), (1024, 256), (2048, 64), (2048, 256)},
+    "DL frequency layer": {(1024, 32), (1024, 128), (4096, 32), (4096, 128)},
+}
+
+
+def fig_applications(rows, out):
+    """Representative application-shaped FFT inputs; groups follow e2e_test.py."""
+    fig, axes = plt.subplots(1, 3, figsize=(13.2, 4.7), sharey=True)
+    for ax, (name, shapes) in zip(axes, APP_SHAPES.items()):
+        subset = sorted((r for r in rows if (r["n"], r["batch"]) in shapes),
+                        key=lambda r: (r["n"], r["batch"]))
+        x = np.arange(len(subset))
+        dev = [r["dev_ratio"] for r in subset]
+        e2e = [r["e2e_ratio"] for r in subset]
+        ax.bar(x - .19, dev, .38, color=COLORS["ours"], label="device-only")
+        ax.bar(x + .19, e2e, .38, color=COLORS["application"], label="end-to-end")
+        ax.axhline(1.0, color=COLORS["native"], ls="--", lw=1.2)
+        ax.set_xticks(x, [f"{r['n']:,}\nB={r['batch']:,}" for r in subset], fontsize=8)
+        ax.set_title(f"{name}\nE2E geo {geo(e2e):.2f}x", fontsize=10.5)
+        ax.set_xlabel("FFT length / batch")
+        ax.grid(axis="y", color=COLORS["grid"], linewidth=.7)
+        ax.set_axisbelow(True)
+    axes[0].set_ylabel("CANN native / Ascend-FFT")
+    axes[0].legend(frameon=False, fontsize=8.5)
+    fig.suptitle("Representative application-shaped FFT inputs (12 correctness-gated points)",
+                 fontsize=12.5, y=1.02)
+    fig.tight_layout()
+    save(fig, out, "fig9_application_workloads.png")
 
 
 # ------------------------------------------------------------------ fig7
@@ -457,10 +502,10 @@ def fig_box(rows, e2rows, approws, out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--matrix", default="docs/generated/matrix.md")
-    ap.add_argument("--std", default="docs/generated/comparison.md")
-    ap.add_argument("--e2e", default="results/e2e.json")
-    ap.add_argument("--e2e-app", default="results/e2e_app.json")
+    ap.add_argument("--matrix", default=f"{PUBLISHED}/matrix.md")
+    ap.add_argument("--std", default=f"{PUBLISHED}/sixway.md")
+    ap.add_argument("--e2e", default=f"{PUBLISHED}/e2e.json")
+    ap.add_argument("--e2e-app", default=f"{PUBLISHED}/e2e_app.json")
     ap.add_argument("--real", default="results/r2c_c2r.json")
     ap.add_argument("--out", default="docs/figures")
     a = ap.parse_args()
@@ -480,7 +525,10 @@ def main():
     made.append("fig1_speedup_heatmap.png"); fig_speedup(rows, ap_(a.out))
     made.append("fig2_latency_heatmap.png"); fig_latency(rows, ap_(a.out))
     made.append("fig3_speedup_curve.png");   fig_curves(rows, ap_(a.out))
-    made.append("fig5_eta_scatter.png");     fig_eta(rows, ap_(a.out))
+    if fig_eta(rows, ap_(a.out)):
+        made.append("fig5_eta_scatter.png")
+    else:
+        print("矩阵无 eta 字段，跳过 fig5", file=sys.stderr)
 
     try:
         srows = parse_stdlib(ap_(a.std))
@@ -524,17 +572,14 @@ def main():
                  if r.get("e2e_ratio") == r.get("e2e_ratio")]
         if app_r:
             print(f"e2e_app: {len(app_r)} points")
+            made.append("fig9_application_workloads.png")
+            fig_applications(app_r, ap_(a.out))
     except (FileNotFoundError, ValueError):
         print(f"{a.e2e_app} 不存在，fig8 只画两箱", file=sys.stderr)
     made.append("fig8_speedup_boxplot.png"); fig_box(rows, er, app_r, ap_(a.out))
 
-    real_r = []
-    try:
-        real_r = json.load(open(ap_(a.real), encoding="utf-8"))
-    except (FileNotFoundError, ValueError):
-        print(f"{a.real} 不存在，首页汇总图不含 R2C/C2R", file=sys.stderr)
     made.append("overview_performance.png")
-    fig_overview(rows, er, app_r, real_r, ap_(a.out))
+    fig_overview(rows, er, app_r, ap_(a.out))
 
     print(f"done: {len(made)} figures")
     return 0

@@ -25,6 +25,10 @@ Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实�
 
 [工程结构](development/repository-layout.md) → [增加设计点](development/adding-design-points.md) → [验证与发布](development/validation-and-release.md)。定位瓶颈时查阅[profiling](development/profiling.md)。
 
+## 后续方向
+
+[未来计划与验收](roadmap.md)按工程闭环、算子能力、性能研究和跨硬件验证列出当前缺口、交付内容与验收证据，区分项目目标和已验证成果。
+
 ## 文档边界
 
 - 当前是 C++ API，尚无稳定 C ABI或用户指定stream的异步执行接口。
