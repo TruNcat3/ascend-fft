@@ -242,6 +242,11 @@ int main(int argc, char** argv){
     // 长度落在单 AIV 行 FFT 的 UB envelope [64,4096]；超出 G1 envelope 直接拒绝。
     uint32_t longN1=0, longN2=0;
     const bool isLong = !isReal && n>4096;
+    // AB_BOUNDARY=device：段边界全程在 device materialize（twiddle+转置 + 自然序
+    // 写出均走 device 内核，段边界不经宿主内存）。默认不设置 => 宿主中介链，
+    // 行为与已发布结果逐字节一致；device 链的 E2E boundary 计数为 0。
+    const bool devBoundary = isLong &&
+        getenv("AB_BOUNDARY") && !strcmp(getenv("AB_BOUNDARY"), "device");
     if(isLong){
         if(n>65536){
             printf("c2c long backend envelope is 8192..65536 (G3 larger lengths pending)\n");
@@ -273,7 +278,8 @@ int main(int argc, char** argv){
         // 合法性；不支持的元组返回显式 reason 并拒绝，绝不静默换核或换映射。
         {
             const auto& hw = butterfly::builtin_hardware_profile();
-            const auto mapping = butterfly::default_long_mapping(longN1, longN2, hw);
+            auto mapping = butterfly::default_long_mapping(longN1, longN2, hw);
+            if(devBoundary) mapping.boundary_home = butterfly::BoundaryHome::DeviceGM;
             butterfly::TransformSpec spec{n, batch, butterfly::Precision::FP32,
                                           butterfly::Direction::C2C_FWD};
             const auto lowered = butterfly::query_lowering(spec, mapping,
@@ -461,7 +467,8 @@ int main(int argc, char** argv){
         pp2 = prepPass(gLen2, gRows2);
     }
     void *dIn=nullptr,*dOut=nullptr,*dA=nullptr,*dB=nullptr,*dTwR=nullptr,*dTwI=nullptr,
-         *dIdx=nullptr,*dPW=nullptr,*dTw2R=nullptr,*dTw2I=nullptr,*dIdx2=nullptr;
+         *dIdx=nullptr,*dPW=nullptr,*dTw2R=nullptr,*dTw2I=nullptr,*dIdx2=nullptr,
+         *dWB=nullptr;
     CK(aclrtMalloc(&dIn,  inElems*4u,  ACL_MEM_MALLOC_NORMAL_ONLY));
     CK(aclrtMalloc(&dOut, outElems*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
     if(isR2C){                                    // Z：内层 FFT 输出（n float/行）
@@ -490,6 +497,11 @@ int main(int argc, char** argv){
         CK(aclrtMemcpy(dIdx2, (size_t)pp2.idxN*4u, pp2.idx.data(),
                        (size_t)pp2.idxN*4u, ACL_MEMCPY_HOST_TO_DEVICE));
     }
+    if(devBoundary){                              // 段边界旋转因子（wT 交错布局，plan 期上传）
+        CK(aclrtMalloc(&dWB, 2ull*(size_t)n*sizeof(float), ACL_MEM_MALLOC_NORMAL_ONLY));
+        CK(aclrtMemcpy(dWB, 2ull*(size_t)n*sizeof(float), wT.data(),
+                       2ull*(size_t)n*sizeof(float), ACL_MEMCPY_HOST_TO_DEVICE));
+    }
     if(isR2C){
         CK(aclrtMemcpy(dPW, (size_t)pPad*4u, pwr.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
         CK(aclrtMemcpy((char*)dPW + (size_t)pPad*4u, (size_t)pPad*4u,
@@ -512,6 +524,19 @@ int main(int argc, char** argv){
             CK(aclrtBinaryGetFunction(rb,"kfft_c2r_prep",&fPrep));
             CK(aclrtBinaryGetFunction(rb,"kfft_c2r_post",&fPost));
         }
+    }
+
+    // 长链 device 边界内核（AB_BOUNDARY=device，addendum §3）
+    aclrtBinHandle lb=nullptr;
+    aclrtFuncHandle fLtTr=nullptr, fLtTw=nullptr;
+    uint32_t argBytesL=36;
+    if(devBoundary){
+        const char* lpath = getenv("AB_LONG_O")?getenv("AB_LONG_O"):"build/fft_long.o";
+        CK(aclrtBinaryLoadFromFile(lpath, nullptr, &lb));
+        CK(aclrtBinaryGetFunction(lb, "kfft_lt_tr", &fLtTr));
+        CK(aclrtBinaryGetFunction(lb, "kfft_lt_tw", &fLtTw));
+        uint32_t lbs=readArgSize(lpath);
+        if(lbs>=36) argBytesL=lbs;      // 下界防御：abL 以 36B 下界做 memcpy
     }
 
     uint32_t blocks = batch<48u?batch:48u;
@@ -584,6 +609,22 @@ int main(int argc, char** argv){
         uint32_t blk = rows<48u?rows:48u;
         return aclrtLaunchKernelWithHostArgs(f,blk,s,nullptr,ab.data(),ab.size(),nullptr,0);
     };
+    // 转置/点乘内核实参（两内核同签名 36B：dst,src,tw,nRows,nCols,batch；
+    // kfft_lt_tr 的 tw 不用但占位，与 fft_real 的 dummy ex0/ex1 同约定）。
+    std::vector<unsigned char> abL(argBytesL, 0);
+    auto issueLt=[&](aclrtFuncHandle fh, void* dst, void* src, void* tw,
+                     uint32_t nRows, uint32_t nCols)->aclError{
+        uint64_t q0=(uint64_t)(uintptr_t)dst, q1=(uint64_t)(uintptr_t)src;
+        uint64_t q2=tw?(uint64_t)(uintptr_t)tw:0;
+        memcpy(abL.data()+0, &q0, 8);
+        memcpy(abL.data()+8, &q1, 8);
+        memcpy(abL.data()+16,&q2, 8);
+        memcpy(abL.data()+24,&nRows, 4);
+        memcpy(abL.data()+28,&nCols, 4);
+        memcpy(abL.data()+32,&batch, 4);
+        return aclrtLaunchKernelWithHostArgs(fh, blocks, s, nullptr,
+                                             abL.data(), abL.size(), nullptr, 0);
+    };
     // device_only 口径：每次 launch 用事件对量取各内核在 device 上的 span 之和
     // （不含宿主段、不含段间拷贝），由 aclrtEventElapsedTime 给出。
     aclrtEvent ev0=nullptr, ev1=nullptr;
@@ -593,6 +634,33 @@ int main(int argc, char** argv){
     auto launch=[&](){
         aclError e=ACL_SUCCESS;
         devSpanMs=-1;
+        if(isLong && devBoundary){
+            // device-materialized 链（addendum §3 step 3），逐步对齐宿主四步：
+            //   H2D(逻辑输入) -> 转置入 lt_tr(n1,n2) -> 行FFT(N1) ->
+            //   段边界点乘 lt_tw(原地) -> lt_tr(n2,n1) -> 行FFT(N2) ->
+            //   自然序写出 lt_tr(n1,n2) -> D2H(逻辑输出)。
+            // 每次执行都从当前 hIn 上传（动态输入契约）；段边界不回宿主 => boundary=0。
+            aclError e=aclrtRecordEvent(ev0, s);
+            if(!e) e=aclrtMemcpyAsync(dIn, inElems*4u, hIn.data(), inElems*4u,
+                                      ACL_MEMCPY_HOST_TO_DEVICE, s);
+            if(!e) e=issueLt(fLtTr, dA, dIn, nullptr, longN1, longN2);
+            if(!e) e=issuePass(dIn, dA, longN1, longN2*batch,
+                               dTwR, dTwI, dIdx, pp1.packArg);
+            if(!e) e=issueLt(fLtTw, dIn, dIn, dWB, longN1, longN2);
+            if(!e) e=issueLt(fLtTr, dA, dIn, nullptr, longN2, longN1);
+            if(!e) e=issuePass(dIn, dA, longN2, longN1*batch,
+                               dTw2R, dTw2I, dIdx2, pp2.packArg);
+            if(!e) e=issueLt(fLtTr, dOut, dIn, nullptr, longN1, longN2);
+            if(!e) e=aclrtMemcpyAsync(hOut.data(), outElems*4u, dOut, outElems*4u,
+                                      ACL_MEMCPY_DEVICE_TO_HOST, s);
+            if(!e) e=aclrtRecordEvent(ev1, s);
+            if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
+            float dm=-1.f;
+            if(!e) aclrtEventElapsedTime(&dm, ev0, ev1);
+            if(e){ printf("long launch=%d\n",(int)e); return false; }
+            devSpanMs = dm>=0.f ? (double)dm : -1.0;   // 单跨度：整链无宿主中段同步
+            return true;
+        }
         if(isLong){
             // 四步 Cooley-Tukey（G1，见 docs/benchmarks/long-fft-plan.md）：
             //   宿主转置入 -> 行FFT(N1) -> 宿主 twiddle+转置 -> 行FFT(N2) -> 宿主重排出。
@@ -754,7 +822,7 @@ int main(int argc, char** argv){
         // 传输计数断言口径：每次执行恰 1 次逻辑输入 + 1 次逻辑输出；
         // 段边界传输（长链 pass1 出数 / pass2 入数）单列，不算逻辑传输。
         printf("E2E transfers: in=1 out=1 boundary=%d per_execution\n",
-               (isLong && !xferOnly) ? 2 : 0);
+               (isLong && !xferOnly && !devBoundary) ? 2 : 0);
         fflush(stdout);
         if(pIn){ aclrtFreeHost(pIn); aclrtFreeHost(pOut); }
     }

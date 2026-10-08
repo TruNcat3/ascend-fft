@@ -57,6 +57,19 @@ UB 估算或修改测试参数宣称支持。
   无重建重执行、无 STALE-OUTPUT，E2E 每次执行恰 1 次逻辑输入 + 1 次输出
   （`boundary=2` 计段边界传输）。机器可读证据：
   `results/evidence/long-fft-acceptance/acceptance.json`（`scripts/collect_long_fft_evidence.py`）。
+- 段边界 device 化（addendum step 3）：`AB_BOUNDARY=device` 时段边界全程在设备上
+  物化，不经宿主内存——`src/ascendc/fft_long.cpp` 的 `kfft_lt_tr`（`DataCopyParams`
+  列切片 strided 读 + UB 源 Gather 分块转置、dst 行段连续写回）完成转置入/段间转置/
+  自然序写出，`kfft_lt_tw` 原地行连续点乘完成 `W_N^{j·k1}` 段边界；wT 表 plan 期上传
+  （输入无关），每次执行仍从当前 `hIn` 上传（动态输入契约）。E2E 每次执行
+  `in=1 out=1 boundary=0`（段边界不回宿主），同一网格 A/B/A 12/12 点 PASS，机器可读
+  证据 `results/evidence/long-fft-device-boundary/acceptance.json`
+  （`scripts/collect_long_fft_evidence.py --boundary device`）。默认（不设
+  `AB_BOUNDARY`）保持宿主中介链，逐点 `boundary=2` 契约锁定、行为与已发布结果一致
+  （宿主证据同采集器重跑 12/12）。`AB_DESC=1` 在 device 模式如实报告
+  `boundary_home=DeviceGM`：`gm_boundaries=1`（两段间一个 GM 物化边界）+
+  `host_assisted=0`。单点观测（65536×47、reps=5）：device 链 E2E min ≈14.9 ms vs
+  宿主链 ≈47.9 ms（同为 1 次输入 + 1 次输出传输口径）。
 - 未完成：E01..E08 全量采集、G2 可搜索映射、G3（`131072..1048576`）、逆向/2D；
   这些完成前 `future-long-fft` 档案仍拒绝运行，也不进入发布均值。
 

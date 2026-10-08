@@ -132,8 +132,12 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   证据归档 `results/evidence/stress-default-30/` 与 `results/evidence/stress-oomprobe-30/`。
   P1-A：长 FFT 动态输入契约通过——G1 全包络 12/12 点（N=8192..65536 × B=1/3/47）
   A/B/A 文件序列无重建重执行、无 STALE，E2E 每次执行恰 1 次逻辑输入 + 1 次输出
-  （`E2E transfers: in=1 out=1 boundary=2`），证据归档
-  `results/evidence/long-fft-acceptance/`。P1-B：R2C/C2R 已按 5-trial 对称协议重采
+  （`E2E transfers: in=1 out=1 boundary=2`，逐点断言），证据归档
+  `results/evidence/long-fft-acceptance/`。addendum step 3 的段边界 device 化
+  （`AB_BOUNDARY=device`，`src/ascendc/fft_long.cpp` strided 转置 + 原地点乘）
+  同一网格 A/B/A 12/12 PASS 且 `boundary=0`（段边界不回宿主），证据归档
+  `results/evidence/long-fft-device-boundary/`
+  （`scripts/collect_long_fft_evidence.py --boundary device`）。P1-B：R2C/C2R 已按 5-trial 对称协议重采
   56/56 行，发布进新不可变快照 `ascend910_9382-cann9.0.0-v2`（含 `raw_trials`、协议、
   raw/derived 哈希与 UTC 起止），新汇总见[当前结果 · 实数变换](benchmarks/results.md)；
   旧 min 口径的 1.91x/3.35x 不再被引用。独立模型验证仍待完成。

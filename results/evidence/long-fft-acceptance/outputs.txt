@@ -1,150 +1,176 @@
 ===== long A/B/A n=8192 b=1 rc=0 =====
 long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
-scopes: plan_setup=543.0 us first_use=667.9 us host_end_to_end mean=221.3 min=218.0 us device_only=19.0 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_8192_1.bin maxRel=1.192e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_8192_1.bin maxRel=1.470e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_8192_1.bin maxRel=1.192e-07 PASS
+E2E n=8192 batch=1 reps=1 e2e_us=227.9 e2e_min_us=227.9 first_us=227.9 boot_us=702769.9 plan_us=595.9 warmup_us=705.9 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=595.9 us first_use=704.6 us host_end_to_end mean=210.6 min=201.0 us device_only=20.5 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_8192_1.bin maxRel=1.192e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_8192_1.bin maxRel=1.470e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_8192_1.bin maxRel=1.192e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=8192 batch=1 blocks=48  maxAbs=7.197e-04 maxRel=1.020e-07 (worst idx 8163)
-kfft_fwd: 221.3 us/call over 3 reps (min 218.0 us) med 221.2 us
+kfft_fwd: 210.6 us/call over 3 reps (min 201.0 us) med 203.6 us
 PASS
 
 ===== long A/B/A n=8192 b=3 rc=0 =====
 long backend: n=8192 split N1=64 N2=128 rows1=384 rows2=192 gm_bytes=589824
-scopes: plan_setup=549.9 us first_use=744.9 us host_end_to_end mean=308.8 min=304.9 us device_only=19.5 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_8192_3.bin maxRel=1.788e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_8192_3.bin maxRel=1.769e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_8192_3.bin maxRel=1.788e-07 PASS
+E2E n=8192 batch=3 reps=1 e2e_us=333.1 e2e_min_us=333.1 first_us=333.1 boot_us=684710.1 plan_us=577.7 warmup_us=872.2 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=577.7 us first_use=871.4 us host_end_to_end mean=320.1 min=317.9 us device_only=41.1 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_8192_3.bin maxRel=1.788e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_8192_3.bin maxRel=1.769e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_8192_3.bin maxRel=1.788e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=8192 batch=3 blocks=48  maxAbs=7.197e-04 maxRel=1.158e-07 (worst idx 8163)
-kfft_fwd: 308.8 us/call over 3 reps (min 304.9 us) med 306.9 us
+kfft_fwd: 320.1 us/call over 3 reps (min 317.9 us) med 319.7 us
 PASS
 
 ===== long A/B/A n=8192 b=47 rc=0 =====
 long backend: n=8192 split N1=64 N2=128 rows1=6016 rows2=3008 gm_bytes=9240576
-scopes: plan_setup=6735.2 us first_use=4170.5 us host_end_to_end mean=3750.8 min=3728.3 us device_only=149.8 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_8192_47.bin maxRel=2.384e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_8192_47.bin maxRel=2.155e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_8192_47.bin maxRel=2.384e-07 PASS
+E2E n=8192 batch=47 reps=1 e2e_us=5974.3 e2e_min_us=5974.3 first_us=5974.3 boot_us=648246.6 plan_us=7295.4 warmup_us=5994.5 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=7295.4 us first_use=5993.0 us host_end_to_end mean=6004.0 min=5913.1 us device_only=143.2 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_8192_47.bin maxRel=2.384e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_8192_47.bin maxRel=2.155e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_8192_47.bin maxRel=2.384e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=8192 batch=47 blocks=48  maxAbs=7.442e-04 maxRel=1.989e-07 (worst idx 311267)
-kfft_fwd: 3750.8 us/call over 3 reps (min 3728.3 us) med 3754.0 us
+kfft_fwd: 6004.0 us/call over 3 reps (min 5913.1 us) med 6045.6 us
 PASS
 
 ===== long A/B/A n=16384 b=1 rc=0 =====
 long backend: n=16384 split N1=128 N2=128 rows1=128 rows2=128 gm_bytes=393216
-scopes: plan_setup=766.3 us first_use=756.2 us host_end_to_end mean=310.6 min=301.2 us device_only=19.8 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_16384_1.bin maxRel=1.192e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_16384_1.bin maxRel=1.919e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_16384_1.bin maxRel=1.192e-07 PASS
+E2E n=16384 batch=1 reps=1 e2e_us=312.8 e2e_min_us=312.8 first_us=312.8 boot_us=665154.4 plan_us=798.0 warmup_us=821.8 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=798.0 us first_use=820.0 us host_end_to_end mean=309.1 min=301.3 us device_only=28.5 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_16384_1.bin maxRel=1.192e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_16384_1.bin maxRel=1.919e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_16384_1.bin maxRel=1.192e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=16384 batch=1 blocks=48  maxAbs=1.571e-03 maxRel=2.269e-07 (worst idx 16327)
-kfft_fwd: 310.6 us/call over 3 reps (min 301.2 us) med 311.7 us
+kfft_fwd: 309.1 us/call over 3 reps (min 301.3 us) med 304.8 us
 PASS
 
 ===== long A/B/A n=16384 b=3 rc=0 =====
 long backend: n=16384 split N1=128 N2=128 rows1=384 rows2=384 gm_bytes=1179648
-scopes: plan_setup=1244.4 us first_use=1257.1 us host_end_to_end mean=656.3 min=647.6 us device_only=23.3 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_16384_3.bin maxRel=1.788e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_16384_3.bin maxRel=2.077e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_16384_3.bin maxRel=1.788e-07 PASS
+E2E n=16384 batch=3 reps=1 e2e_us=1192.9 e2e_min_us=1192.9 first_us=1192.9 boot_us=668045.6 plan_us=1275.0 warmup_us=1492.1 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=1275.0 us first_use=1490.5 us host_end_to_end mean=853.0 min=777.2 us device_only=57.7 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_16384_3.bin maxRel=1.788e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_16384_3.bin maxRel=2.077e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_16384_3.bin maxRel=1.788e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=16384 batch=3 blocks=48  maxAbs=1.571e-03 maxRel=2.269e-07 (worst idx 16327)
-kfft_fwd: 656.3 us/call over 3 reps (min 647.6 us) med 648.8 us
+kfft_fwd: 853.0 us/call over 3 reps (min 777.2 us) med 883.0 us
 PASS
 
 ===== long A/B/A n=16384 b=47 rc=0 =====
 long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
-scopes: plan_setup=12048.8 us first_use=9591.3 us host_end_to_end mean=9353.2 min=9273.0 us device_only=244.2 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_16384_47.bin maxRel=2.384e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_16384_47.bin maxRel=2.215e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_16384_47.bin maxRel=2.384e-07 PASS
+E2E n=16384 batch=47 reps=1 e2e_us=13505.4 e2e_min_us=13505.4 first_us=13505.4 boot_us=676543.1 plan_us=12720.8 warmup_us=13265.4 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=12720.8 us first_use=13263.8 us host_end_to_end mean=13164.5 min=13032.7 us device_only=194.8 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_16384_47.bin maxRel=2.384e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_16384_47.bin maxRel=2.215e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_16384_47.bin maxRel=2.384e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=16384 batch=47 blocks=48  maxAbs=1.989e-03 maxRel=2.269e-07 (worst idx 540615)
-kfft_fwd: 9353.2 us/call over 3 reps (min 9273.0 us) med 9389.9 us
+kfft_fwd: 13164.5 us/call over 3 reps (min 13032.7 us) med 13093.8 us
 PASS
 
 ===== long A/B/A n=32768 b=1 rc=0 =====
 long backend: n=32768 split N1=128 N2=256 rows1=256 rows2=128 gm_bytes=786432
-scopes: plan_setup=1397.2 us first_use=3750.4 us host_end_to_end mean=664.6 min=541.4 us device_only=23.4 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_32768_1.bin maxRel=1.192e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_32768_1.bin maxRel=2.122e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_32768_1.bin maxRel=1.192e-07 PASS
+E2E n=32768 batch=1 reps=1 e2e_us=606.0 e2e_min_us=606.0 first_us=606.0 boot_us=674817.1 plan_us=1248.4 warmup_us=1129.3 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=1248.4 us first_use=1126.8 us host_end_to_end mean=598.2 min=593.3 us device_only=32.1 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_32768_1.bin maxRel=1.192e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_32768_1.bin maxRel=2.122e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_32768_1.bin maxRel=1.192e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=32768 batch=1 blocks=48  maxAbs=1.029e-03 maxRel=4.140e-08 (worst idx 3981)
-kfft_fwd: 664.6 us/call over 3 reps (min 541.4 us) med 647.4 us
+kfft_fwd: 598.2 us/call over 3 reps (min 593.3 us) med 596.7 us
 PASS
 
 ===== long A/B/A n=32768 b=3 rc=0 =====
 long backend: n=32768 split N1=128 N2=256 rows1=768 rows2=384 gm_bytes=2359296
-scopes: plan_setup=2182.8 us first_use=1450.9 us host_end_to_end mean=1483.4 min=1320.4 us device_only=82.4 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_32768_3.bin maxRel=1.788e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_32768_3.bin maxRel=1.905e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_32768_3.bin maxRel=1.788e-07 PASS
+E2E n=32768 batch=3 reps=1 e2e_us=1025.2 e2e_min_us=1025.2 first_us=1025.2 boot_us=649411.9 plan_us=2289.7 warmup_us=1504.7 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=2289.7 us first_use=1502.6 us host_end_to_end mean=991.8 min=962.8 us device_only=47.2 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_32768_3.bin maxRel=1.788e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_32768_3.bin maxRel=1.905e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_32768_3.bin maxRel=1.788e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=32768 batch=3 blocks=48  maxAbs=1.545e-03 maxRel=9.733e-08 (worst idx 81805)
-kfft_fwd: 1483.4 us/call over 3 reps (min 1320.4 us) med 1371.2 us
+kfft_fwd: 991.8 us/call over 3 reps (min 962.8 us) med 991.0 us
 PASS
 
 ===== long A/B/A n=32768 b=47 rc=0 =====
 long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
-scopes: plan_setup=21530.0 us first_use=16274.7 us host_end_to_end mean=16356.9 min=16121.0 us device_only=342.7 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_32768_47.bin maxRel=2.384e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_32768_47.bin maxRel=2.380e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_32768_47.bin maxRel=2.384e-07 PASS
+E2E n=32768 batch=47 reps=1 e2e_us=24066.2 e2e_min_us=24066.2 first_us=24066.2 boot_us=658382.9 plan_us=24799.3 warmup_us=25622.2 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=24799.3 us first_use=25619.9 us host_end_to_end mean=24754.4 min=24131.8 us device_only=363.4 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_32768_47.bin maxRel=2.384e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_32768_47.bin maxRel=2.380e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_32768_47.bin maxRel=2.384e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=32768 batch=47 blocks=48  maxAbs=2.785e-03 maxRel=1.307e-07 (worst idx 262029)
-kfft_fwd: 16356.9 us/call over 3 reps (min 16121.0 us) med 16435.5 us
+kfft_fwd: 24754.4 us/call over 3 reps (min 24131.8 us) med 24348.2 us
 PASS
 
 ===== long A/B/A n=65536 b=1 rc=0 =====
 long backend: n=65536 split N1=256 N2=256 rows1=256 rows2=256 gm_bytes=1572864
-scopes: plan_setup=1884.5 us first_use=1640.3 us host_end_to_end mean=832.4 min=774.1 us device_only=51.8 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_65536_1.bin maxRel=1.192e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_65536_1.bin maxRel=3.018e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_65536_1.bin maxRel=1.192e-07 PASS
+E2E n=65536 batch=1 reps=1 e2e_us=942.9 e2e_min_us=942.9 first_us=942.9 boot_us=658903.2 plan_us=2107.2 warmup_us=1496.2 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=2107.2 us first_use=1494.1 us host_end_to_end mean=872.9 min=863.1 us device_only=47.5 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_65536_1.bin maxRel=1.192e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_65536_1.bin maxRel=3.018e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_65536_1.bin maxRel=1.192e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=65536 batch=1 blocks=48  maxAbs=2.003e-03 maxRel=8.040e-08 (worst idx 65306)
-kfft_fwd: 832.4 us/call over 3 reps (min 774.1 us) med 834.4 us
+kfft_fwd: 872.9 us/call over 3 reps (min 863.1 us) med 876.9 us
 PASS
 
 ===== long A/B/A n=65536 b=3 rc=0 =====
 long backend: n=65536 split N1=256 N2=256 rows1=768 rows2=768 gm_bytes=4718592
-scopes: plan_setup=4245.6 us first_use=3535.7 us host_end_to_end mean=2099.6 min=1856.0 us device_only=73.6 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_65536_3.bin maxRel=1.788e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_65536_3.bin maxRel=3.246e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_65536_3.bin maxRel=1.788e-07 PASS
+E2E n=65536 batch=3 reps=1 e2e_us=2163.4 e2e_min_us=2163.4 first_us=2163.4 boot_us=669156.1 plan_us=4171.0 warmup_us=2726.4 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=4171.0 us first_use=2724.0 us host_end_to_end mean=2128.4 min=2103.7 us device_only=72.4 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_65536_3.bin maxRel=1.788e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_65536_3.bin maxRel=3.246e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_65536_3.bin maxRel=1.788e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=65536 batch=3 blocks=48  maxAbs=3.516e-03 maxRel=1.406e-07 (worst idx 130842)
-kfft_fwd: 2099.6 us/call over 3 reps (min 1856.0 us) med 2082.0 us
+kfft_fwd: 2128.4 us/call over 3 reps (min 2103.7 us) med 2134.9 us
 PASS
 
 ===== long A/B/A n=65536 b=47 rc=0 =====
 long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
-scopes: plan_setup=43805.5 us first_use=30779.2 us host_end_to_end mean=29882.3 min=28795.0 us device_only=542.8 us reps=3
-seq[0]=/tmp/lfft-evi-nt7znl6q/A_65536_47.bin maxRel=2.384e-07 PASS
-seq[1]=/tmp/lfft-evi-nt7znl6q/B_65536_47.bin maxRel=3.185e-07 PASS
-seq[2]=/tmp/lfft-evi-nt7znl6q/A_65536_47.bin maxRel=2.384e-07 PASS
+E2E n=65536 batch=47 reps=1 e2e_us=43108.4 e2e_min_us=43108.4 first_us=43108.4 boot_us=680945.0 plan_us=48605.4 warmup_us=45444.0 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=2 per_execution
+scopes: plan_setup=48605.4 us first_use=45442.2 us host_end_to_end mean=43886.0 min=40320.1 us device_only=537.9 us reps=3
+seq[0]=/tmp/lfft-evi-_0cquqzj/A_65536_47.bin maxRel=2.384e-07 PASS
+seq[1]=/tmp/lfft-evi-_0cquqzj/B_65536_47.bin maxRel=3.185e-07 PASS
+seq[2]=/tmp/lfft-evi-_0cquqzj/A_65536_47.bin maxRel=2.384e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
-kfft_fwd: 29882.3 us/call over 3 reps (min 28795.0 us) med 29845.9 us
+kfft_fwd: 43886.0 us/call over 3 reps (min 40320.1 us) med 45326.5 us
 PASS
 
 ===== short A/B/A control rc=0 =====
-scopes: plan_setup=415.6 us first_use=456.2 us host_end_to_end mean=78.3 min=76.0 us device_only=28.1 us reps=3
+E2E n=4096 batch=3 reps=1 e2e_us=213.5 e2e_min_us=213.5 first_us=213.5 boot_us=656088.9 plan_us=437.9 warmup_us=497.6 mode=async host=pinned input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=437.9 us first_use=479.5 us host_end_to_end mean=75.2 min=72.0 us device_only=28.2 us reps=3
 seq[0]=impulse maxRel=0.000e+00 PASS
 seq[1]=random-seeded maxRel=1.414e-07 PASS
 seq[2]=impulse maxRel=0.000e+00 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=4096 batch=3 blocks=3  maxAbs=2.374e-04 maxRel=1.350e-07 (worst idx 8178)
-kfft_fwd: 78.3 us/call over 3 reps (min 76.0 us) med 77.0 us
+kfft_fwd: 75.2 us/call over 3 reps (min 72.0 us) med 73.1 us
 PASS
 
 ===== E2E transfer assertion rc=0 =====
 long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
-E2E n=8192 batch=1 reps=3 e2e_us=234.9 e2e_min_us=230.7 first_us=237.2 boot_us=690780.6 plan_us=592.5 warmup_us=758.0 mode=async host=chain input=sin
+E2E n=8192 batch=1 reps=3 e2e_us=302.4 e2e_min_us=298.1 first_us=305.0 boot_us=676447.9 plan_us=568.4 warmup_us=795.2 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=592.5 us first_use=756.7 us host_end_to_end mean=247.3 min=235.2 us device_only=20.4 us reps=3
+scopes: plan_setup=568.4 us first_use=793.9 us host_end_to_end mean=289.1 min=279.8 us device_only=37.1 us reps=3
 n=8192 batch=1 blocks=48  maxAbs=7.197e-04 maxRel=1.020e-07 (worst idx 8163)
-kfft_fwd: 247.3 us/call over 3 reps (min 235.2 us) med 244.2 us
+kfft_fwd: 289.1 us/call over 3 reps (min 279.8 us) med 291.3 us
 PASS

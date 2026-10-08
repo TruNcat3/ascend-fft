@@ -1,10 +1,10 @@
 {
- "generated_utc": "2026-10-08T16:24:42.704697+00:00",
+ "generated_utc": "2026-10-08T16:25:42.718516+00:00",
  "git_sha": "9bf53359f55144332f8cd27efeb6eca7fa0ca167",
  "git_dirty": true,
- "command": "python3 scripts/collect_long_fft_evidence.py",
+ "command": "python3 scripts/collect_long_fft_evidence.py --boundary device",
  "binary": "build/fft_check (AB_INPUT_SEQ A/B/A file inputs)",
- "boundary": "host",
+ "boundary": "device",
  "threshold": 0.0001,
  "grid": {
   "ns": [
@@ -24,28 +24,28 @@
    "n": 8192,
    "b": 1,
    "rc": 0,
-   "max_rel": 1.02e-07,
-   "max_abs": 0.0007197,
+   "max_rel": 5.116e-08,
+   "max_abs": 0.0002456,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_8192_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_8192_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_8192_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_8192_1.bin",
      "max_rel": 1.47e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_8192_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_8192_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -53,27 +53,27 @@
    "b": 3,
    "rc": 0,
    "max_rel": 1.158e-07,
-   "max_abs": 0.0007197,
+   "max_abs": 0.0004779,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_8192_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_8192_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_8192_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_8192_3.bin",
      "max_rel": 1.769e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_8192_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_8192_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -81,27 +81,27 @@
    "b": 47,
    "rc": 0,
    "max_rel": 1.989e-07,
-   "max_abs": 0.0007442,
+   "max_abs": 0.000743,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_8192_47.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_8192_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_8192_47.bin",
-     "max_rel": 2.155e-07,
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_8192_47.bin",
+     "max_rel": 2.628e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_8192_47.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_8192_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -112,24 +112,24 @@
    "max_abs": 0.001571,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_16384_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_16384_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_16384_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_16384_1.bin",
      "max_rel": 1.919e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_16384_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_16384_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -140,24 +140,24 @@
    "max_abs": 0.001571,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_16384_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_16384_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_16384_3.bin",
-     "max_rel": 2.077e-07,
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_16384_3.bin",
+     "max_rel": 2.019e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_16384_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_16384_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -165,55 +165,55 @@
    "b": 47,
    "rc": 0,
    "max_rel": 2.269e-07,
-   "max_abs": 0.001989,
+   "max_abs": 0.002052,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_16384_47.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_16384_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_16384_47.bin",
-     "max_rel": 2.215e-07,
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_16384_47.bin",
+     "max_rel": 2.262e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_16384_47.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_16384_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
    "n": 32768,
    "b": 1,
    "rc": 0,
-   "max_rel": 4.14e-08,
-   "max_abs": 0.001029,
+   "max_rel": 3.646e-08,
+   "max_abs": 0.00103,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_32768_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_32768_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_32768_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_32768_1.bin",
      "max_rel": 2.122e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_32768_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_32768_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -221,27 +221,27 @@
    "b": 3,
    "rc": 0,
    "max_rel": 9.733e-08,
-   "max_abs": 0.001545,
+   "max_abs": 0.001199,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_32768_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_32768_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_32768_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_32768_3.bin",
      "max_rel": 1.905e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_32768_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_32768_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -249,27 +249,27 @@
    "b": 47,
    "rc": 0,
    "max_rel": 1.307e-07,
-   "max_abs": 0.002785,
+   "max_abs": 0.002699,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_32768_47.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_32768_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_32768_47.bin",
-     "max_rel": 2.38e-07,
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_32768_47.bin",
+     "max_rel": 2.524e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_32768_47.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_32768_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -277,55 +277,55 @@
    "b": 1,
    "rc": 0,
    "max_rel": 8.04e-08,
-   "max_abs": 0.002003,
+   "max_abs": 0.002446,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_65536_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_65536_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_65536_1.bin",
-     "max_rel": 3.018e-07,
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_65536_1.bin",
+     "max_rel": 2.786e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_65536_1.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_65536_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
    "n": 65536,
    "b": 3,
    "rc": 0,
-   "max_rel": 1.406e-07,
-   "max_abs": 0.003516,
+   "max_rel": 8.04e-08,
+   "max_abs": 0.002615,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_65536_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_65536_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_65536_3.bin",
-     "max_rel": 3.246e-07,
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_65536_3.bin",
+     "max_rel": 3.47e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_65536_3.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_65536_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   },
   {
@@ -336,24 +336,24 @@
    "max_abs": 0.00558,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_65536_47.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_65536_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/B_65536_47.bin",
-     "max_rel": 3.185e-07,
+     "input": "/tmp/lfft-evi-dtd7l6c3/B_65536_47.bin",
+     "max_rel": 3.157e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-_0cquqzj/A_65536_47.bin",
+     "input": "/tmp/lfft-evi-dtd7l6c3/A_65536_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
    "pass": true,
-   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
    "boundary_ok": true
   }
  ],
@@ -386,8 +386,8 @@
  },
  "e2e_transfers": {
   "rc": 0,
-  "transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
-  "line": "E2E n=8192 batch=1 reps=3 e2e_us=302.4 e2e_min_us=298.1 first_us=305.0 boot_us=676447.9 plan_us=568.4 warmup_us=795.2 mode=async host=chain input=sin"
+  "transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+  "line": "E2E n=8192 batch=1 reps=3 e2e_us=325.3 e2e_min_us=299.9 first_us=365.6 boot_us=652710.1 plan_us=712.8 warmup_us=868.4 mode=async host=chain input=sin"
  },
  "status": "pass"
 }

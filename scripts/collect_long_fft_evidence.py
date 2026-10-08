@@ -8,7 +8,11 @@ control and the E2E single-input/single-output transfer assertion. Results are
 written to results/evidence/long-fft-acceptance/ as acceptance.json + outputs.txt
 so the public long-FFT claim audits against a git-tracked snapshot.
 
-  python3 scripts/collect_long_fft_evidence.py
+  python3 scripts/collect_long_fft_evidence.py               # 宿主中介链（默认）
+  python3 scripts/collect_long_fft_evidence.py --boundary device
+      # addendum §3 device-materialized 段边界（AB_BOUNDARY=device）：
+      # 同一网格 + A/B/A，段边界不回宿主 => 期望 E2E boundary=0，
+      # 证据写入 results/evidence/long-fft-device-boundary/。
 """
 import json
 import os
@@ -21,10 +25,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "results" / "evidence" / "long-fft-acceptance"
+DEV = "--boundary" in sys.argv and "device" in sys.argv
+OUT = ROOT / "results" / "evidence" / (
+    "long-fft-device-boundary" if DEV else "long-fft-acceptance")
 NS = (8192, 16384, 32768, 65536)
 BS = (1, 3, 47)
 THRESHOLD = 1e-4
+# 全部执行带 AB_E2E=1：逐点断言段边界传输契约——
+# host 模式 = 宿主中介链 boundary=2（行为锁定）；device 模式 = 不回宿主 boundary=0。
+EXTRA_ENV = {"AB_E2E": "1"}
+if DEV:
+    EXTRA_ENV["AB_BOUNDARY"] = "device"
+EXPECT_BOUNDARY = "boundary=0" if DEV else "boundary=2"
 
 
 def gen_input(path, n, batch, pattern):
@@ -81,20 +93,25 @@ def main():
                 gen_input(fb, n, b, "B")
                 seq = f"{fa},{fb},{fa}"
                 rc, out = run(["./build/fft_check", str(n), str(b), "3"],
-                              env=dict(os.environ, AB_INPUT_SEQ=seq))
+                              env=dict(os.environ, AB_INPUT_SEQ=seq, **EXTRA_ENV))
                 point = {"n": n, "b": b, "rc": rc, **parse_point(out),
                          "e2e_transfers": re.search(
                              r"^(E2E transfers: .*)$", out, re.M).group(1)
                          if re.search(r"^E2E transfers: .*$", out, re.M) else ""}
+                if EXPECT_BOUNDARY and point["e2e_transfers"]:
+                    point["boundary_ok"] = EXPECT_BOUNDARY in point["e2e_transfers"]
+                elif EXPECT_BOUNDARY:
+                    point["boundary_ok"] = False
                 points.append(point)
                 transcripts.append(f"===== long A/B/A n={n} b={b} rc={rc} =====\n{out}")
         rc, out = run(["./build/fft_check", "4096", "3", "3"],
-                      env=dict(os.environ, AB_INPUT_SEQ="impulse,random-seeded,impulse"))
+                      env=dict(os.environ, AB_INPUT_SEQ="impulse,random-seeded,impulse",
+                               **EXTRA_ENV))
         control = {"n": 4096, "b": 3, "rc": rc, **parse_point(out),
                    "path": "short"}
         transcripts.append(f"===== short A/B/A control rc={rc} =====\n{out}")
-        rc, out = run(["./build/fft_check", "8192", "1", "3"],
-                      env=dict(os.environ, AB_E2E="3"))
+        eenv = dict(os.environ); eenv.update(EXTRA_ENV); eenv["AB_E2E"] = "3"
+        rc, out = run(["./build/fft_check", "8192", "1", "3"], env=eenv)
         transfers = re.search(r"^(E2E transfers: .*)$", out, re.M)
         e2e = {"rc": rc, "transfers": transfers.group(1) if transfers else "",
                "line": (re.search(r"^(E2E n=.*)$", out, re.M).group(1)
@@ -106,6 +123,9 @@ def main():
           and all(s["pass"] for p in points for s in p["seq"])
           and control["pass"] and control["rc"] == 0
           and e2e["rc"] == 0 and "in=1 out=1" in e2e["transfers"])
+    if EXPECT_BOUNDARY:
+        ok = (ok and EXPECT_BOUNDARY in e2e["transfers"]
+              and all(p.get("boundary_ok") for p in points))
     sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
                          capture_output=True, text=True).stdout.strip()
     document = {
@@ -114,8 +134,10 @@ def main():
         "git_dirty": bool(subprocess.run(
             ["git", "status", "--porcelain", "--untracked-files=no"],
             cwd=ROOT, capture_output=True, text=True).stdout.strip()),
-        "command": "python3 scripts/collect_long_fft_evidence.py",
+        "command": "python3 scripts/collect_long_fft_evidence.py"
+                   + (" --boundary device" if DEV else ""),
         "binary": "build/fft_check (AB_INPUT_SEQ A/B/A file inputs)",
+        "boundary": "device" if DEV else "host",
         "threshold": THRESHOLD,
         "grid": {"ns": list(NS), "bs": list(BS)},
         "points": points,

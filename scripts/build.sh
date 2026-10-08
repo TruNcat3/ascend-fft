@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 source scripts/env.sh
 mkdir -p build
 
-KERN=(fft_radix2 fft_radix2_v1 fft_radix2_v2 fft_real)
+KERN=(fft_radix2 fft_radix2_v1 fft_radix2_v2 fft_real fft_long)
 HOST=(fft_check test_framework test_limits baseline_rfft)
 # 本 SoC 可编译的探针 kernel（probe_simt 单独放 simt 目标：无 SIMT，预期编译失败）
 PROBE=(probe_hw gather_probe)
