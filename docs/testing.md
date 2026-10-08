@@ -13,7 +13,7 @@
 | R2C | fp32，N=128..8192 的二次幂 | 非二次幂、更多精度（P3） |
 | C2R | fp32，N=64..4096 的二次幂，含 1/N | 非二次幂、更多精度（P3） |
 | 主性能网格 | 7 个长度 × 7 个 batch，共 49 点 | 核数拐点、尾块、独立模型验证 |
-| 应用代理 | OFDM、雷达、DL，共 12 个 shape | STFT、长卷积、range-Doppler 与 2D |
+| 应用代理 | OFDM、雷达、DL 共 12 个 shape 的性能，四类负载（含 STFT 帧代理）的正确性 | STFT 性能代理、长卷积、range-Doppler 与 2D |
 | 用户布局 | 连续数组、host 指针、同步 | 任意 stride、device-pointer、用户 stream |
 
 主网格最大点 `N=4096, B=4096` 有 16,777,216 个复数，输入约 128 MiB。因此总负载并不小，
@@ -84,7 +84,7 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
 | OFDM | N=2048/4096，B=14/140 | 保留现有符号批次代理；不是完整通信链路 |
 | 雷达 range FFT | N=1024/2048，B=64/256 | 保留现有代理；不等价于 range-Doppler 全流程 |
 | DL 频域层 | N=1024/4096，B=32/128 | 保留历史对照，不代表长序列卷积 |
-| STFT | R2C N=256..8192，B=1/8/64/256 | 先测连续帧代理；重叠窗口和 stride 成本另计 |
+| STFT | R2C N=256..8192，B=1/8/64/256 | 连续帧代理正确性已在 `publication` 采集（24 例 ×3 trial）；性能与重叠窗口、stride 成本另计 |
 | 长卷积 | N=4096/16384/65536/262144 | 超出支持范围的部分等待长 FFT 后端 |
 | 2D / range-Doppler | 方形 256²..2048²，矩形 1024×128 等 | 等待 2D API，转置与 workspace 必须计入 |
 
@@ -105,8 +105,12 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
 ## 实施优先级
 
 - P0：统一正确性入口、所有 trial 门禁、边界 batch、数值模式和原始逐例记录已在目标
-  Ascend910_9382 完成采集：五道门禁、`smoke` 65/65、`regression` 349×3=1047/1047，
-  逐例记录见 `results/runs/<UTC>-<profile>/`（`cases.csv` + `summary.json`，不进版本库）。
+  Ascend910_9382 完成采集：五道门禁、`smoke` 65/65、`regression` 349×3=1047/1047、
+  `publication` 253×3=759/759（含 48D±1 边界批次、`2^20`/`2^24` 定总点数对照、实数
+  上下界、两种数值模式与 STFT 帧代理）；49 点性能矩阵以逐 trial 协议复测，自研与原生
+  各 3 轮共 294/294 PASS。逐例记录见 `results/runs/<UTC>-<profile>/`（`cases.csv` +
+  `summary.json`；性能矩阵另存 `matrix.md`/`matrix.csv`/`trials.csv`/`summary.json`，
+  均不进版本库）。
 - P1：独立模型验证和预算化压力 runner；R2C/C2R 新协议发布快照已完成（见
   [当前结果 · 实数变换](benchmarks/results.md)）。
 - P2：分段/多 AIV 长 FFT；显式记录阶段交接、重排、GM 流量和同步后，再测长卷积代理。
