@@ -1,6 +1,6 @@
 {
- "generated_utc": "2026-10-08T14:33:31.945323+00:00",
- "git_sha": "0fa7fe8190997d2fabba30fd0736ef026e02aed7",
+ "generated_utc": "2026-10-08T15:06:23.151807+00:00",
+ "git_sha": "a9f4b3c07fba67a3b0e24f8d508cec08fb91b03a",
  "git_dirty": true,
  "command": "python3 scripts/collect_long_fft_evidence.py",
  "binary": "build/fft_check (AB_INPUT_SEQ A/B/A file inputs)",
@@ -27,17 +27,17 @@
    "max_abs": 0.0007197,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_8192_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_8192_1.bin",
      "max_rel": 1.47e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_8192_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     }
@@ -54,17 +54,17 @@
    "max_abs": 0.0007197,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_8192_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_8192_3.bin",
      "max_rel": 1.769e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_8192_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     }
@@ -81,17 +81,17 @@
    "max_abs": 0.0007442,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_8192_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_8192_47.bin",
      "max_rel": 2.155e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_8192_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     }
@@ -108,17 +108,17 @@
    "max_abs": 0.001571,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_16384_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_16384_1.bin",
      "max_rel": 1.919e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_16384_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     }
@@ -135,17 +135,17 @@
    "max_abs": 0.001571,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_16384_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_16384_3.bin",
      "max_rel": 2.077e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_16384_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     }
@@ -162,17 +162,17 @@
    "max_abs": 0.001989,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_16384_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_16384_47.bin",
      "max_rel": 2.215e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_16384_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     }
@@ -189,17 +189,17 @@
    "max_abs": 0.001029,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_32768_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_32768_1.bin",
      "max_rel": 2.122e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_32768_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     }
@@ -216,17 +216,17 @@
    "max_abs": 0.001545,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_32768_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_32768_3.bin",
      "max_rel": 1.905e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_32768_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     }
@@ -243,17 +243,17 @@
    "max_abs": 0.002785,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_32768_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_32768_47.bin",
      "max_rel": 2.38e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_32768_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     }
@@ -270,17 +270,17 @@
    "max_abs": 0.002003,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_65536_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_65536_1.bin",
      "max_rel": 3.018e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_1.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_65536_1.bin",
      "max_rel": 1.192e-07,
      "pass": true
     }
@@ -297,17 +297,17 @@
    "max_abs": 0.003516,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_65536_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_65536_3.bin",
      "max_rel": 3.246e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_3.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_65536_3.bin",
      "max_rel": 1.788e-07,
      "pass": true
     }
@@ -324,17 +324,17 @@
    "max_abs": 0.00558,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_65536_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/B_65536_47.bin",
      "max_rel": 3.185e-07,
      "pass": true
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_47.bin",
+     "input": "/tmp/lfft-evi-nt7znl6q/A_65536_47.bin",
      "max_rel": 2.384e-07,
      "pass": true
     }
@@ -374,7 +374,7 @@
  "e2e_transfers": {
   "rc": 0,
   "transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
-  "line": "E2E n=8192 batch=1 reps=3 e2e_us=225.7 e2e_min_us=221.3 first_us=222.4 boot_us=687436.2 plan_us=561.6 warmup_us=720.1 mode=async host=chain input=sin"
+  "line": "E2E n=8192 batch=1 reps=3 e2e_us=234.9 e2e_min_us=230.7 first_us=237.2 boot_us=690780.6 plan_us=592.5 warmup_us=758.0 mode=async host=chain input=sin"
  },
  "status": "pass"
 }

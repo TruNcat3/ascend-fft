@@ -139,8 +139,12 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   旧 min 口径的 1.91x/3.35x 不再被引用。独立模型验证仍待完成。
 - P2：分段长 FFT 后端（G1）已实现（宿主四步 Cooley-Tukey + 设备行 FFT，8192..65536
   验收抽样与动态输入证据见 `results/evidence/long-fft-acceptance/` 与长 FFT 计划的
-  G0/G1 落地记录）；多 AIV/G2 可搜索映射、E01..E08 采集与长卷积代理仍待做，
-  显式记录阶段交接、重排、GM 流量和同步后再测。
+  G0/G1 落地记录）。架构描述符合法性层（addendum step 2）已落地：
+  `include/butterfly/descriptors.hpp`（G/A/P/L/H 分层 + `query_lowering()` 在分配/启动前
+  查询、显式 reason 拒绝）、`tests/test_descriptors{.cpp,.py}`（18 用例 + profile 同步 +
+  查询顺序断言，`make desc`），接线后验收重跑 12/12 PASS 证明短 FFT 结果不变。
+  多 AIV/G2 可搜索映射、E01..E08 采集与长卷积代理仍待做，显式记录阶段交接、重排、
+  GM 流量和同步后再测。
 - P3：逆向 C2C、2D/stride、其他精度和非二次幂。补零不得冒充原长度 DFT。
 
 这些是待完成工作，不是新增支持声明。整体工程依赖与验收见[未来计划](roadmap.md)，

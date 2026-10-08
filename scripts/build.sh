@@ -29,6 +29,10 @@ for t in "${targets[@]}"; do
     kernel) do_kernel "${KERN[@]}" ;;
     check)  echo "  cxx   src/host/fft_check.cpp"
             ab_cxx src/host/fft_check.cpp -o build/fft_check ;;
+    desc)   echo "  cxx   tests/test_descriptors.cpp"
+            g++ -O2 -std=c++17 -Wall -I"$AB_ROOT/include" \
+                tests/test_descriptors.cpp -o build/test_descriptors
+            build/test_descriptors ;;
     test)   echo "  cxx   tests/test_framework.cpp"
             ab_cxx tests/test_framework.cpp src/framework/butterfly.cpp src/framework/reference.cpp -o build/test_framework ;;
     limits) echo "  cxx   tests/test_limits.cpp"
@@ -60,6 +64,10 @@ for t in "${targets[@]}"; do
       do_kernel "${KERN[@]}"
       echo "  cxx   src/host/fft_check.cpp"
       ab_cxx src/host/fft_check.cpp -o build/fft_check
+      echo "  cxx   tests/test_descriptors.cpp"
+      g++ -O2 -std=c++17 -Wall -I"$AB_ROOT/include" \
+          tests/test_descriptors.cpp -o build/test_descriptors
+      build/test_descriptors >/dev/null
       echo "  cxx   tests/test_framework.cpp"
       ab_cxx tests/test_framework.cpp src/framework/butterfly.cpp src/framework/reference.cpp -o build/test_framework
       echo "  cxx   tests/test_limits.cpp"

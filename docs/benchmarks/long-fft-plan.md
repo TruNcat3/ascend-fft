@@ -32,6 +32,16 @@ UB 估算或修改测试参数宣称支持。
 
 ### G0/G1 落地记录（2026-10-08，Ascend910_9382）
 
+- 描述符层（addendum step 2）：`include/butterfly/descriptors.hpp` 按 G/A/P/L/H 分层
+  （`TransformSpec`/`ArchitectureMapping` 含四维展开 `Us,Ts,Ud,Td`+角色+驻留+边界归宿、
+  `ProcessingUnitCapability`（首个单元 = 现有 `kfft_fwd` 行 FFT）、`LoweringResult`、
+  `HardwareProfile` 与 `config/ascend910_93_profile.json` 同步）。长路径在任何分配/启动
+  之前调用 `query_lowering()`；不支持的元组返回显式 reason 拒绝，不静默换核/换映射
+  （`AB_DESC=1` 可见当前链的如实报告：host-assisted、非片上驻留）。合法性测试：
+  `tests/test_descriptors.cpp` 自测表 + `tests/test_descriptors.py`（纯 g++ 编译、
+  18 个用例、profile 同步、查询先于分配的源码顺序断言），`make desc` 一键运行。
+  短 FFT 结果不变：验收采集器重跑 12/12 PASS、E2E transfers 契约不变。
+
 - 实现：`src/host/fft_check.cpp` 长路径。G0 在执行前拒绝超 envelope（`N>65536`）、
   非法因子分解、`batch*2n` uint32 goff 越界与 `>40 GiB` GM 预算，并打印拒绝原因；
   G1 分段 `N=N1×N2`（两因子均在 `64..4096`，从 sqrt 附近取平衡拆分），行 FFT 复用

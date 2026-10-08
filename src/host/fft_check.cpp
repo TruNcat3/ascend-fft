@@ -14,6 +14,7 @@
 //   其中 AB_FOLD_D/AB_PLANE_K 作用在「内层 FFT」的长度上（r2c 时为 n/2）。
 #include <acl/acl.h>
 #include "butterfly/fft_k.hpp"
+#include "butterfly/descriptors.hpp"
 #include "butterfly/reference.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -267,6 +268,28 @@ int main(int argc, char** argv){
             printf("long gm budget %llu B exceeds 40 GiB guard (batch too large)\n",
                    (unsigned long long)gmBudget);
             return 2;
+        }
+        // Lowering 合约（addendum §2）：在任何分配/启动之前先查 (mapping, unit, hardware)
+        // 合法性；不支持的元组返回显式 reason 并拒绝，绝不静默换核或换映射。
+        {
+            const auto& hw = butterfly::builtin_hardware_profile();
+            const auto mapping = butterfly::default_long_mapping(longN1, longN2, hw);
+            butterfly::TransformSpec spec{n, batch, butterfly::Precision::FP32,
+                                          butterfly::Direction::C2C_FWD};
+            const auto lowered = butterfly::query_lowering(spec, mapping,
+                                       butterfly::local_fft_capability(), hw);
+            if(!lowered.supported){
+                printf("lowering rejected: %s\n", lowered.reason.c_str());
+                return 2;
+            }
+            if(getenv("AB_DESC")){
+                printf("lowering: groups=%zu launches=%d gm_boundaries=%d resident=%s "
+                       "on_chip=%d host_assisted=%d\n",
+                       lowered.execution_groups.size(), lowered.visible_launches,
+                       lowered.materialized_gm_boundaries,
+                       butterfly::residence_name(lowered.resident_subgraph),
+                       (int)lowered.whole_transform_on_chip, (int)lowered.host_assisted);
+            }
         }
         printf("long backend: n=%u split N1=%u N2=%u rows1=%u rows2=%u gm_bytes=%llu\n",
                n, longN1, longN2, longN2*batch, longN1*batch,
