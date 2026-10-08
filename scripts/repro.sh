@@ -68,6 +68,8 @@ reg bwprobe     "docs/benchmarks/methodology.md"                "传输带宽探
     "./build/bw_probe 256 20"
 reg gpu-compare "docs/benchmarks/related-work.md"               "与公开 GPU 工作的绝对性能对照矩阵" \
     "python3 scripts/matrix_test.py --reps 30"
+reg long-fft-plan "docs/benchmarks/long-fft-plan.md"            "检查长 FFT 预声明表与实验清单一致（不测量）" \
+    "python3 scripts/generate_long_fft_tables.py --check"
 
 # ---------------------------------------------------------------------------
 

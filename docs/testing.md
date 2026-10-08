@@ -38,6 +38,8 @@
 `numeric_patterns`、`applications` 和 `requirements` 是整层验收清单；只运行 C2C 不能将整层
 标为完成。`scripts/run_test_profile.py` 会执行当前可用的 C2C、实数、数值和应用代理；`stress`
 和 `future-long-fft` 明确禁止直接运行，分别依赖预算化 runner 和新后端。
+长 FFT 的假设、变量、退出条件和空数据合同分别见[目的化实验计划](benchmarks/long-fft-plan.md)
+与[预声明数据表](generated/long-fft-tables.md)；机器清单以 `config/long_fft_experiments.json` 为准。
 
 ```bash
 python3 scripts/run_test_profile.py --list

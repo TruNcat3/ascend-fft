@@ -84,6 +84,7 @@
     "future-long-fft": {
       "id": "future-long-fft",
       "description": "Research acceptance targets only; current single-AIV C2C implementation does not support these lengths.",
+      "experiment_manifest": "config/long_fft_experiments.json",
       "runnable": false,
       "c2c": {"ns": [8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576], "batches": [1, 4, 16], "fixed_total_points": [1048576, 16777216, 67108864]},
       "real": {"r2c_ns": [], "c2r_ns": [], "batches": []},
