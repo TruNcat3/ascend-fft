@@ -1,9 +1,69 @@
 {
- "generated_utc": "2026-10-08T14:33:31.945323+00:00",
- "git_sha": "0fa7fe8190997d2fabba30fd0736ef026e02aed7",
- "git_dirty": true,
+ "generated_utc": "2026-10-09T04:06:53.377150+00:00",
+ "manifest": {
+  "git_sha": "3037f737c9da6687a57f2c9ca6864d4576c77490",
+  "git_dirty": false,
+  "binary": "build/fft_check",
+  "binary_sha256": "f987fe341a103d01bdd2685a62a3994f9b7774a98504eef651cb79d999620d0a",
+  "build": {
+   "script": "bash scripts/build.sh",
+   "recipe": "scripts/env.sh: ab_ccec (ccec -c --cce-aicore-only --npu-soc=$AB_SOC --asc-aicore-lang -O2 -std=c++17 -Iinclude + AB_INC) / ab_cxx (g++ -O2 -std=c++17 -I$AB_CANN/include -Iinclude -lascendcl)"
+  },
+  "soc": "Ascend910_9382",
+  "cann_version": "9.0.0",
+  "driver_version": "unknown",
+  "python": "3.11.15",
+  "env": {},
+  "boundary": "host",
+  "allow_dirty": false
+ },
+ "commands": [
+  {
+   "kind": "aba_seq",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "3"
+   ],
+   "env": [
+    "AB_INPUT_SEQ=impulse,random-seeded,impulse",
+    "AB_E2E=1"
+   ],
+   "reps": 3,
+   "note": "first shape"
+  },
+  {
+   "kind": "trial",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "5"
+   ],
+   "env": [
+    "AB_E2E=5"
+   ],
+   "reps": 5,
+   "note": "repeated per shape"
+  },
+  {
+   "kind": "e2e",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "3"
+   ],
+   "env": [
+    "AB_E2E=3"
+   ],
+   "reps": 3
+  }
+ ],
  "command": "python3 scripts/collect_long_fft_evidence.py",
- "binary": "build/fft_check (AB_INPUT_SEQ A/B/A file inputs)",
+ "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
+ "boundary": "host",
  "threshold": 0.0001,
  "grid": {
   "ns": [
@@ -18,6 +78,7 @@
    47
   ]
  },
+ "trials_per_shape": 5,
  "points": [
   {
    "n": 8192,
@@ -27,24 +88,126 @@
    "max_abs": 0.0007197,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_1.bin",
-     "max_rel": 1.192e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_1.bin",
-     "max_rel": 1.47e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 1.503e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_1.bin",
-     "max_rel": 1.192e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 346.5,
+      "e2e_min_us": 263.0,
+      "scopes": {
+       "plan_setup": 639.5,
+       "first_use": 835.0,
+       "e2e_mean": 262.0,
+       "e2e_min": 245.6,
+       "h2d": 45.5,
+       "device_chain": 19.3,
+       "d2h": 49.1,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 298.2,
+      "e2e_min_us": 274.1,
+      "scopes": {
+       "plan_setup": 572.3,
+       "first_use": 952.6,
+       "e2e_mean": 268.7,
+       "e2e_min": 256.6,
+       "h2d": 45.6,
+       "device_chain": 24.0,
+       "d2h": 52.0,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 285.7,
+      "e2e_min_us": 271.1,
+      "scopes": {
+       "plan_setup": 551.8,
+       "first_use": 903.3,
+       "e2e_mean": 286.8,
+       "e2e_min": 268.2,
+       "h2d": 53.4,
+       "device_chain": 19.1,
+       "d2h": 53.9,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 267.2,
+      "e2e_min_us": 260.4,
+      "scopes": {
+       "plan_setup": 583.5,
+       "first_use": 776.3,
+       "e2e_mean": 261.4,
+       "e2e_min": 259.9,
+       "h2d": 50.5,
+       "device_chain": 34.3,
+       "d2h": 44.8,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 293.6,
+      "e2e_min_us": 266.6,
+      "scopes": {
+       "plan_setup": 565.5,
+       "first_use": 785.8,
+       "e2e_mean": 271.7,
+       "e2e_min": 261.4,
+       "h2d": 52.1,
+       "device_chain": 23.4,
+       "d2h": 46.9,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 293.6,
+     "min": 267.2,
+     "mean": 298.24,
+     "cv": 0.08834758467388823,
+     "samples": [
+      346.5,
+      298.2,
+      285.7,
+      267.2,
+      293.6
+     ]
+    }
+   }
   },
   {
    "n": 8192,
@@ -54,24 +217,126 @@
    "max_abs": 0.0007197,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_3.bin",
-     "max_rel": 1.788e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_3.bin",
-     "max_rel": 1.769e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 1.676e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_3.bin",
-     "max_rel": 1.788e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 455.6,
+      "e2e_min_us": 442.6,
+      "scopes": {
+       "plan_setup": 626.2,
+       "first_use": 1013.3,
+       "e2e_mean": 366.2,
+       "e2e_min": 354.0,
+       "h2d": 54.2,
+       "device_chain": 23.4,
+       "d2h": 57.9,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 389.0,
+      "e2e_min_us": 376.9,
+      "scopes": {
+       "plan_setup": 590.6,
+       "first_use": 913.5,
+       "e2e_mean": 389.8,
+       "e2e_min": 379.3,
+       "h2d": 61.6,
+       "device_chain": 24.4,
+       "d2h": 55.4,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 542.4,
+      "e2e_min_us": 475.7,
+      "scopes": {
+       "plan_setup": 599.2,
+       "first_use": 1083.5,
+       "e2e_mean": 520.8,
+       "e2e_min": 514.8,
+       "h2d": 95.0,
+       "device_chain": 34.0,
+       "d2h": 94.8,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 447.0,
+      "e2e_min_us": 422.4,
+      "scopes": {
+       "plan_setup": 609.9,
+       "first_use": 953.4,
+       "e2e_mean": 397.4,
+       "e2e_min": 387.0,
+       "h2d": 58.0,
+       "device_chain": 19.4,
+       "d2h": 72.0,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 379.2,
+      "e2e_min_us": 365.2,
+      "scopes": {
+       "plan_setup": 672.5,
+       "first_use": 966.7,
+       "e2e_mean": 379.1,
+       "e2e_min": 370.1,
+       "h2d": 61.8,
+       "device_chain": 33.9,
+       "d2h": 63.3,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 447.0,
+     "min": 379.2,
+     "mean": 442.64,
+     "cv": 0.13188966267545088,
+     "samples": [
+      455.6,
+      389.0,
+      542.4,
+      447.0,
+      379.2
+     ]
+    }
+   }
   },
   {
    "n": 8192,
@@ -81,24 +346,126 @@
    "max_abs": 0.0007442,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_47.bin",
+     "input": "impulse",
      "max_rel": 2.384e-07,
-     "pass": true
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_8192_47.bin",
-     "max_rel": 2.155e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 1.716e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_8192_47.bin",
+     "input": "impulse",
      "max_rel": 2.384e-07,
-     "pass": true
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 6191.2,
+      "e2e_min_us": 6036.9,
+      "scopes": {
+       "plan_setup": 7342.3,
+       "first_use": 6252.5,
+       "e2e_mean": 6094.4,
+       "e2e_min": 5892.8,
+       "h2d": 962.6,
+       "device_chain": 156.6,
+       "d2h": 1043.9,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 5920.4,
+      "e2e_min_us": 5863.3,
+      "scopes": {
+       "plan_setup": 8274.3,
+       "first_use": 6169.8,
+       "e2e_mean": 5945.9,
+       "e2e_min": 5727.2,
+       "h2d": 1020.9,
+       "device_chain": 132.8,
+       "d2h": 968.1,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 6017.8,
+      "e2e_min_us": 5869.6,
+      "scopes": {
+       "plan_setup": 7257.9,
+       "first_use": 6241.7,
+       "e2e_mean": 6028.0,
+       "e2e_min": 5873.7,
+       "h2d": 1023.9,
+       "device_chain": 151.9,
+       "d2h": 1013.1,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 6012.8,
+      "e2e_min_us": 5835.8,
+      "scopes": {
+       "plan_setup": 7227.0,
+       "first_use": 6434.3,
+       "e2e_mean": 5899.9,
+       "e2e_min": 5830.6,
+       "h2d": 955.5,
+       "device_chain": 148.2,
+       "d2h": 969.4,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 5451.7,
+      "e2e_min_us": 5207.0,
+      "scopes": {
+       "plan_setup": 7124.1,
+       "first_use": 5677.7,
+       "e2e_mean": 5341.6,
+       "e2e_min": 5217.5,
+       "h2d": 806.1,
+       "device_chain": 148.7,
+       "d2h": 734.7,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 6012.8,
+     "min": 5451.7,
+     "mean": 5918.780000000001,
+     "cv": 0.04213854749569135,
+     "samples": [
+      6191.2,
+      5920.4,
+      6017.8,
+      6012.8,
+      5451.7
+     ]
+    }
+   }
   },
   {
    "n": 16384,
@@ -108,24 +475,126 @@
    "max_abs": 0.001571,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_1.bin",
-     "max_rel": 1.192e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_1.bin",
-     "max_rel": 1.919e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 1.871e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_1.bin",
-     "max_rel": 1.192e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 357.9,
+      "e2e_min_us": 343.3,
+      "scopes": {
+       "plan_setup": 781.4,
+       "first_use": 868.2,
+       "e2e_mean": 341.6,
+       "e2e_min": 331.4,
+       "h2d": 46.6,
+       "device_chain": 37.9,
+       "d2h": 47.1,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 349.9,
+      "e2e_min_us": 342.9,
+      "scopes": {
+       "plan_setup": 763.8,
+       "first_use": 886.2,
+       "e2e_mean": 372.3,
+       "e2e_min": 356.5,
+       "h2d": 57.5,
+       "device_chain": 19.7,
+       "d2h": 57.6,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 353.2,
+      "e2e_min_us": 343.8,
+      "scopes": {
+       "plan_setup": 767.6,
+       "first_use": 884.7,
+       "e2e_mean": 344.5,
+       "e2e_min": 339.8,
+       "h2d": 48.2,
+       "device_chain": 24.9,
+       "d2h": 55.7,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 346.8,
+      "e2e_min_us": 334.7,
+      "scopes": {
+       "plan_setup": 759.1,
+       "first_use": 877.9,
+       "e2e_mean": 344.1,
+       "e2e_min": 340.3,
+       "h2d": 54.0,
+       "device_chain": 24.1,
+       "d2h": 55.7,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 362.3,
+      "e2e_min_us": 352.5,
+      "scopes": {
+       "plan_setup": 763.4,
+       "first_use": 888.7,
+       "e2e_mean": 379.6,
+       "e2e_min": 376.8,
+       "h2d": 58.1,
+       "device_chain": 19.8,
+       "d2h": 64.7,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 353.2,
+     "min": 346.8,
+     "mean": 354.02,
+     "cv": 0.015645263877662314,
+     "samples": [
+      357.9,
+      349.9,
+      353.2,
+      346.8,
+      362.3
+     ]
+    }
+   }
   },
   {
    "n": 16384,
@@ -135,24 +604,126 @@
    "max_abs": 0.001571,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_3.bin",
-     "max_rel": 1.788e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_3.bin",
-     "max_rel": 2.077e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 1.871e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_3.bin",
-     "max_rel": 1.788e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 679.3,
+      "e2e_min_us": 651.1,
+      "scopes": {
+       "plan_setup": 1042.8,
+       "first_use": 1237.7,
+       "e2e_mean": 982.5,
+       "e2e_min": 813.2,
+       "h2d": 95.2,
+       "device_chain": 53.8,
+       "d2h": 119.3,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 938.8,
+      "e2e_min_us": 865.8,
+      "scopes": {
+       "plan_setup": 1109.2,
+       "first_use": 1703.6,
+       "e2e_mean": 889.2,
+       "e2e_min": 831.6,
+       "h2d": 102.9,
+       "device_chain": 53.9,
+       "d2h": 135.5,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 950.5,
+      "e2e_min_us": 870.3,
+      "scopes": {
+       "plan_setup": 1538.9,
+       "first_use": 1743.4,
+       "e2e_mean": 840.7,
+       "e2e_min": 824.4,
+       "h2d": 104.4,
+       "device_chain": 43.3,
+       "d2h": 133.6,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 814.5,
+      "e2e_min_us": 791.9,
+      "scopes": {
+       "plan_setup": 1284.7,
+       "first_use": 1515.9,
+       "e2e_mean": 802.3,
+       "e2e_min": 798.6,
+       "h2d": 93.0,
+       "device_chain": 54.5,
+       "d2h": 129.0,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 704.7,
+      "e2e_min_us": 685.0,
+      "scopes": {
+       "plan_setup": 977.7,
+       "first_use": 1153.0,
+       "e2e_mean": 950.5,
+       "e2e_min": 672.9,
+       "h2d": 89.0,
+       "device_chain": 40.1,
+       "d2h": 86.8,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 814.5,
+     "min": 679.3,
+     "mean": 817.5600000000001,
+     "cv": 0.13863739478499237,
+     "samples": [
+      679.3,
+      938.8,
+      950.5,
+      814.5,
+      704.7
+     ]
+    }
+   }
   },
   {
    "n": 16384,
@@ -162,24 +733,126 @@
    "max_abs": 0.001989,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_47.bin",
-     "max_rel": 2.384e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_16384_47.bin",
-     "max_rel": 2.215e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 1.961e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_16384_47.bin",
-     "max_rel": 2.384e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 13224.1,
+      "e2e_min_us": 12994.3,
+      "scopes": {
+       "plan_setup": 12810.7,
+       "first_use": 13540.4,
+       "e2e_mean": 13295.5,
+       "e2e_min": 13009.3,
+       "h2d": 2223.8,
+       "device_chain": 217.4,
+       "d2h": 1884.7,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 13174.6,
+      "e2e_min_us": 12795.3,
+      "scopes": {
+       "plan_setup": 12372.5,
+       "first_use": 13163.4,
+       "e2e_mean": 13114.4,
+       "e2e_min": 12815.3,
+       "h2d": 1813.5,
+       "device_chain": 206.5,
+       "d2h": 1834.1,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 13999.4,
+      "e2e_min_us": 13230.4,
+      "scopes": {
+       "plan_setup": 18723.7,
+       "first_use": 13260.9,
+       "e2e_mean": 13460.9,
+       "e2e_min": 13117.4,
+       "h2d": 1569.8,
+       "device_chain": 213.1,
+       "d2h": 1748.8,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 13104.0,
+      "e2e_min_us": 12762.0,
+      "scopes": {
+       "plan_setup": 12593.7,
+       "first_use": 13164.7,
+       "e2e_mean": 13164.5,
+       "e2e_min": 12814.0,
+       "h2d": 1948.0,
+       "device_chain": 206.3,
+       "d2h": 1944.6,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 12996.2,
+      "e2e_min_us": 12873.0,
+      "scopes": {
+       "plan_setup": 18725.3,
+       "first_use": 13485.5,
+       "e2e_mean": 12969.8,
+       "e2e_min": 12652.1,
+       "h2d": 1792.3,
+       "device_chain": 209.0,
+       "d2h": 1866.3,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 13174.6,
+     "min": 12996.2,
+     "mean": 13299.66,
+     "cv": 0.026929240520787025,
+     "samples": [
+      13224.1,
+      13174.6,
+      13999.4,
+      13104.0,
+      12996.2
+     ]
+    }
+   }
   },
   {
    "n": 32768,
@@ -189,24 +862,126 @@
    "max_abs": 0.001029,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_1.bin",
-     "max_rel": 1.192e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_1.bin",
-     "max_rel": 2.122e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 9.919e-08,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_1.bin",
-     "max_rel": 1.192e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 540.1,
+      "e2e_min_us": 513.7,
+      "scopes": {
+       "plan_setup": 1095.4,
+       "first_use": 1047.7,
+       "e2e_mean": 536.4,
+       "e2e_min": 508.1,
+       "h2d": 67.1,
+       "device_chain": 25.2,
+       "d2h": 75.0,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 705.6,
+      "e2e_min_us": 648.6,
+      "scopes": {
+       "plan_setup": 1160.7,
+       "first_use": 1238.9,
+       "e2e_mean": 656.3,
+       "e2e_min": 644.7,
+       "h2d": 92.1,
+       "device_chain": 48.7,
+       "d2h": 108.1,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 731.6,
+      "e2e_min_us": 702.1,
+      "scopes": {
+       "plan_setup": 1338.9,
+       "first_use": 1353.3,
+       "e2e_mean": 685.6,
+       "e2e_min": 668.0,
+       "h2d": 93.3,
+       "device_chain": 45.2,
+       "d2h": 110.0,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 666.9,
+      "e2e_min_us": 650.8,
+      "scopes": {
+       "plan_setup": 1400.7,
+       "first_use": 1352.1,
+       "e2e_mean": 656.2,
+       "e2e_min": 640.8,
+       "h2d": 88.1,
+       "device_chain": 45.9,
+       "d2h": 105.8,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 669.8,
+      "e2e_min_us": 631.5,
+      "scopes": {
+       "plan_setup": 1219.1,
+       "first_use": 1292.6,
+       "e2e_mean": 658.0,
+       "e2e_min": 637.8,
+       "h2d": 90.6,
+       "device_chain": 36.9,
+       "d2h": 106.6,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 669.8,
+     "min": 540.1,
+     "mean": 662.8,
+     "cv": 0.09936330530310333,
+     "samples": [
+      540.1,
+      705.6,
+      731.6,
+      666.9,
+      669.8
+     ]
+    }
+   }
   },
   {
    "n": 32768,
@@ -216,24 +991,126 @@
    "max_abs": 0.001545,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_3.bin",
-     "max_rel": 1.788e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_3.bin",
-     "max_rel": 1.905e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 2.041e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_3.bin",
-     "max_rel": 1.788e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 1467.3,
+      "e2e_min_us": 1218.7,
+      "scopes": {
+       "plan_setup": 5759.4,
+       "first_use": 1849.7,
+       "e2e_mean": 1408.9,
+       "e2e_min": 1270.8,
+       "h2d": 137.6,
+       "device_chain": 59.9,
+       "d2h": 162.2,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 1100.8,
+      "e2e_min_us": 1047.9,
+      "scopes": {
+       "plan_setup": 2563.8,
+       "first_use": 1793.6,
+       "e2e_mean": 1054.7,
+       "e2e_min": 1048.9,
+       "h2d": 102.1,
+       "device_chain": 45.2,
+       "d2h": 107.9,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 1045.7,
+      "e2e_min_us": 1033.8,
+      "scopes": {
+       "plan_setup": 2515.6,
+       "first_use": 1604.3,
+       "e2e_mean": 1034.6,
+       "e2e_min": 1021.3,
+       "h2d": 107.5,
+       "device_chain": 29.7,
+       "d2h": 111.2,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 1517.0,
+      "e2e_min_us": 1295.5,
+      "scopes": {
+       "plan_setup": 2733.0,
+       "first_use": 2238.9,
+       "e2e_mean": 1282.8,
+       "e2e_min": 1257.9,
+       "h2d": 135.4,
+       "device_chain": 57.3,
+       "d2h": 182.1,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 1351.9,
+      "e2e_min_us": 1280.0,
+      "scopes": {
+       "plan_setup": 2347.1,
+       "first_use": 2206.1,
+       "e2e_mean": 1300.5,
+       "e2e_min": 1286.8,
+       "h2d": 149.9,
+       "device_chain": 61.2,
+       "d2h": 185.9,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 1351.9,
+     "min": 1045.7,
+     "mean": 1296.54,
+     "cv": 0.1471762540528625,
+     "samples": [
+      1467.3,
+      1100.8,
+      1045.7,
+      1517.0,
+      1351.9
+     ]
+    }
+   }
   },
   {
    "n": 32768,
@@ -243,24 +1120,126 @@
    "max_abs": 0.002785,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_47.bin",
-     "max_rel": 2.384e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_32768_47.bin",
-     "max_rel": 2.38e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 2.214e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_32768_47.bin",
-     "max_rel": 2.384e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 24862.4,
+      "e2e_min_us": 24163.5,
+      "scopes": {
+       "plan_setup": 24246.6,
+       "first_use": 24676.8,
+       "e2e_mean": 24645.8,
+       "e2e_min": 24164.4,
+       "h2d": 3243.7,
+       "device_chain": 342.4,
+       "d2h": 3276.6,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 25049.0,
+      "e2e_min_us": 24698.1,
+      "scopes": {
+       "plan_setup": 24757.7,
+       "first_use": 25378.6,
+       "e2e_mean": 24772.8,
+       "e2e_min": 24060.5,
+       "h2d": 3391.6,
+       "device_chain": 347.7,
+       "d2h": 3184.0,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 24470.8,
+      "e2e_min_us": 24034.3,
+      "scopes": {
+       "plan_setup": 24319.1,
+       "first_use": 25546.8,
+       "e2e_mean": 24505.4,
+       "e2e_min": 23899.5,
+       "h2d": 3383.1,
+       "device_chain": 344.4,
+       "d2h": 3203.2,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 24362.9,
+      "e2e_min_us": 23975.9,
+      "scopes": {
+       "plan_setup": 24054.5,
+       "first_use": 24247.1,
+       "e2e_mean": 24785.4,
+       "e2e_min": 24336.2,
+       "h2d": 3585.7,
+       "device_chain": 330.0,
+       "d2h": 3274.4,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 24562.1,
+      "e2e_min_us": 23861.8,
+      "scopes": {
+       "plan_setup": 23206.5,
+       "first_use": 24058.5,
+       "e2e_mean": 24590.0,
+       "e2e_min": 24086.3,
+       "h2d": 3299.8,
+       "device_chain": 344.5,
+       "d2h": 3284.9,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 24562.1,
+     "min": 24362.9,
+     "mean": 24661.44,
+     "cv": 0.010352755818264135,
+     "samples": [
+      24862.4,
+      25049.0,
+      24470.8,
+      24362.9,
+      24562.1
+     ]
+    }
+   }
   },
   {
    "n": 65536,
@@ -270,24 +1249,126 @@
    "max_abs": 0.002003,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_1.bin",
-     "max_rel": 1.192e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_1.bin",
-     "max_rel": 3.018e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 1.271e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_1.bin",
-     "max_rel": 1.192e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 903.7,
+      "e2e_min_us": 891.9,
+      "scopes": {
+       "plan_setup": 2012.2,
+       "first_use": 1445.9,
+       "e2e_mean": 892.9,
+       "e2e_min": 877.3,
+       "h2d": 96.0,
+       "device_chain": 49.5,
+       "d2h": 121.7,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 813.8,
+      "e2e_min_us": 794.8,
+      "scopes": {
+       "plan_setup": 1939.6,
+       "first_use": 1331.9,
+       "e2e_mean": 803.6,
+       "e2e_min": 794.4,
+       "h2d": 89.1,
+       "device_chain": 34.5,
+       "d2h": 94.8,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 809.0,
+      "e2e_min_us": 795.8,
+      "scopes": {
+       "plan_setup": 1949.0,
+       "first_use": 1352.0,
+       "e2e_mean": 789.8,
+       "e2e_min": 780.5,
+       "h2d": 81.5,
+       "device_chain": 36.3,
+       "d2h": 92.2,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 1022.2,
+      "e2e_min_us": 795.1,
+      "scopes": {
+       "plan_setup": 1961.1,
+       "first_use": 1353.2,
+       "e2e_mean": 1002.9,
+       "e2e_min": 975.1,
+       "h2d": 110.2,
+       "device_chain": 44.9,
+       "d2h": 151.0,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 815.3,
+      "e2e_min_us": 793.5,
+      "scopes": {
+       "plan_setup": 1929.9,
+       "first_use": 1365.2,
+       "e2e_mean": 801.2,
+       "e2e_min": 780.1,
+       "h2d": 85.2,
+       "device_chain": 33.5,
+       "d2h": 94.4,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 815.3,
+     "min": 809.0,
+     "mean": 872.8,
+     "cv": 0.09466438111631405,
+     "samples": [
+      903.7,
+      813.8,
+      809.0,
+      1022.2,
+      815.3
+     ]
+    }
+   }
   },
   {
    "n": 65536,
@@ -297,24 +1378,126 @@
    "max_abs": 0.003516,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_3.bin",
-     "max_rel": 1.788e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_3.bin",
-     "max_rel": 3.246e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 1.334e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_3.bin",
-     "max_rel": 1.788e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 2380.2,
+      "e2e_min_us": 2211.2,
+      "scopes": {
+       "plan_setup": 4113.8,
+       "first_use": 2908.0,
+       "e2e_mean": 2260.3,
+       "e2e_min": 2210.7,
+       "h2d": 203.6,
+       "device_chain": 81.1,
+       "d2h": 273.3,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 2181.5,
+      "e2e_min_us": 2165.4,
+      "scopes": {
+       "plan_setup": 4121.3,
+       "first_use": 2826.9,
+       "e2e_mean": 2163.6,
+       "e2e_min": 2143.9,
+       "h2d": 193.7,
+       "device_chain": 67.6,
+       "d2h": 280.0,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 2244.9,
+      "e2e_min_us": 2215.7,
+      "scopes": {
+       "plan_setup": 4309.8,
+       "first_use": 3030.7,
+       "e2e_mean": 2245.7,
+       "e2e_min": 2197.3,
+       "h2d": 198.9,
+       "device_chain": 74.3,
+       "d2h": 292.9,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 1831.0,
+      "e2e_min_us": 1788.1,
+      "scopes": {
+       "plan_setup": 3977.1,
+       "first_use": 2451.4,
+       "e2e_mean": 1820.3,
+       "e2e_min": 1815.7,
+       "h2d": 152.3,
+       "device_chain": 63.6,
+       "d2h": 155.5,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 1868.1,
+      "e2e_min_us": 1827.3,
+      "scopes": {
+       "plan_setup": 10214.6,
+       "first_use": 2475.6,
+       "e2e_mean": 1829.2,
+       "e2e_min": 1805.4,
+       "h2d": 152.6,
+       "device_chain": 61.9,
+       "d2h": 149.2,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 2181.5,
+     "min": 1831.0,
+     "mean": 2101.1400000000003,
+     "cv": 0.10258129343618495,
+     "samples": [
+      2380.2,
+      2181.5,
+      2244.9,
+      1831.0,
+      1868.1
+     ]
+    }
+   }
   },
   {
    "n": 65536,
@@ -324,24 +1507,126 @@
    "max_abs": 0.00558,
    "seq": [
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_47.bin",
-     "max_rel": 2.384e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/B_65536_47.bin",
-     "max_rel": 3.185e-07,
-     "pass": true
+     "input": "random-seeded",
+     "max_rel": 2.335e-07,
+     "pass": true,
+     "stale": false
     },
     {
-     "input": "/tmp/lfft-evi-d76cfb3h/A_65536_47.bin",
-     "max_rel": 2.384e-07,
-     "pass": true
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
     }
    ],
    "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
    "pass": true,
-   "e2e_transfers": ""
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 44407.6,
+      "e2e_min_us": 43126.4,
+      "scopes": {
+       "plan_setup": 47401.3,
+       "first_use": 43381.9,
+       "e2e_mean": 46757.4,
+       "e2e_min": 43799.4,
+       "h2d": 5944.4,
+       "device_chain": 534.8,
+       "d2h": 6256.4,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 31627.3,
+      "e2e_min_us": 30892.3,
+      "scopes": {
+       "plan_setup": 43620.0,
+       "first_use": 31755.5,
+       "e2e_mean": 35279.4,
+       "e2e_min": 33840.0,
+       "h2d": 3653.1,
+       "device_chain": 560.6,
+       "d2h": 2821.2,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 48065.1,
+      "e2e_min_us": 47355.1,
+      "scopes": {
+       "plan_setup": 49117.2,
+       "first_use": 46299.2,
+       "e2e_mean": 50648.0,
+       "e2e_min": 46616.9,
+       "h2d": 5690.5,
+       "device_chain": 560.7,
+       "d2h": 5863.1,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 44994.5,
+      "e2e_min_us": 43688.4,
+      "scopes": {
+       "plan_setup": 45370.8,
+       "first_use": 44618.5,
+       "e2e_mean": 48265.7,
+       "e2e_min": 45074.6,
+       "h2d": 6139.0,
+       "device_chain": 539.2,
+       "d2h": 5714.5,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     },
+     {
+      "e2e_us": 43947.8,
+      "e2e_min_us": 42952.7,
+      "scopes": {
+       "plan_setup": 47637.3,
+       "first_use": 41888.2,
+       "e2e_mean": 82427.7,
+       "e2e_min": 48806.2,
+       "h2d": 4430.5,
+       "device_chain": 553.6,
+       "d2h": 5697.3,
+       "reps": 5
+      },
+      "segments": null,
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 44407.6,
+     "min": 31627.3,
+     "mean": 42608.46,
+     "cv": 0.1332129147831471,
+     "samples": [
+      44407.6,
+      31627.3,
+      48065.1,
+      44994.5,
+      43947.8
+     ]
+    }
+   }
   }
  ],
  "short_control": {
@@ -354,27 +1639,32 @@
    {
     "input": "impulse",
     "max_rel": 0.0,
-    "pass": true
+    "pass": true,
+    "stale": false
    },
    {
     "input": "random-seeded",
     "max_rel": 1.414e-07,
-    "pass": true
+    "pass": true,
+    "stale": false
    },
    {
     "input": "impulse",
     "max_rel": 0.0,
-    "pass": true
+    "pass": true,
+    "stale": false
    }
   ],
   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+  "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
   "pass": true,
   "path": "short"
  },
  "e2e_transfers": {
   "rc": 0,
   "transfers": "E2E transfers: in=1 out=1 boundary=2 per_execution",
-  "line": "E2E n=8192 batch=1 reps=3 e2e_us=225.7 e2e_min_us=221.3 first_us=222.4 boot_us=687436.2 plan_us=561.6 warmup_us=720.1 mode=async host=chain input=sin"
+  "line": "E2E n=8192 batch=1 reps=3 e2e_us=302.3 e2e_min_us=299.2 first_us=303.5 boot_us=650724.0 plan_us=611.4 warmup_us=838.2 mode=async host=chain input=sin"
  },
+ "problems": [],
  "status": "pass"
 }

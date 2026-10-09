@@ -32,6 +32,30 @@ UB 估算或修改测试参数宣称支持。
 
 ### G0/G1 落地记录（2026-10-08，Ascend910_9382）
 
+- 描述符层（addendum step 2，PR #2 阶段 2）：`include/butterfly/descriptors.hpp` 按
+  G/A/P/L/H 分层（`TransformSpec`/`ArchitectureMapping` 含四维展开 `Us,Ts,Ud,Td`+角色+
+  驻留+边界归宿、`ProcessingUnitCapability`（首个单元 = 现有 `kfft_fwd` 行 FFT）、
+  `LoweringResult`、`HardwareProfile` 与 `config/ascend910_93_profile.json` 同步）。
+  长路径在任何分配/启动之前调用 `query_lowering()`；判定分两级——`abstract_feasible`
+  （资源/合法性可行）与 `supported`（仓库中存在可执行 lowering，选择层只可选后者）。
+  未被 runtime 消费的 `Us/Ts/Ud/Td/pipeline_buffers/role_stages/residence` 组合返回
+  `abstract-feasible-but-not-lowered: ...`，绝不标记为可执行。可执行结果携带真实
+  launch manifest（`LaunchRecord` 类型/stage/boundary），`visible_launches`、
+  `materialized_gm_boundaries`、`host_assisted` 全部由 manifest 派生：host 边界
+  = 2×`row_fft`，device 边界 = `transpose_in|row_fft|twiddle|transpose_boundary|
+  row_fft|transpose_out` 共 6 次，两者的 GM 物化段边界均为 1（`AB_DESC=1` 打印
+  launches/gm_boundaries/host_assisted/abstract/kinds）。合法性测试：
+  UB 资源模型按物理内核分别描述（`row_fft_resource`/`transpose_resource`/
+  `twiddle_resource`：峰值字节、AIV 核类、同步范围、形状约束），串行计划取各
+  内核峰值的最大值而非相加；公式经 `include/butterfly/long_fft_ub.h` 与
+  `src/ascendc/fft_long.cpp`/`fft_radix2.cpp` 共享（转置 3×128×32×8=98304 B、
+  点乘 24n、行 FFT 46.5n+128），按 manifest 发射序逐一校验——UB<98304 的
+  DeviceGM 降级被拒并指名 `kfft_lt_tr`，同行主链（仅行 FFT）可继续通过。
+  合法性测试：`tests/test_descriptors.cpp` 自测表 + `tests/test_descriptors.py`
+  （纯 g++ 编译、26 个用例、profile 同步、查询先于分配的源码顺序断言、
+  manifest/UB 边界回归），`make desc` 一键运行。
+  短 FFT 结果不变：验收采集器重跑 12/12 PASS、E2E transfers 契约不变。
+
 - 实现：`src/host/fft_check.cpp` 长路径。G0 在执行前拒绝超 envelope（`N>65536`）、
   非法因子分解、`batch*2n` uint32 goff 越界与 `>40 GiB` GM 预算，并打印拒绝原因；
   G1 分段 `N=N1×N2`（两因子均在 `64..4096`，从 sqrt 附近取平衡拆分），行 FFT 复用
@@ -43,12 +67,59 @@ UB 估算或修改测试参数宣称支持。
   （`N=131072`、`GM=48 GiB`、非二次幂）按预期带原因返回。复现：
   `./build/fft_check <N> <B> 3`（`AB_INPUT=` 切换输入模式）。
 - 动态输入（P1-A）：plan 状态只保留输入无关数据，`hT` 每次执行由当前 `hIn` 重建，
-  结果留在宿主 `hOut`；G1 全包络 12/12 点 A/B/A 文件序列（一次 plan，输入内容变化）
+  结果留在宿主 `hOut`；G1 全包络 12/12 点 A/B/A 输入序列
+  （`impulse,random-seeded,impulse` 命名输入，一次 plan 换入内容变化）
   无重建重执行、无 STALE-OUTPUT，E2E 每次执行恰 1 次逻辑输入 + 1 次输出
   （`boundary=2` 计段边界传输）。机器可读证据：
   `results/evidence/long-fft-acceptance/acceptance.json`（`scripts/collect_long_fft_evidence.py`）。
+- 段边界 device 化（addendum step 3）：`AB_BOUNDARY=device` 时段边界全程在设备上
+  物化，不经宿主内存——`src/ascendc/fft_long.cpp` 的 `kfft_lt_tr`（`DataCopyParams`
+  列切片 strided 读 + UB 源 Gather 分块转置、dst 行段连续写回）完成转置入/段间转置/
+  自然序写出，`kfft_lt_tw` 原地行连续点乘完成 `W_N^{j·k1}` 段边界；wT 表 plan 期上传
+  （输入无关），每次执行仍从当前 `hIn` 上传（动态输入契约）。E2E 每次执行
+  `in=1 out=1 boundary=0`（段边界不回宿主），同一网格 A/B/A 12/12 点 PASS，机器可读
+  证据 `results/evidence/long-fft-device-boundary/acceptance.json`
+  （`scripts/collect_long_fft_evidence.py --boundary device`）。默认（不设
+  `AB_BOUNDARY`）保持宿主中介链，逐点 `boundary=2` 契约锁定、行为与已发布结果一致
+  （宿主证据同采集器重跑 12/12）。`AB_DESC=1` 在 device 模式如实报告
+  `boundary_home=DeviceGM`：`gm_boundaries=1`（两段间一个 GM 物化边界）+
+  `host_assisted=0`。性能数字不手写：每个形状 5 次独立 trial 的原始样本归档在
+  两份 `acceptance.json`（`manifest` 含 clean git sha、二进制 sha256、构建配方、
+  CANN/SoC/driver 与环境），median/min/mean/CV 由
+  `python3 scripts/summarize_long_fft_evidence.py` 复算生成
+  [验收证据表](../generated/long-fft-evidence.md) 与
+  `results/evidence/long-fft-summary.json`，`--check` 可校验漂移。同表给出两链
+  median 端到端对照：设备段边界链在 12 个形状中的 11 个显著降低端到端时间
+  （最高约 3.4×），`8192/B=1` 与宿主链相当（固定开销占比高）。
 - 未完成：E01..E08 全量采集、G2 可搜索映射、G3（`131072..1048576`）、逆向/2D；
   这些完成前 `future-long-fft` 档案仍拒绝运行，也不进入发布均值。
+
+#### 计时字段（`scopes:` 行）与同步边界
+
+| 字段 | 含义 | 同步边界 | 适用 |
+|---|---|---|---|
+| `plan_setup` | 一次性准备（旋转因子/索引生成、分配、二进制加载）墙钟 | 首次执行 warmup 之前截断 | 全部 |
+| `first_use` | 首次执行墙钟（含冷启动上传/内核首发射） | 单次 launch 的外墙钟 | 全部 |
+| `host_end_to_end mean/min` | 每次执行的同步墙钟：宿主段、段间拷贝、传输与同步全含 | `launch()` 进入到流同步后返回 | 全部 |
+| `h2d` | 逻辑输入 H2D 的事件跨度 | `evIn..ev0`：输入上传入队到首个计算内核之前 | 仅长链，否则 `NA` |
+| `device_chain` | 链上 device 计算内核的事件跨度，**不含任何传输** | `ev0..ev1`：device 边界 = 3×转置 + 2×FFT + 1×点乘的连续跨度；host 边界 = pass1+pass2 两次 FFT 跨度之和（段间传输/宿主段只在墙钟里） | 全部 |
+| `d2h` | 逻辑输出 D2H 的事件跨度 | `ev1..evOut`；host 边界为 pass2 出数那次（宿主重排在其后，属宿主段） | 仅长链，否则 `NA` |
+| `reps` | 采样次数（事件跨度与墙钟取同一迭代集合的最小值/均值） | — | 全部 |
+| `segments:` 行 | 六段分解：`transpose_in / fft1 / twiddle / transpose_boundary / fft2 / transpose_out` | 六对相邻内核事件跨度，与产生 `device_chain` 最小值的同一次 launch 绑定；`sum(segments) == device_chain`（telescope 恒等） | 仅 device 边界长链，否则 `segments: NA` |
+
+宿主边界与设备边界使用同名同语义字段，不适用的范围显式打印 `NA`；恒有
+`host_end_to_end ≥ h2d + device_chain + d2h`（逐次成立，允许时钟域与调度噪声）。
+字段名、NA 规则与预算不等式由 `scripts/scopes.py` + `tests/test_scopes.py` 解析测试锁定，
+防止后续把传输重新计入 device kernel 时间。P0 六段分解（PR #2 性能评论阶段 2）进一步锁定
+`segments:` 行的存在性、六段之和与 `device_chain` 的 telescope 恒等与逐段非负；原始样本随
+evidence trial 归档，逐 kernel 侧写用 `scripts/profile_test.sh --only lfft8k1,lfft16k47,
+lfft32k47,lfft65k47`（msprof `--task-time`），同尺寸 torch_npu 基线用
+`scripts/bench_long_baseline.py`（device-only 与 E2E 两口径，12/12 基线 PASS，
+对照表见 [长 FFT 同尺寸基线](../generated/long-fft-baseline.md)）。P0 分段归因
+（5-trial 中位数）已入归档：`8192×1` 的 chain 中 3 次转置占约 86%（固定成本
+主导）；batch=47 形状的独立 twiddle 段占约 21%~31%，是 P1 融合消融的首选目标。
+E2E 对照须与 device-only 分列解读：自研长链 E2E 目前从 `std::vector` 发起
+（pinned 分配仅覆盖短路径），传输为 pageable 口径，差距包含此项。
 
 每个实验固定 SoC、CANN、构建、FP32、前向 1D C2C、稠密交错输入和自然序输出；其他语义
 使用独立结果集。设备计时、同步 host 端到端、Plan 创建和首次执行分别报告。
