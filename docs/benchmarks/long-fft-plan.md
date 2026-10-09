@@ -67,7 +67,8 @@ UB 估算或修改测试参数宣称支持。
   （`N=131072`、`GM=48 GiB`、非二次幂）按预期带原因返回。复现：
   `./build/fft_check <N> <B> 3`（`AB_INPUT=` 切换输入模式）。
 - 动态输入（P1-A）：plan 状态只保留输入无关数据，`hT` 每次执行由当前 `hIn` 重建，
-  结果留在宿主 `hOut`；G1 全包络 12/12 点 A/B/A 文件序列（一次 plan，输入内容变化）
+  结果留在宿主 `hOut`；G1 全包络 12/12 点 A/B/A 输入序列
+  （`impulse,random-seeded,impulse` 命名输入，一次 plan 换入内容变化）
   无重建重执行、无 STALE-OUTPUT，E2E 每次执行恰 1 次逻辑输入 + 1 次输出
   （`boundary=2` 计段边界传输）。机器可读证据：
   `results/evidence/long-fft-acceptance/acceptance.json`（`scripts/collect_long_fft_evidence.py`）。
@@ -87,7 +88,9 @@ UB 估算或修改测试参数宣称支持。
   CANN/SoC/driver 与环境），median/min/mean/CV 由
   `python3 scripts/summarize_long_fft_evidence.py` 复算生成
   [验收证据表](../generated/long-fft-evidence.md) 与
-  `results/evidence/long-fft-summary.json`，`--check` 可校验漂移。
+  `results/evidence/long-fft-summary.json`，`--check` 可校验漂移。同表给出两链
+  median 端到端对照：设备段边界链在 12 个形状中的 11 个显著降低端到端时间
+  （最高约 3.4×），`8192/B=1` 与宿主链相当（固定开销占比高）。
 - 未完成：E01..E08 全量采集、G2 可搜索映射、G3（`131072..1048576`）、逆向/2D；
   这些完成前 `future-long-fft` 档案仍拒绝运行，也不进入发布均值。
 

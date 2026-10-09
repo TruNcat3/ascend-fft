@@ -131,7 +131,8 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   单独运行 30/30 PASS，OOM 异常文本与失败前已分配字节（64 GiB）入档且恢复确认。
   证据归档 `results/evidence/stress-default-30/` 与 `results/evidence/stress-oomprobe-30/`。
   P1-A：长 FFT 动态输入契约通过——G1 全包络 12/12 点（N=8192..65536 × B=1/3/47）
-  A/B/A 文件序列无重建重执行、无 STALE，E2E 每次执行恰 1 次逻辑输入 + 1 次输出
+  A/B/A 输入序列（`impulse,random-seeded,impulse` 命名输入）无重建重执行、无
+  STALE，E2E 每次执行恰 1 次逻辑输入 + 1 次输出
   （`E2E transfers: in=1 out=1 boundary=2`，逐点断言），证据归档
   `results/evidence/long-fft-acceptance/`。addendum step 3 的段边界 device 化
   （`AB_BOUNDARY=device`，`src/ascendc/fft_long.cpp` strided 转置 + 原地点乘）
