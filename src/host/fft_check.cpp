@@ -247,6 +247,18 @@ int main(int argc, char** argv){
     // 行为与已发布结果逐字节一致；device 链的 E2E boundary 计数为 0。
     const bool devBoundary = isLong &&
         getenv("AB_BOUNDARY") && !strcmp(getenv("AB_BOUNDARY"), "device");
+    // R0.1：AB_FOLD_D/AB_PLANE_K 只解析一次，descriptor 门禁（query_lowering 的
+    // mapping）与 launch 打包（prepPass）复用同一组 override —— 两处经
+    // butterfly::resolve_row_fft 得到的 (D,K) 恒同，UB 与实参不漂移。
+    uint32_t ovFoldD=0, ovPlaneK=0;
+    if (const char* e = getenv("AB_FOLD_D")) {
+        int v = atoi(e);
+        if (v >= 1) ovFoldD = (uint32_t)v;
+    }
+    if (const char* e = getenv("AB_PLANE_K")) {
+        int v = atoi(e);
+        if (v == 8 || v == 16 || v == 32) ovPlaneK = (uint32_t)v;
+    }
     if(isLong){
         if(n>65536){
             printf("c2c long backend envelope is 8192..65536 (G3 larger lengths pending)\n");
@@ -280,6 +292,8 @@ int main(int argc, char** argv){
             const auto& hw = butterfly::builtin_hardware_profile();
             auto mapping = butterfly::default_long_mapping(longN1, longN2, hw);
             if(devBoundary) mapping.boundary_home = butterfly::BoundaryHome::DeviceGM;
+            mapping.row_fft_fold_d  = ovFoldD;
+            mapping.row_fft_plane_k = ovPlaneK;
             butterfly::TransformSpec spec{n, batch, butterfly::Precision::FP32,
                                           butterfly::Direction::C2C_FWD};
             const auto lowered = butterfly::query_lowering(spec, mapping,
@@ -394,24 +408,20 @@ int main(int argc, char** argv){
         }
         if(off!=P.twPad) printf("WARN: twiddle slots %u != twPad %u\n", off, P.twPad);
         // 三张索引合成一个 (4n + 2nD) 的 GM 张量：[idxB(n) | idxT(n) | idxOut(2nD)]，单位字节。
-        // foldD：默认取 bfly::foldDFor(len, rows, 48)，与 launch 的 blocks=min(48,rows)
-        //   同口径，也与 src/framework/butterfly.cpp::Plan::prepare 同一规则（那边 nblk=cand.udCore）。
-        //   AB_FOLD_D=<k> 可强制指定，仅供 A/B —— 核内 tmpF/idx 按传入值现算，任意 k>=1
-        //   都功能正确；k>1 而 rows=len/K>64 时核内 plane 段按 64 元素行切片（不变错）。
-        uint32_t foldD = bfly::foldDFor(len, rows, 48u);
-        if (const char* e = getenv("AB_FOLD_D")) {
-            int v = atoi(e);
-            if (v >= 1) foldD = (uint32_t)v;
-        }
-        const uint32_t D = foldD ? foldD : 1u;
-        // AB_PLANE_K=<8|16|32> 覆盖平面 K（索引生成 + 打包进第 8 参高 8 位）。K 不能 < 8
-        // （planar 首级 h=K<8 时 32B 对齐失效，AIV 抛 507035），这正是 planeKFor 候选集从
-        // 8 起跳的原因。只对当前 8 参内核有效（遗留 v1/v2 不读第 8 参）。
-        uint32_t planeK = bfly::planeKFor(len);
-        if (const char* e = getenv("AB_PLANE_K")) {
-            int v = atoi(e);
-            if (v == 8 || v == 16 || v == 32) planeK = (uint32_t)v;
-        }
+        // (D,K) 解析收口到 butterfly::resolve_row_fft：与 descriptor 门禁
+        // （query_lowering -> row_fft_resource）同一函数、同一 (len,rows,override)，
+        // 因此 descriptor 报告的 UB 就是本段发射实际占用的上界（R0.1）。
+        //   AB_FOLD_D=<k> 可强制指定，仅供 A/B —— 核内 tmpF/idx 按传入值现算，
+        //   任意 k>=1 都功能正确；k>1 而 rows=len/K>64 时核内 plane 段按 64 元素
+        //   行切片（不变错）。AB_PLANE_K=<8|16|32> 覆盖平面 K（索引生成 + 打包进
+        //   第 8 参高 8 位）。K 不能 < 8（planar 首级 h=K<8 时 32B 对齐失效，
+        //   AIV 抛 507035），这正是 planeKFor 候选集从 8 起跳的原因。只对当前
+        //   8 参内核有效（遗留 v1/v2 不读第 8 参）。
+        const butterfly::RowFftPlan rf =
+            butterfly::resolve_row_fft(len, rows, ovFoldD, ovPlaneK);
+        const uint32_t foldD  = rf.fold_d;
+        const uint32_t planeK = rf.plane_k;
+        const uint32_t D = foldD;
         P.packArg = foldD | (planeK << 8) | ((sgn > 0.0) ? (1u << 16) : 0u);
         P.idxN = 4u*len + 2u*len*D;
         P.idx.assign(P.idxN, 0u);

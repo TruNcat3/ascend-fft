@@ -1,16 +1,15 @@
 # P0 报告：长 FFT device 链六段归因与同尺寸 torch_npu 基线
 
-> PR #2 性能评论「阶段 2 · P0」的执行报告（第 1 轮）。本页数字全部由脚本从仓库
-> 归档直读生成，复算入口见文末「复现」；不引用任何未归档读数。
+> PR #2 性能评论「阶段 2 · P0」的执行报告（第 1 轮）。本页由 `python3 scripts/gen_p0_report.py` 从仓库归档直读生成，复算入口见文末「复现」；不引用任何未归档读数。
 
 ## 1. 范围与方法
 
 | 项 | 口径 |
 |---|---|
-| 六段事件计时 | `fft_check.cpp` 在 device 边界六次内核发射间插入事件对，`segments:` 行与产生 `device_chain` 最小值的同一次 launch 绑定，`sum(segments) == device_chain`（telescope 恒等）；host/短路径 `segments: NA`。`tests/test_scopes.py`(25) + `tests/test_collect_evidence.py`(35) 锁定 |
+| 六段事件计时 | `fft_check.cpp` 在 device 边界六次内核发射间插入事件对，`segments:` 行与产生 `device_chain` 最小值的同一次 launch 绑定，`sum(segments) == device_chain`（telescope 恒等）；host/短路径 `segments: NA`。`tests/test_scopes.py` + `tests/test_collect_evidence.py` 锁定 |
 | 自研协议 | 每形状 5 独立 trial × 5 reps；host `boundary=2`、device `boundary=0`；同一 binary `sha256=f987fe341a10` |
 | 基线协议 | `torch.fft.fft`（torch_npu 2.10.0 op-plugin，复→复）同网格，device-only 与 E2E 各 20 reps 取 min；E2E 为 pinned 口径 |
-| 逐 kernel 校验 | msprof `--task-time`（`profile_test.sh --only lfft8k1,lfft16k47,lfft32k47,lfft65k47`），原始 profile 在 `results/profiles/20261009T041621Z/`（本地，不入库） |
+| 逐 kernel 校验 | msprof `--task-time`（`profile_test.sh --only lfft8k1,lfft16k47,lfft32k47,lfft65k47`），提取值归档于 `results/evidence/long-fft-p0/msprof-task-time.json`，原始 profile 在 `results/profiles/20261009T041621Z/`（本地，不入库） |
 
 归档绑定（全部清洁提交）：device `git=0f9170b9`、host `git=3037f737`、baseline `git=f7d6e890`。
 
@@ -42,15 +41,9 @@
 | 32768x47 | 10.3% | 21.0% | 30.5% | 11.1% | 15.2% | 11.6% |
 | 65536x47 | 14.9% | 16.6% | 21.2% | 15.0% | 16.6% | 15.6% |
 
-- **`8192×1`（0.93× 回退点）**：三次转置合计占 chain 的 85.7%，FFT 仅 9.8%、
-  twiddle 3.7% —— 六次发射 + 三次全张量转置的固定成本无法由 batch=1 摊销，
-  与评论「固定成本摊不销」的判断一致；优先级应放在减少转置成本而非 FFT 核心。
-- **batch=47 形状：独立 twiddle 是最大单段**（16384×47 26.1%、32768×47 30.5%、
-  65536×47 21.2%），超过任一段 FFT —— 它对中间态做一次完整 GM 读 + 写外加
-  两次 Gather 重排，是 P1 融合（twiddle+transpose-boundary）的首选目标。
-- `65536×47` 六段均衡（各 14.9%–21.2%），与带宽受限假设一致（待 MTE/GM/
-  Vector 计数器验证，task-time/event 只能定位昂贵段、不能证明瓶颈类型）；
-  融合后可省去中间态一整次 GM 写+读。
+- **`8192×1`（0.93× 回退点）**：三次转置合计占 chain 的 85.7%，FFT 仅 9.8%、twiddle 3.7% —— 六次发射 + 三次全张量转置的固定成本无法由 batch=1 摊销，与评论「固定成本摊不销」的判断一致；优先级应放在减少转置成本而非 FFT 核心。
+- **batch=47 形状：独立 twiddle 是最大单段**（16384×47 26.1%、32768×47 30.5%、65536×47 21.2%），超过任一段 FFT —— 它对中间态做一次完整 GM 读 + 写外加两次 Gather 重排，是 P1 融合（twiddle+transpose-boundary）的首选目标。
+- `65536×47` 六段均衡（各 14.9%–21.2%），与带宽受限假设一致（待 MTE/GM/Vector 计数器验证，task-time/event 只能定位昂贵段、不能证明瓶颈类型）；融合后可省去中间态一整次 GM 写+读。
 
 ## 4. msprof task-time 交叉验证（µs/launch，4 优先形状）
 
@@ -61,11 +54,9 @@
 | 32768x47 | 280.2 | 282.1 | 310.2 | 309.4 | 259.8 | 260.2 |
 | 65536x47 | 719.7 | 720.9 | 527.9 | 528.3 | 336.3 | 337.0 |
 
-两套独立测量（host 侧事件 vs msprof device task-time）在 b=47 形状逐 op 吻合
-1.5% 以内；`8192×1` 的三转置项差 8.2%（profiler 汇入了 E2E 发射，事件只取
-chain 最小值的单次 launch，小形状 launch 间散布大）。六段口径可以放心用于
-后续候选排名；profiler 继续用于解释原因（PipeUtilization 等），不替代真实
-event 计时。
+msprof 列数据源：`results/evidence/long-fft-p0/msprof-task-time.json`（`sum_prof.py` 从本地 profile 提取的均值口径）；事件列为 device 归档六段中位数之和。
+
+两套独立测量（host 侧事件 vs msprof device task-time）在 b=47 形状逐 op 吻合 1.5% 以内；`8192×1` 的三转置项差 8.2%（profiler 汇入了 E2E 发射，事件只取 chain 最小值的单次 launch，小形状 launch 间散布大）。六段口径可以放心用于后续候选排名；profiler 继续用于解释原因（PipeUtilization 等），不替代真实 event 计时。
 
 ## 5. E2E 分解与传输口径
 
@@ -84,50 +75,35 @@ event 计时。
 | 65536x3 | 2181.5 | 739.6 | 2.95× | 462.6 | 63% |
 | 65536x47 | 44407.6 | 15443.8 | 2.88× | 10762.7 | 70% |
 
-- 设备段边界链在 10/12 个形状上降低 E2E（最高 3.09×），`16384×1` 持平
-  （1.00×），`8192×1` 例外回退（0.93×，第 3 节固定成本归因）。
-- **自研长链 E2E 的 34%–79% 是 H2D+D2H**（b=47 达 70%–79%），且当前长路径从 `std::vector` 发起
-  （`fft_check.cpp` 的 pinned 分配仅覆盖短路径），为 pageable 口径；
-  下一节基线的 E2E 差距必须先扣除此项再谈 kernel。
-- host 链的 E2E 主体是宿主标量段（四步转置/twiddle/重排的 CPU 循环），
-  不是 kernel 慢，比较口径不同。
+数据源：`results/evidence/long-fft-acceptance/acceptance.json`（host 链 E2E 中位数）与 `results/evidence/long-fft-device-boundary/acceptance.json`（device 链 E2E/h2d/d2h 中位数）。
+
+- 设备段边界链在 10/12 个形状上降低 E2E（最高 3.09×），`16384×1` 持平（1.00×），`8192×1` 例外回退（0.93×，第 3 节固定成本归因）。
+- **自研长链 E2E 的 34%–79% 是 H2D+D2H**（b=47 达 70%–79%），且当前长路径从 `std::vector` 发起（`fft_check.cpp` 的 pinned 分配仅覆盖短路径），为 pageable 口径；下一节基线的 E2E 差距必须先扣除此项再谈 kernel。
+- host 链的 E2E 主体是宿主标量段（四步转置/twiddle/重排的 CPU 循环），不是 kernel 慢，比较口径不同。
 
 ## 6. 波动性
 
-- device `device_chain` CV：**0.19%–6.09%**（b=47 形状 0.40%–0.75%，b≤3
-  形状 0.19%–6.09%，短链单次 launch 的时钟分辨率噪声占比更高）。
-- device E2E CV：**1.36%–18.20%**（32768×47 18.20%、16384×3 14.05%、
-  65536×1 11.05%），显著高于同形状 chain CV —— 波动来自传输、host dispatch
-  与环境，不是 FFT 算术核心；评论的判断成立。
+- device `device_chain` CV：**0.19%–6.09%**（b=47 形状 0.40%–0.75%，b≤3 形状 0.19%–6.09%，短链单次 launch 的时钟分辨率噪声占比更高）。
+- device E2E CV：**1.36%–18.20%**（`32768×47` 18.20%、`16384×3` 14.05%、`32768×3` 11.46%），显著高于同形状 chain CV —— 波动来自传输、host dispatch 与环境，不是 FFT 算术核心；评论的判断成立。
 - 下一步按评论要求做交错运行 + 环境记录（温度/频率/共租户）后再定是否可接受。
 
 ## 7. 同尺寸 torch_npu 基线
 
-完整 12 行对照见生成页 [长 FFT 同尺寸基线](../generated/long-fft-baseline.md)
-（`results/evidence/long-fft-baseline/baseline.json`，12/12 native PASS，
-torch 2.10.0 / torch_npu 2.10.0 / CANN 9.0.0，native 20 reps min）。要点：
+完整 12 行对照见生成页 [长 FFT 同尺寸基线](../generated/long-fft-baseline.md)（`results/evidence/long-fft-baseline/baseline.json`，12/12 native PASS，torch 2.10.0 / torch_npu 2.10.0 / CANN 9.0.0，native 20 reps min）。要点：
 
-- **device-only：`native_min / ours_median` = 0.345×–1.029×**（>1 表示自研更快：
-  仅 `65536×3` 为 1.03×，其余 native 领先）。native 是单次融合变换不物化本实现的
-  三转置段边界，形态不同；3.4× 的 device-vs-host 结论**不能**外推为对外部库优势。
-- **E2E：同一比值 0.108×–0.594×**，b=47 最差（0.108×–0.15×）——其中含自研 pageable
-  传输口径 vs native pinned 的差距（第 5 节），与 kernel 差距必须分列。
+- **device-only：`native_min / ours_median` = 0.345×–1.029×**（>1 表示自研更快：仅 `65536×3` 为 1.03×，其余 native 领先）。native 是单次融合变换不物化本实现的三转置段边界，形态不同；3.4× 的 device-vs-host 结论**不能**外推为对外部库优势。
+- **E2E：同一比值 0.108×–0.594×**，b=47 最差（0.108×–0.147×）——其中含自研 pageable 传输口径 vs native 的差距（第 5 节），与 kernel 差距必须分列。
 - 两口径、两协议均已归档，后续任何候选以同表复测对比。
 
 ## 8. 结论 → P1 优先级
 
-1. **融合 twiddle + transpose-boundary**（`fft_long.cpp`，`kfft_lt_tr` 签名已带 `tw`）：
-   目标消掉最大单段（21%–31%）+ 中间态一整次 GM 写读；验收 = 六段计时 +
-   GM 字节 + A/B/A，六内核路径保留 incumbent。
-2. **转置成本**（`8192×1` 占 85.7%、b=47 合计 33%–46%）：tile/LT_H×LT_W 参数化、
-   双缓冲（当前 3×32KB UB，`long_fft_ub.h` 模型已就位）、窄作用域 pipe barrier。
+1. **融合 twiddle + transpose-boundary**（`fft_long.cpp`，`kfft_lt_tr` 签名已带 `tw`）：目标消掉最大单段（21%–31%）+ 中间态一整次 GM 写读；验收 = 六段计时 + GM 字节 + A/B/A，六内核路径保留 incumbent。
+2. **转置成本**（`8192×1` 占 85.7%、b=47 合计 33%–46%）：tile/LT_H×LT_W 参数化、双缓冲（当前 3×32KB UB，`long_fft_ub.h` 模型已就位）、窄作用域 pipe barrier。
 3. **长链 pinned 传输**：修正 E2E 口径，使与 native 的 E2E 对比同口径。
 4. **与 native 的形态差距**：P1 融合做完后重新对照；不达标候选不进默认配置。
 5. **波动治理**：交错运行 + 环境记录（评论退出条件）。
 
-评论「下一轮退出条件」现状：① 8192×1 仍慢于 host（未满足，已有归因）；
-② 六段时间可解释 chain（**满足**，§2/§4）；③ 高 CV 未治理（待环境记录）；
-④ twiddle 融合未做（P1 首项）；⑤ torch_npu 同语义矩阵（**满足**，12/12 §7）。
+评论「下一轮退出条件」现状：① 8192×1 仍慢于 host（未满足，已有归因）；② 六段时间可解释 chain（**满足**，§2/§4）；③ 高 CV 未治理（待环境记录）；④ twiddle 融合未做（P1 首项）；⑤ torch_npu 同语义矩阵（**满足**，12/12 §7）。
 
 ## 9. 复现
 
@@ -135,9 +111,12 @@ torch 2.10.0 / torch_npu 2.10.0 / CANN 9.0.0，native 20 reps min）。要点：
 bash scripts/build.sh
 python3 scripts/collect_long_fft_evidence.py              # host, 含 segments
 python3 scripts/collect_long_fft_evidence.py --boundary device
+python3 scripts/collect_long_fft_evidence.py --verify results/evidence/long-fft-acceptance/acceptance.json
 python3 scripts/bench_long_baseline.py                    # torch_npu 基线
 python3 scripts/bench_long_baseline.py --check            # md ↔ JSON
 python3 scripts/summarize_long_fft_evidence.py --check
+python3 scripts/gen_p0_report.py --check                  # 本页 ↔ 归档
 scripts/profile_test.sh --only lfft8k1,lfft16k47,lfft32k47,lfft65k47
-python3 -m unittest discover -s tests -q                  # 156 tests
+python3 scripts/sum_prof.py --csv results/profiles/<dir>/lfft*  # §4 出处
+python3 -m unittest discover -s tests -q
 ```

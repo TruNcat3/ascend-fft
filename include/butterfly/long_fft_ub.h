@@ -20,8 +20,28 @@
  * (bRow/bAr/bWp/bR/bEx/bIn) => 24 bytes per row element. */
 #define AB_TWIDDLE_UB_BYTES(len) (24ull * (unsigned long long)(len))
 
-/* kfft_fwd peak UB: 46.5n + 128 bytes, the accounting documented at the top
- * of src/ascendc/fft_radix2.cpp (plan 8n + plane 8n + idxB 4n + idxT 4n +
- * idxOut 8n + tw (4n+64)*2 + tmp 6.5n). */
-#define AB_ROW_FFT_UB_BYTES(n) ((93ull * (unsigned long long)(n)) / 2ull + \
-                                128ull)
+/* kfft_fwd peak UB: exact InitBuffer sum of src/ascendc/fft_radix2.cpp as a
+ * function of the stage length n, the batch fold D (arg byte 0, resolved by
+ * bfly::foldDFor(len, launch_rows, 48) or the AB_FOLD_D override) and the
+ * plane factor K (arg byte 1, bfly::planeKFor / AB_PLANE_K override):
+ *   bPlan 8nD + bPlane 8nD + bIdxB 4n + bIdxT 4n + bIdxO 8nD      = 24nD + 8n
+ *   bTwR/bTwI 2*(n+16)*4                                          = 8n + 128
+ *   bTmp 4*tmpF, tmpF = 2*(n/2)*D + max(n/2, (n/K)*D) + 3*(n/K)*D
+ *   total = 24nD + 8n + 8(n+16) + 4(nD + max(n/2, nD/K) + 3nD/K)
+ * The host StagePlan::ubBytes, the descriptor row-fft gate and the kernel
+ * accounting all derive from this one macro (tests/test_limits.cpp keeps the
+ * D=1 golden 46n + 12n/K + 128).  Integer division is exact because K is a
+ * power of two dividing n. */
+#define AB_ROW_FFT_UB_BYTES(n, D, K)                                     \
+  (24ull * (unsigned long long)(n) * (unsigned long long)(D) +           \
+   8ull * (unsigned long long)(n) +                                      \
+   8ull * ((unsigned long long)(n) + 16ull) +                            \
+   4ull * ((unsigned long long)(n) * (unsigned long long)(D) +           \
+           ((((unsigned long long)(n) >> 1) >                            \
+             ((unsigned long long)(n) * (unsigned long long)(D) /        \
+              (unsigned long long)(K)))                                  \
+              ? ((unsigned long long)(n) >> 1)                           \
+              : ((unsigned long long)(n) * (unsigned long long)(D) /     \
+                 (unsigned long long)(K))) +                             \
+           3ull * (unsigned long long)(n) * (unsigned long long)(D) /    \
+             (unsigned long long)(K)))

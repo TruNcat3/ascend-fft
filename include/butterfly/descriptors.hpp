@@ -14,6 +14,7 @@
 // UB 资源公式与内核同源（PR #2 阶段 3）：AB_LT_* / AB_*_UB_BYTES 由
 // src/ascendc/fft_long.cpp 与本文件共同 include，公式只维护一处。
 #include "butterfly/long_fft_ub.h"
+#include "butterfly/fft_k.hpp"
 
 namespace butterfly {
 
@@ -78,6 +79,12 @@ struct ArchitectureMapping {
   Layout boundary_layout = Layout::TwiddledStage;
   BoundaryHome boundary_home = BoundaryHome::HostMemory;
   int pipeline_buffers = 1;
+  // Row-FFT resource overrides (0 = derive): mirror the AB_FOLD_D / AB_PLANE_K
+  // test hooks so the descriptor gate and the launch resolve the SAME (D,K)
+  // for every stage (R0.1).  fft_check fills these from the environment
+  // before query_lowering and reuses the same parse in prepPass.
+  uint32_t row_fft_fold_d  = 0;
+  uint32_t row_fft_plane_k = 0;
 };
 
 // ---- P: replaceable processing unit capability ----
@@ -190,11 +197,39 @@ struct KernelResource {
   const char* constraint; // shape envelope this peak assumes
 };
 
-inline KernelResource row_fft_resource(uint32_t len){
+// Single source for per-stage (D,K): the descriptor gate and the runtime
+// launch must resolve identical values (R0.1).  launch_rows is the row count
+// the launch actually issues (long chain: (n/len)*batch; short path: batch);
+// overrides come from ArchitectureMapping (filled from AB_FOLD_D/AB_PLANE_K).
+struct RowFftPlan {
+  uint32_t fold_d;   // batch fold coefficient packed into arg byte 0
+  uint32_t plane_k;  // plane factor packed into arg byte 1
+};
+inline RowFftPlan resolve_row_fft(uint32_t len, uint32_t launch_rows,
+                                  uint32_t fold_d_override,
+                                  uint32_t plane_k_override){
+  RowFftPlan p;
+  p.fold_d  = fold_d_override ? fold_d_override
+                              : bfly::foldDFor(len, launch_rows, 48u);
+  if(p.fold_d < 1u) p.fold_d = 1u;
+  p.plane_k = plane_k_override ? plane_k_override : bfly::planeKFor(len);
+  // K 合法性（R0.1）：rows = n/K >= 8 是矢量算子 32B 对齐的硬约束
+  // （否则 AIV 抛 507035）。AB_PLANE_K 指定非法 K 时两处同时回落到规则值，
+  // descriptor 与 launch 依旧同源 —— 与 kernel 的 arg 打包保持一致。
+  if(p.plane_k < 8u || p.plane_k * 8u > len) p.plane_k = bfly::planeKFor(len);
+  return p;
+}
+
+inline KernelResource row_fft_resource(uint32_t len, uint32_t launch_rows,
+                                       uint32_t fold_d_override,
+                                       uint32_t plane_k_override){
+  const RowFftPlan p = resolve_row_fft(len, launch_rows,
+                                       fold_d_override, plane_k_override);
   return KernelResource{"kfft_fwd", CoreKind::AIVVectorCore,
-                        (size_t)AB_ROW_FFT_UB_BYTES(len),
+                        (size_t)AB_ROW_FFT_UB_BYTES(len, p.fold_d, p.plane_k),
                         SyncScope::AIVIntraCore,
-                        "row length power of two in [64,4096]"};
+                        "row length power of two in [64,4096]; "
+                        "UB(n,D,K) with the launch's fold D and plane K"};
 }
 inline KernelResource transpose_resource(){
   return KernelResource{"kfft_lt_tr", CoreKind::AIVVectorCore,
@@ -404,8 +439,15 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
   for(const auto& rec : r.launch_manifest){
     KernelResource kr{"", CoreKind::AIVVectorCore, 0, SyncScope::None, ""};
     switch(rec.kind){
-      case LaunchKind::RowFFT:
-        kr = row_fft_resource(m.stage_lengths[rec.stage]); break;
+      case LaunchKind::RowFFT: {
+        // Same (n,rows,D,K) the launch resolves in prepPass: rows is the
+        // launch's row count, i.e. (n/len)*batch for the two-segment chain.
+        const uint32_t len   = m.stage_lengths[rec.stage];
+        const uint32_t rows  = (spec.n / len) * spec.batch;
+        kr = row_fft_resource(len, rows,
+                              m.row_fft_fold_d, m.row_fft_plane_k);
+        break;
+      }
       case LaunchKind::Twiddle:
         kr = twiddle_resource(m.stage_lengths[rec.stage]); break;
       case LaunchKind::TransposeIn:

@@ -48,6 +48,7 @@ EXPECTED_CASES = {
     "stage_product_mismatch": (False, "does not match transform length"),
     "layout_real_on_c2c": (False, "not supported by unit"),
     "ub_overflow": (False, "UB overflow"),
+    "fold_d_override_rejected": (False, "UB overflow"),
     "block_resident_needs_multi_role": (False, "multi-role unit"),
     "onchip_without_block_residence": (False, "on-chip boundary"),
     "gm_guard_overflow": (False, "40 GiB guard"),
@@ -151,9 +152,11 @@ class DescriptorLegalityTests(unittest.TestCase):
 
     def test_plan_ub_is_serial_peak_not_sum(self):
         # device peak = transpose 3*128*32*8 = 98304 (twiddle/rowFFT smaller
-        # at these stages); host peak = row FFT 46.5*128+128 = 6080.
+        # at these stages); host peak = row FFT AB_ROW_FFT_UB_BYTES with the
+        # launch's rows-aware D: len128/rows64 -> D=1,K=8 -> 6208 (R0.1,
+        # was 6080 under the stale 46.5n+128 macro).
         self.assertEqual(self.structs["default_device_gm"]["ub_peak"], "98304")
-        self.assertEqual(self.structs["default_host_memory"]["ub_peak"], "6080")
+        self.assertEqual(self.structs["default_host_memory"]["ub_peak"], "6208")
         self.assertEqual(self.structs["ub_exact_transpose_peak"]["ub_peak"],
                          "98304")
 
@@ -168,7 +171,7 @@ class DescriptorLegalityTests(unittest.TestCase):
         self.assertEqual(self.cases["ub_host_ok_at_80000"][0], "SUPPORTED")
 
     def test_rowfft_checked_after_transpose_threshold(self):
-        # ub == 98304: transpose passes, then kfft_fwd (190592 B) rejects
+        # ub == 98304: transpose passes, then kfft_fwd (191616 B) rejects
         status, reason = self.cases["ub_rowfft_checked_after_transpose"]
         self.assertEqual(status, "UNSUPPORTED")
         self.assertIn("UB overflow", reason)
@@ -185,9 +188,23 @@ class DescriptorLegalityTests(unittest.TestCase):
                          "an unlowered tuple must not report launches")
 
     def test_batch_is_data_dimension_not_architectural(self):
-        self.assertEqual(self.structs["default_8192"],
-                         self.structs["batch_4096_independent"],
+        # Since R0.1 the row-FFT resource is rows-aware (fold D depends on the
+        # launch's row count), so ub_peak may grow with batch: 6208 (b=1) vs
+        # 17536 (b=4096, D=4).  The ARCHITECTURE -- launches, kinds, GM
+        # boundaries, feasibility -- must stay batch-independent.
+        a = dict(self.structs["default_8192"])
+        b = dict(self.structs["batch_4096_independent"])
+        a.pop("ub_peak")
+        b.pop("ub_peak")
+        self.assertEqual(a, b,
                          "batch must not change the lowering structure")
+        self.assertEqual(self.structs["default_8192"]["ub_peak"], "6208")
+        self.assertEqual(self.structs["batch_4096_independent"]["ub_peak"],
+                         "17536")
+        self.assertGreater(
+            int(self.structs["batch_4096_independent"]["ub_peak"]),
+            int(self.structs["default_8192"]["ub_peak"]),
+            "larger batch -> larger fold D -> larger exact UB (documented)")
 
     def test_fft_check_queries_before_allocation_and_launch(self):
         src = (ROOT / "src" / "host" / "fft_check.cpp").read_text()
