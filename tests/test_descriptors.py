@@ -1,10 +1,15 @@
-"""Architecture descriptor legality tests (addendum step 2).
+"""Architecture descriptor legality tests (addendum step 2, PR #2 stage 2).
 
 Hardware-independent: compiles tests/test_descriptors.cpp with plain g++ (no
 CANN), runs its machine-readable case table, and checks
   - every unsupported tuple carries an explicit reason,
+  - abstract feasibility and executable lowering are separate verdicts
+    (unimplemented Us/Ts/Ud/Td/pipeline_buffers/role/residence combos come
+    back as `abstract-feasible-but-not-lowered`, never as supported),
+  - the launch manifest matches the runtime: 6 device-boundary launches in
+    transpose_in|row_fft|twiddle|transpose_boundary|row_fft|transpose_out
+    order, 2 host-boundary row_fft launches, 1 materialized GM boundary each,
   - the builtin H profile stays in sync with config/ascend910_93_profile.json,
-  - the current G1 chain reports itself honestly (host-assisted, not on-chip),
   - batch only adds data-dimension work (identical lowering structure),
   - fft_check queries the lowering contract before any allocation or launch.
 """
@@ -17,11 +22,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+NOT_LOWERED = "abstract-feasible-but-not-lowered"
+
 EXPECTED_CASES = {
     "default_8192": (True, None),
     "default_65536_b3": (True, None),
     "batch_4096_independent": (True, None),
-    "cell_resident_ok": (True, None),
+    "default_device_gm": (True, None),
+    "cell_resident_not_lowered": (False, NOT_LOWERED),
+    "us2_not_lowered": (False, NOT_LOWERED),
+    "td99_not_lowered": (False, NOT_LOWERED),
+    "pipeline99_not_lowered": (False, NOT_LOWERED),
+    "ub_below_transpose_peak": (False, "UB overflow"),
+    "ub_host_ok_at_80000": (True, None),
+    "ub_exact_transpose_peak": (True, None),
+    "ub_rowfft_checked_after_transpose": (False, "UB overflow"),
     "precision_fp16": (False, "precision mismatch"),
     "direction_r2c_unmapped": (False, "direction"),
     "bad_power_of_two": (False, "power of two"),
@@ -112,14 +127,62 @@ class DescriptorLegalityTests(unittest.TestCase):
         self.assertEqual(scope, "aiv_intra_core")
         self.assertEqual(multi, "0")
 
-    def test_current_chain_reports_honestly(self):
-        # host-assisted G1 chain: internal GM boundary, not an on-chip subgraph
+    def test_host_chain_manifest(self):
+        # host-assisted G1 chain: two row_fft launches, one host GM boundary
         struct = self.structs["default_8192"]
-        self.assertEqual(struct["groups"], "2")
         self.assertEqual(struct["launches"], "2")
+        self.assertEqual(struct["kinds"], "row_fft|row_fft")
         self.assertEqual(struct["gm_boundaries"], "1")
         self.assertEqual(struct["host_assisted"], "1")
         self.assertEqual(struct["on_chip"], "0")
+        self.assertEqual(struct["abstract"], "1")
+
+    def test_device_chain_manifest_is_six_launches(self):
+        # addendum §3 device chain: the full 6-launch list, no host hop
+        struct = self.structs["default_device_gm"]
+        self.assertEqual(struct["launches"], "6")
+        self.assertEqual(struct["kinds"],
+                         "transpose_in|row_fft|twiddle|transpose_boundary|"
+                         "row_fft|transpose_out")
+        self.assertEqual(struct["gm_boundaries"], "1")
+        self.assertEqual(struct["host_assisted"], "0")
+        self.assertEqual(struct["on_chip"], "0")
+        self.assertEqual(struct["abstract"], "1")
+
+    def test_plan_ub_is_serial_peak_not_sum(self):
+        # device peak = transpose 3*128*32*8 = 98304 (twiddle/rowFFT smaller
+        # at these stages); host peak = row FFT 46.5*128+128 = 6080.
+        self.assertEqual(self.structs["default_device_gm"]["ub_peak"], "98304")
+        self.assertEqual(self.structs["default_host_memory"]["ub_peak"], "6080")
+        self.assertEqual(self.structs["ub_exact_transpose_peak"]["ub_peak"],
+                         "98304")
+
+    def test_ub_below_transpose_peak_rejects_device_not_host(self):
+        # the discriminating boundary: same 80000 B UB, host chain fits,
+        # device chain must not (kfft_lt_tr peak 98304)
+        status, reason = self.cases["ub_below_transpose_peak"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("UB overflow", reason)
+        self.assertIn("kfft_lt_tr", reason)
+        self.assertIn("98304", reason)
+        self.assertEqual(self.cases["ub_host_ok_at_80000"][0], "SUPPORTED")
+
+    def test_rowfft_checked_after_transpose_threshold(self):
+        # ub == 98304: transpose passes, then kfft_fwd (190592 B) rejects
+        status, reason = self.cases["ub_rowfft_checked_after_transpose"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("UB overflow", reason)
+        self.assertIn("kfft_fwd", reason)
+
+    def test_not_lowered_is_abstract_not_executable(self):
+        status, reason = self.cases["cell_resident_not_lowered"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertTrue(reason.startswith(NOT_LOWERED))
+        struct = self.structs["cell_resident_not_lowered"]
+        self.assertEqual(struct["abstract"], "1",
+                         "residency must pass level-1 abstract feasibility")
+        self.assertEqual(struct["launches"], "0",
+                         "an unlowered tuple must not report launches")
 
     def test_batch_is_data_dimension_not_architectural(self):
         self.assertEqual(self.structs["default_8192"],

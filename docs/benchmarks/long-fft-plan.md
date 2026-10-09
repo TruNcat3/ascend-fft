@@ -32,14 +32,28 @@ UB 估算或修改测试参数宣称支持。
 
 ### G0/G1 落地记录（2026-10-08，Ascend910_9382）
 
-- 描述符层（addendum step 2）：`include/butterfly/descriptors.hpp` 按 G/A/P/L/H 分层
-  （`TransformSpec`/`ArchitectureMapping` 含四维展开 `Us,Ts,Ud,Td`+角色+驻留+边界归宿、
-  `ProcessingUnitCapability`（首个单元 = 现有 `kfft_fwd` 行 FFT）、`LoweringResult`、
-  `HardwareProfile` 与 `config/ascend910_93_profile.json` 同步）。长路径在任何分配/启动
-  之前调用 `query_lowering()`；不支持的元组返回显式 reason 拒绝，不静默换核/换映射
-  （`AB_DESC=1` 可见当前链的如实报告：host-assisted、非片上驻留）。合法性测试：
-  `tests/test_descriptors.cpp` 自测表 + `tests/test_descriptors.py`（纯 g++ 编译、
-  18 个用例、profile 同步、查询先于分配的源码顺序断言），`make desc` 一键运行。
+- 描述符层（addendum step 2，PR #2 阶段 2）：`include/butterfly/descriptors.hpp` 按
+  G/A/P/L/H 分层（`TransformSpec`/`ArchitectureMapping` 含四维展开 `Us,Ts,Ud,Td`+角色+
+  驻留+边界归宿、`ProcessingUnitCapability`（首个单元 = 现有 `kfft_fwd` 行 FFT）、
+  `LoweringResult`、`HardwareProfile` 与 `config/ascend910_93_profile.json` 同步）。
+  长路径在任何分配/启动之前调用 `query_lowering()`；判定分两级——`abstract_feasible`
+  （资源/合法性可行）与 `supported`（仓库中存在可执行 lowering，选择层只可选后者）。
+  未被 runtime 消费的 `Us/Ts/Ud/Td/pipeline_buffers/role_stages/residence` 组合返回
+  `abstract-feasible-but-not-lowered: ...`，绝不标记为可执行。可执行结果携带真实
+  launch manifest（`LaunchRecord` 类型/stage/boundary），`visible_launches`、
+  `materialized_gm_boundaries`、`host_assisted` 全部由 manifest 派生：host 边界
+  = 2×`row_fft`，device 边界 = `transpose_in|row_fft|twiddle|transpose_boundary|
+  row_fft|transpose_out` 共 6 次，两者的 GM 物化段边界均为 1（`AB_DESC=1` 打印
+  launches/gm_boundaries/host_assisted/abstract/kinds）。合法性测试：
+  UB 资源模型按物理内核分别描述（`row_fft_resource`/`transpose_resource`/
+  `twiddle_resource`：峰值字节、AIV 核类、同步范围、形状约束），串行计划取各
+  内核峰值的最大值而非相加；公式经 `include/butterfly/long_fft_ub.h` 与
+  `src/ascendc/fft_long.cpp`/`fft_radix2.cpp` 共享（转置 3×128×32×8=98304 B、
+  点乘 24n、行 FFT 46.5n+128），按 manifest 发射序逐一校验——UB<98304 的
+  DeviceGM 降级被拒并指名 `kfft_lt_tr`，同行主链（仅行 FFT）可继续通过。
+  合法性测试：`tests/test_descriptors.cpp` 自测表 + `tests/test_descriptors.py`
+  （纯 g++ 编译、26 个用例、profile 同步、查询先于分配的源码顺序断言、
+  manifest/UB 边界回归），`make desc` 一键运行。
   短 FFT 结果不变：验收采集器重跑 12/12 PASS、E2E transfers 契约不变。
 
 - 实现：`src/host/fft_check.cpp` 长路径。G0 在执行前拒绝超 envelope（`N>65536`）、
@@ -68,10 +82,31 @@ UB 估算或修改测试参数宣称支持。
   `AB_BOUNDARY`）保持宿主中介链，逐点 `boundary=2` 契约锁定、行为与已发布结果一致
   （宿主证据同采集器重跑 12/12）。`AB_DESC=1` 在 device 模式如实报告
   `boundary_home=DeviceGM`：`gm_boundaries=1`（两段间一个 GM 物化边界）+
-  `host_assisted=0`。单点观测（65536×47、reps=5）：device 链 E2E min ≈14.9 ms vs
-  宿主链 ≈47.9 ms（同为 1 次输入 + 1 次输出传输口径）。
+  `host_assisted=0`。性能数字不手写：每个形状 5 次独立 trial 的原始样本归档在
+  两份 `acceptance.json`（`manifest` 含 clean git sha、二进制 sha256、构建配方、
+  CANN/SoC/driver 与环境），median/min/mean/CV 由
+  `python3 scripts/summarize_long_fft_evidence.py` 复算生成
+  [验收证据表](../generated/long-fft-evidence.md) 与
+  `results/evidence/long-fft-summary.json`，`--check` 可校验漂移。
 - 未完成：E01..E08 全量采集、G2 可搜索映射、G3（`131072..1048576`）、逆向/2D；
   这些完成前 `future-long-fft` 档案仍拒绝运行，也不进入发布均值。
+
+#### 计时字段（`scopes:` 行）与同步边界
+
+| 字段 | 含义 | 同步边界 | 适用 |
+|---|---|---|---|
+| `plan_setup` | 一次性准备（旋转因子/索引生成、分配、二进制加载）墙钟 | 首次执行 warmup 之前截断 | 全部 |
+| `first_use` | 首次执行墙钟（含冷启动上传/内核首发射） | 单次 launch 的外墙钟 | 全部 |
+| `host_end_to_end mean/min` | 每次执行的同步墙钟：宿主段、段间拷贝、传输与同步全含 | `launch()` 进入到流同步后返回 | 全部 |
+| `h2d` | 逻辑输入 H2D 的事件跨度 | `evIn..ev0`：输入上传入队到首个计算内核之前 | 仅长链，否则 `NA` |
+| `device_chain` | 链上 device 计算内核的事件跨度，**不含任何传输** | `ev0..ev1`：device 边界 = 3×转置 + 2×FFT + 1×点乘的连续跨度；host 边界 = pass1+pass2 两次 FFT 跨度之和（段间传输/宿主段只在墙钟里） | 全部 |
+| `d2h` | 逻辑输出 D2H 的事件跨度 | `ev1..evOut`；host 边界为 pass2 出数那次（宿主重排在其后，属宿主段） | 仅长链，否则 `NA` |
+| `reps` | 采样次数（事件跨度与墙钟取同一迭代集合的最小值/均值） | — | 全部 |
+
+宿主边界与设备边界使用同名同语义字段，不适用的范围显式打印 `NA`；恒有
+`host_end_to_end ≥ h2d + device_chain + d2h`（逐次成立，允许时钟域与调度噪声）。
+字段名、NA 规则与预算不等式由 `scripts/scopes.py` + `tests/test_scopes.py` 解析测试锁定，
+防止后续把传输重新计入 device kernel 时间。
 
 每个实验固定 SoC、CANN、构建、FP32、前向 1D C2C、稠密交错输入和自然序输出；其他语义
 使用独立结果集。设备计时、同步 host 端到端、Plan 创建和首次执行分别报告。

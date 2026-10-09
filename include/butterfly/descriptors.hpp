@@ -11,6 +11,9 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+// UB 资源公式与内核同源（PR #2 阶段 3）：AB_LT_* / AB_*_UB_BYTES 由
+// src/ascendc/fft_long.cpp 与本文件共同 include，公式只维护一处。
+#include "butterfly/long_fft_ub.h"
 
 namespace butterfly {
 
@@ -144,21 +147,105 @@ inline const HardwareProfile& builtin_hardware_profile(){
 }
 
 // ---- Q / lowering contract ----
-struct ExecutionGroup {
-  int stage = 0;      // index into mapping.stage_lengths
-  int launches = 0;   // kernel launches this group needs
+// One record per real kernel launch of the executable lowering; every count in
+// LoweringResult is derived from this manifest so metadata and runtime cannot
+// drift apart (PR #2 stage 2).
+enum class LaunchKind { RowFFT, TransposeIn, Twiddle, TransposeBoundary, TransposeOut };
+
+inline const char* launch_kind_name(LaunchKind k){
+  switch(k){
+    case LaunchKind::RowFFT:            return "row_fft";
+    case LaunchKind::TransposeIn:       return "transpose_in";
+    case LaunchKind::Twiddle:           return "twiddle";
+    case LaunchKind::TransposeBoundary: return "transpose_boundary";
+    case LaunchKind::TransposeOut:      return "transpose_out";
+  }
+  return "unknown";
+}
+
+struct LaunchRecord {
+  LaunchKind kind;
+  int stage;          // stage index of the transform this launch belongs to
+  int boundary_edge;  // 1 if this launch consumes a materialized inter-stage
+                      // boundary (GM or host); the edge count sums these
 };
 
+// ---- F: per-kernel resource records (plan-level UB model, PR #2 stage 3) ----
+// All lowered kernels run on AIV vector cores with intra-core synchronization;
+// the UB peak formulas come from the shared header so they track the kernels.
+enum class CoreKind { AIVVectorCore };
+
+inline const char* core_kind_name(CoreKind k){
+  switch(k){
+    case CoreKind::AIVVectorCore: return "aiv_vector_core";
+  }
+  return "unknown";
+}
+
+struct KernelResource {
+  const char* kernel;     // kernel entry point, e.g. "kfft_fwd"
+  CoreKind core;          // block/core class the launch occupies
+  size_t ub_bytes;        // peak UB footprint for the mapped shape
+  SyncScope sync_scope;   // synchronization range inside one launch
+  const char* constraint; // shape envelope this peak assumes
+};
+
+inline KernelResource row_fft_resource(uint32_t len){
+  return KernelResource{"kfft_fwd", CoreKind::AIVVectorCore,
+                        (size_t)AB_ROW_FFT_UB_BYTES(len),
+                        SyncScope::AIVIntraCore,
+                        "row length power of two in [64,4096]"};
+}
+inline KernelResource transpose_resource(){
+  return KernelResource{"kfft_lt_tr", CoreKind::AIVVectorCore,
+                        (size_t)AB_TRANSPOSE_UB_BYTES,
+                        SyncScope::AIVIntraCore,
+                        "fixed LT_H x LT_W tile, shape independent"};
+}
+inline KernelResource twiddle_resource(uint32_t len){
+  return KernelResource{"kfft_lt_tw", CoreKind::AIVVectorCore,
+                        (size_t)AB_TWIDDLE_UB_BYTES(len),
+                        SyncScope::AIVIntraCore,
+                        "half-row chunking over one stage length"};
+}
+
+// Plan-level UB for serial launches is the PEAK of the per-kernel records,
+// never a sum: the runtime issues the chain one launch at a time on one
+// stream. Concurrent/resident roles would sum per live role -- no such
+// lowering exists yet (see the not-lowered checks below).
+inline KernelResource plan_peak(const std::vector<KernelResource>& ks){
+  KernelResource best = ks.empty()
+      ? KernelResource{"<empty>", CoreKind::AIVVectorCore, 0,
+                       SyncScope::None, "n/a"}
+      : ks.front();
+  for(const auto& k : ks) if(k.ub_bytes > best.ub_bytes) best = k;
+  return best;
+}
+
 struct LoweringResult {
+  // Two-level judgment (PR #2 stage 2):
+  //   abstract_feasible = the (spec, mapping, unit, hardware) tuple is
+  //     resource- and legality-feasible;
+  //   supported = the repository contains an executable lowering for it
+  //     (today: the serial two-segment chain on HostMemory/DeviceGM). The
+  //     selection layer may only pick lowerings where supported == true.
+  bool abstract_feasible = false;
   bool supported = false;
   std::string reason;                       // explicit when supported == false
-  std::vector<ExecutionGroup> execution_groups;
-  int visible_launches = 0;
+                                            // ("abstract-feasible-but-not-lowered: ..."
+                                            //  when abstract_feasible == true)
+  std::vector<LaunchRecord> launch_manifest;  // real launches when supported
+  int visible_launches = 0;                 // == launch_manifest.size()
   int materialized_gm_boundaries = 0;       // stage edges that touch GM/host memory
+                                            // (sum of boundary_edge flags)
+  size_t plan_ub_bytes = 0;                 // serial plan UB peak over the manifest
   Residence resident_subgraph = Residence::None;
   bool whole_transform_on_chip = false;
   bool host_assisted = false;               // boundary crosses host memory today
 };
+
+// Selection contract: only executable lowerings are selectable.
+inline bool selectable(const LoweringResult& r){ return r.supported; }
 
 // Legality of (mapping, unit, hardware) for one transform spec. Pure function:
 // no allocation, no launch, no silent core/mapping substitution.
@@ -220,15 +307,9 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
     return reject(std::string("boundary layout ") + layout_name(m.boundary_layout) +
                   " not supported by unit " + unit.core);
 
-  uint32_t max_stage = 0;
-  for(uint32_t len : m.stage_lengths) if(len > max_stage) max_stage = len;
-  // UB need: data tile + twiddle tile + index/constant scratch (see G1 envelope).
-  const size_t ub_need = 16ull*max_stage + 4096ull;
-  const size_t ub_have = unit.ub_bytes < hw.ub_bytes_per_core ? unit.ub_bytes
-                                                             : hw.ub_bytes_per_core;
-  if(ub_need > ub_have)
-    return reject("UB overflow: need " + std::to_string(ub_need) + " bytes, have " +
-                  std::to_string(ub_have));
+  // UB is checked per manifest AFTER the not-lowered gate below: each
+  // physical kernel contributes its own peak (PR #2 stage 3), so the plan
+  // model cannot accept a DeviceGM chain on a UB too small for transpose.
 
   if(m.residence == Residence::BlockResident && !unit.supports_multi_role)
     return reject("block residence requires a multi-role unit: " + unit.core);
@@ -248,18 +329,112 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
   if(gm > (uint64_t)hw.global_mem_total_bytes)
     return reject("gm footprint exceeds device global memory");
 
+  // --- level 1 passed: the tuple is resource- and legality-feasible ---
+  r.abstract_feasible = true;
+
+  // --- level 2: does the repository hold an executable lowering? ---
+  // The runtime implements exactly today's serial chain: one stage service,
+  // sequential reuse of the two stage groups, one concurrent tile grid sized
+  // to the AIV count, single-buffer staging, 1:1 role slots, no residency,
+  // twiddled-stage boundary in either GM home. Anything else is abstractly
+  // feasible at best and must not be reported executable.
+  std::string not_lowered;
+  if(m.stage_partition != 2)
+    not_lowered = "runtime implements the two-segment chain only (stage_partition=2)";
+  else if(m.stage_space != 1)
+    not_lowered = "Us " + std::to_string(m.stage_space) +
+                  ": only a single stage service is lowered";
+  else if(m.stage_time != m.stage_partition)
+    not_lowered = "Ts " + std::to_string(m.stage_time) +
+                  ": only sequential reuse across the stage groups is lowered";
+  else if(m.data_space != (int)hw.vector_core_num)
+    not_lowered = "Ud " + std::to_string(m.data_space) +
+                  ": only one concurrent tile grid sized to the AIV count is lowered";
+  else if(m.data_time != 1)
+    not_lowered = "Td " + std::to_string(m.data_time) +
+                  ": no tile-reuse lowering exists";
+  else if(m.pipeline_buffers != 1)
+    not_lowered = "pipeline_buffers " + std::to_string(m.pipeline_buffers) +
+                  ": only single-buffer staging is lowered";
+  else if(m.role_stages != std::vector<int>{0, 1})
+    not_lowered = "role_stages must map the two stages 1:1";
+  else if(m.residence != Residence::None)
+    not_lowered = std::string("residence ") + residence_name(m.residence) +
+                  ": no resident-subgraph lowering exists yet";
+  else if(m.boundary_layout != Layout::TwiddledStage)
+    not_lowered = std::string("boundary layout ") + layout_name(m.boundary_layout) +
+                  ": only the twiddled-stage boundary is lowered";
+  else if(m.boundary_home != BoundaryHome::HostMemory &&
+          m.boundary_home != BoundaryHome::DeviceGM)
+    not_lowered = "boundary home OnChip has no executable lowering";
+  if(!not_lowered.empty()){
+    r.supported = false;
+    r.reason = "abstract-feasible-but-not-lowered: " + not_lowered;
+    return r;
+  }
+
+  // --- executable: derive the manifest, then derive every count from it ---
+  std::vector<LaunchRecord> man;
+  if(m.boundary_home == BoundaryHome::DeviceGM){
+    // addendum §3 device chain: transpose-in -> FFT-1 -> twiddle ->
+    // transpose-boundary -> FFT-2 -> transpose-out (all on device, no host hop).
+    man = {
+      {LaunchKind::TransposeIn,       0, 0},
+      {LaunchKind::RowFFT,            0, 0},
+      {LaunchKind::Twiddle,           0, 0},
+      {LaunchKind::TransposeBoundary, 1, 1},  // consumes the GM stage edge
+      {LaunchKind::RowFFT,            1, 0},
+      {LaunchKind::TransposeOut,      1, 0},
+    };
+  }else{ // HostMemory: host does transpose/twiddle/reorder between the two FFTs
+    man = {
+      {LaunchKind::RowFFT, 0, 0},
+      {LaunchKind::RowFFT, 1, 1},              // pass2 consumes the host edge
+    };
+  }
+  r.launch_manifest = std::move(man);
+  r.visible_launches = (int)r.launch_manifest.size();
+
+  // Per-kernel UB fit, checked in launch order (transpose launches come
+  // first in the device manifest, so a UB below the transpose peak is
+  // rejected naming kfft_lt_tr; row FFT and twiddle follow).
+  const size_t ub_have = unit.ub_bytes < hw.ub_bytes_per_core ? unit.ub_bytes
+                                                             : hw.ub_bytes_per_core;
+  std::vector<KernelResource> used;
+  for(const auto& rec : r.launch_manifest){
+    KernelResource kr{"", CoreKind::AIVVectorCore, 0, SyncScope::None, ""};
+    switch(rec.kind){
+      case LaunchKind::RowFFT:
+        kr = row_fft_resource(m.stage_lengths[rec.stage]); break;
+      case LaunchKind::Twiddle:
+        kr = twiddle_resource(m.stage_lengths[rec.stage]); break;
+      case LaunchKind::TransposeIn:
+      case LaunchKind::TransposeBoundary:
+      case LaunchKind::TransposeOut:
+        kr = transpose_resource(); break;
+    }
+    if(kr.ub_bytes > ub_have){
+      r.abstract_feasible = false;
+      r.supported = false;
+      r.reason = std::string("UB overflow: kernel ") + kr.kernel +
+                 " (" + kr.constraint + ") needs " +
+                 std::to_string(kr.ub_bytes) + " bytes, have " +
+                 std::to_string(ub_have);
+      return r;
+    }
+    used.push_back(kr);
+  }
+  const KernelResource peak = plan_peak(used);
+
   r.supported = true;
   r.reason.clear();
-  for(size_t i=0;i<m.stage_lengths.size();i++)
-    r.execution_groups.push_back(ExecutionGroup{(int)i, 1});
-  r.visible_launches = (int)m.stage_lengths.size();
-  r.materialized_gm_boundaries = (m.boundary_home == BoundaryHome::OnChip)
-                                   ? 0 : (int)m.stage_lengths.size()-1;
+  r.plan_ub_bytes = peak.ub_bytes;
+  int edges = 0;
+  for(const auto& rec : r.launch_manifest) edges += rec.boundary_edge;
+  r.materialized_gm_boundaries = edges;
   r.resident_subgraph = m.residence;
-  r.whole_transform_on_chip = (m.boundary_home == BoundaryHome::OnChip &&
-                               r.materialized_gm_boundaries == 0);
-  r.host_assisted = (m.boundary_home == BoundaryHome::HostMemory &&
-                     r.materialized_gm_boundaries > 0);
+  r.whole_transform_on_chip = false;
+  r.host_assisted = (m.boundary_home == BoundaryHome::HostMemory && edges > 0);
   return r;
 }
 

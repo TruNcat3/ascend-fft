@@ -137,7 +137,15 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   （`AB_BOUNDARY=device`，`src/ascendc/fft_long.cpp` strided 转置 + 原地点乘）
   同一网格 A/B/A 12/12 PASS 且 `boundary=0`（段边界不回宿主），证据归档
   `results/evidence/long-fft-device-boundary/`
-  （`scripts/collect_long_fft_evidence.py --boundary device`）。P1-B：R2C/C2R 已按 5-trial 对称协议重采
+  （`scripts/collect_long_fft_evidence.py --boundary device`）。采集器验收为
+  硬断言（rc=0、恰三条 `impulse,random-seeded,impulse` 且无 STALE、误差有限不超
+  门槛、12 个 (N,batch) 键完整唯一、传输/边界计数匹配所选路径、每形状 5 次
+  独立 trial 保留原始样本），manifest 绑定 clean git 提交与
+  `sha256(build/fft_check)`（脏树默认拒绝发布），由
+  `tests/test_collect_evidence.py`（31 用例）锁定；数字复算与文档表由
+  `scripts/summarize_long_fft_evidence.py [--check]` +
+  `tests/test_evidence_summary.py` 锁定，汇总见
+  [长 FFT 验收证据](generated/long-fft-evidence.md)。P1-B：R2C/C2R 已按 5-trial 对称协议重采
   56/56 行，发布进新不可变快照 `ascend910_9382-cann9.0.0-v2`（含 `raw_trials`、协议、
   raw/derived 哈希与 UTC 起止），新汇总见[当前结果 · 实数变换](benchmarks/results.md)；
   旧 min 口径的 1.91x/3.35x 不再被引用。独立模型验证仍待完成。
@@ -145,8 +153,15 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   验收抽样与动态输入证据见 `results/evidence/long-fft-acceptance/` 与长 FFT 计划的
   G0/G1 落地记录）。架构描述符合法性层（addendum step 2）已落地：
   `include/butterfly/descriptors.hpp`（G/A/P/L/H 分层 + `query_lowering()` 在分配/启动前
-  查询、显式 reason 拒绝）、`tests/test_descriptors{.cpp,.py}`（18 用例 + profile 同步 +
-  查询顺序断言，`make desc`），接线后验收重跑 12/12 PASS 证明短 FFT 结果不变。
+  查询、显式 reason 拒绝；判定分 `abstract_feasible`/`supported` 两级，未实现组合返回
+  `abstract-feasible-but-not-lowered`）、`tests/test_descriptors{.cpp,.py}`（26 用例 +
+  profile 同步 + 查询顺序断言 + 6-launch manifest/2-launch 清单回归 + 串行 UB 峰值
+  （`long_fft_ub.h` 与内核共享公式，转置 98304 B 边界）回归，`make desc`），
+  接线后验收重跑 12/12 PASS 证明短 FFT 结果不变。
+  计时口径由 `scripts/scopes.py` 解析、`tests/test_scopes.py`（14 用例）锁定字段名
+  （`h2d`/`device_chain`/`d2h` 同名同义、短路径 `NA`）、退役 `device_only` 拒绝与
+  `host_end_to_end ≥ h2d+device_chain+d2h` 预算不等式，字段同步边界见
+  [长 FFT 计划 · 计时字段](benchmarks/long-fft-plan.md)。
   多 AIV/G2 可搜索映射、E01..E08 采集与长卷积代理仍待做，显式记录阶段交接、重排、
   GM 流量和同步后再测。
 - P3：逆向 C2C、2D/stride、其他精度和非二次幂。补零不得冒充原长度 DFT。

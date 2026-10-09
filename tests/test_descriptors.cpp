@@ -3,7 +3,8 @@
 //   H,<key>,<value>                      hardware profile (must match config JSON)
 //   U,<core>,<min_log>,<max_log>,<ub>,<scope>,<multi_role>
 //   CASE,<name>,<SUPPORTED|UNSUPPORTED>,<reason>
-//   STRUCT,<name>,groups,<n>/launches/<n>/gm_boundaries/<n>/host_assisted/<0|1>/on_chip/<0|1>
+//   STRUCT,<name>,launches,<n>/gm_boundaries,<n>/host_assisted,<0|1>/on_chip,<0|1>
+//          /abstract,<0|1>/ub_peak,<bytes>/kinds,<k1|k2|...>
 // Build: g++ -std=c++17 -Iinclude tests/test_descriptors.cpp -o build/test_descriptors
 #include "butterfly/descriptors.hpp"
 #include <cstdio>
@@ -16,10 +17,14 @@ static void emit_case(const char* name, const LoweringResult& r){
 }
 
 static void emit_struct(const char* name, const LoweringResult& r){
-  printf("STRUCT,%s,groups,%zu,launches,%d,gm_boundaries,%d,host_assisted,%d,on_chip,%d\n",
-         name, r.execution_groups.size(), r.visible_launches,
-         r.materialized_gm_boundaries, (int)r.host_assisted,
-         (int)r.whole_transform_on_chip);
+  printf("STRUCT,%s,launches,%d,gm_boundaries,%d,host_assisted,%d,on_chip,%d,"
+         "abstract,%d,ub_peak,%zu,kinds,",
+         name, r.visible_launches, r.materialized_gm_boundaries,
+         (int)r.host_assisted, (int)r.whole_transform_on_chip,
+         (int)r.abstract_feasible, r.plan_ub_bytes);
+  for(size_t i=0;i<r.launch_manifest.size();i++)
+    printf("%s%s", i?"|":"", launch_kind_name(r.launch_manifest[i].kind));
+  printf("\n");
 }
 
 int main(){
@@ -46,9 +51,50 @@ int main(){
     emit_case("default_65536_b3", query_lowering({65536, 3}, default_long_mapping(256, 256, hw), unit, hw));
     emit_case("batch_4096_independent", query_lowering({8192, 4096}, m, unit, hw));
     emit_struct("batch_4096_independent", query_lowering({8192, 4096}, m, unit, hw));
+    // DeviceGM home: the addendum §3 chain is executable and reports 6 launches.
+    auto dev = m;
+    dev.boundary_home = BoundaryHome::DeviceGM;
+    emit_case("default_device_gm", query_lowering({8192, 1}, dev, unit, hw));
+    emit_struct("default_device_gm", query_lowering({8192, 1}, dev, unit, hw));
+    emit_struct("default_host_memory", query_lowering({8192, 1}, m, unit, hw));
+    // Resource-abstract feasible but the runtime does not implement the tuple.
     auto cell = m;
     cell.residence = Residence::CellResident;
-    emit_case("cell_resident_ok", query_lowering({8192, 1}, cell, unit, hw));
+    emit_case("cell_resident_not_lowered", query_lowering({8192, 1}, cell, unit, hw));
+    emit_struct("cell_resident_not_lowered", query_lowering({8192, 1}, cell, unit, hw));
+    { auto us2 = m; us2.stage_space = 2;
+      emit_case("us2_not_lowered", query_lowering(TransformSpec{8192,1}, us2, unit, hw)); }
+    { auto td99 = m; td99.data_time = 99;
+      emit_case("td99_not_lowered", query_lowering(TransformSpec{8192,1}, td99, unit, hw)); }
+    { auto pb99 = m; pb99.pipeline_buffers = 99;
+      emit_case("pipeline99_not_lowered", query_lowering(TransformSpec{8192,1}, pb99, unit, hw)); }
+  }
+
+  // --- UB resource model (PR #2 stage 3): per-kernel peaks, serial max ---
+  {
+    auto dev = default_long_mapping(64, 128, hw);
+    dev.boundary_home = BoundaryHome::DeviceGM;
+    const TransformSpec s{8192, 1};
+    // ub < 98304: device chain rejected naming the transpose peak,
+    // while the host chain (row FFTs only) still fits the same UB.
+    { auto small = unit; small.ub_bytes = 80000;
+      emit_case("ub_below_transpose_peak",
+                query_lowering(s, dev, small, hw));
+      emit_case("ub_host_ok_at_80000",
+                query_lowering(s, default_long_mapping(64, 128, hw), small, hw)); }
+    // ub == transpose peak: transpose passes, row FFT and twiddle are
+    // checked next (small stages fit => supported, peak recorded).
+    { auto exact = unit; exact.ub_bytes = (size_t)AB_TRANSPOSE_UB_BYTES;
+      const auto r = query_lowering(s, dev, exact, hw);
+      emit_case("ub_exact_transpose_peak", r);
+      emit_struct("ub_exact_transpose_peak", r); }
+    // ...but a 4096-point row FFT needs 190464 B > 98304 B: after the
+    // transpose threshold passes, the row-FFT check rejects.
+    { auto exact = unit; exact.ub_bytes = (size_t)AB_TRANSPOSE_UB_BYTES;
+      auto m2 = default_long_mapping(4096, 4096, hw);
+      m2.boundary_home = BoundaryHome::DeviceGM;
+      emit_case("ub_rowfft_checked_after_transpose",
+                query_lowering({16777216u, 1}, m2, exact, hw)); }
   }
 
   // --- unsupported: explicit reasons, one per legality rule ---

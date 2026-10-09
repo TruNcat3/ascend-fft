@@ -289,12 +289,20 @@ int main(int argc, char** argv){
                 return 2;
             }
             if(getenv("AB_DESC")){
-                printf("lowering: groups=%zu launches=%d gm_boundaries=%d resident=%s "
-                       "on_chip=%d host_assisted=%d\n",
-                       lowered.execution_groups.size(), lowered.visible_launches,
+                // 计数全部来自 launch manifest（PR #2 阶段 2），kind 序列与
+                // 实际发射顺序一致（host=2×row_fft；device=6 内核链）。
+                printf("lowering: launches=%d gm_boundaries=%d resident=%s "
+                       "on_chip=%d host_assisted=%d abstract=%d kinds=",
+                       lowered.visible_launches,
                        lowered.materialized_gm_boundaries,
                        butterfly::residence_name(lowered.resident_subgraph),
-                       (int)lowered.whole_transform_on_chip, (int)lowered.host_assisted);
+                       (int)lowered.whole_transform_on_chip,
+                       (int)lowered.host_assisted, (int)lowered.abstract_feasible);
+                for(size_t i=0;i<lowered.launch_manifest.size();i++)
+                    printf("%s%s", i?"|":"",
+                           butterfly::launch_kind_name(
+                               lowered.launch_manifest[i].kind));
+                printf("\n");
             }
         }
         printf("long backend: n=%u split N1=%u N2=%u rows1=%u rows2=%u gm_bytes=%llu\n",
@@ -625,24 +633,33 @@ int main(int argc, char** argv){
         return aclrtLaunchKernelWithHostArgs(fh, blocks, s, nullptr,
                                              abL.data(), abL.size(), nullptr, 0);
     };
-    // device_only 口径：每次 launch 用事件对量取各内核在 device 上的 span 之和
-    // （不含宿主段、不含段间拷贝），由 aclrtEventElapsedTime 给出。
-    aclrtEvent ev0=nullptr, ev1=nullptr;
-    CK(aclrtCreateEvent(&ev0)); CK(aclrtCreateEvent(&ev1));
-    double devSpanMs=-1;
+    // 计时口径（PR #2 阶段 1）：三段同名字段 + 显式 NA，宿主/设备边界语义一致。
+    //   h2d          = 逻辑输入 H2D 的事件跨度（evIn..ev0）
+    //   device_chain = 链上 device 计算内核的事件跨度（ev0..ev1）——不含任何传输：
+    //                  device 边界 = 3×transpose + 2×FFT + 1×twiddle 连续跨度；
+    //                  host 边界 = pass1+pass2 两次 FFT 跨度之和（段间传输/宿主段在墙钟里）
+    //   d2h          = 逻辑输出 D2H 的事件跨度（ev1..evOut；host 边界为 pass2 出数那次）
+    //   短路径无逐次 launch 传输 => h2d/d2h 显式 NA，device_chain = 内核跨度。
+    // 各跨度报 reps 次的最小值；host_end_to_end 报墙钟 mean/min，恒 >= h2d+chain+d2h
+    // （逐次满足 wall_i >= h2d_i+chain_i+d2h_i，min/mean 保持该不等式，允许时钟域噪声）。
+    aclrtEvent evIn=nullptr, ev0=nullptr, ev1=nullptr, evOut=nullptr;
+    CK(aclrtCreateEvent(&evIn));  CK(aclrtCreateEvent(&ev0));
+    CK(aclrtCreateEvent(&ev1));   CK(aclrtCreateEvent(&evOut));
+    double chainSpanMs=-1, h2dSpanMs=-1, d2hSpanMs=-1;
     // 一次 launch = 整条方向链（多内核在同一流上串行），末尾一次同步 => 计的是整链 device 时间
     auto launch=[&](){
         aclError e=ACL_SUCCESS;
-        devSpanMs=-1;
+        chainSpanMs=-1; h2dSpanMs=-1; d2hSpanMs=-1;
         if(isLong && devBoundary){
             // device-materialized 链（addendum §3 step 3），逐步对齐宿主四步：
             //   H2D(逻辑输入) -> 转置入 lt_tr(n1,n2) -> 行FFT(N1) ->
             //   段边界点乘 lt_tw(原地) -> lt_tr(n2,n1) -> 行FFT(N2) ->
             //   自然序写出 lt_tr(n1,n2) -> D2H(逻辑输出)。
             // 每次执行都从当前 hIn 上传（动态输入契约）；段边界不回宿主 => boundary=0。
-            aclError e=aclrtRecordEvent(ev0, s);
+            aclError e=aclrtRecordEvent(evIn, s);
             if(!e) e=aclrtMemcpyAsync(dIn, inElems*4u, hIn.data(), inElems*4u,
                                       ACL_MEMCPY_HOST_TO_DEVICE, s);
+            if(!e) e=aclrtRecordEvent(ev0, s);        // chain 起点：H2D 完成之后
             if(!e) e=issueLt(fLtTr, dA, dIn, nullptr, longN1, longN2);
             if(!e) e=issuePass(dIn, dA, longN1, longN2*batch,
                                dTwR, dTwI, dIdx, pp1.packArg);
@@ -651,14 +668,19 @@ int main(int argc, char** argv){
             if(!e) e=issuePass(dIn, dA, longN2, longN1*batch,
                                dTw2R, dTw2I, dIdx2, pp2.packArg);
             if(!e) e=issueLt(fLtTr, dOut, dIn, nullptr, longN1, longN2);
+            if(!e) e=aclrtRecordEvent(ev1, s);        // chain 止点：末次转置之后、D2H 之前
             if(!e) e=aclrtMemcpyAsync(hOut.data(), outElems*4u, dOut, outElems*4u,
                                       ACL_MEMCPY_DEVICE_TO_HOST, s);
-            if(!e) e=aclrtRecordEvent(ev1, s);
+            if(!e) e=aclrtRecordEvent(evOut, s);
             if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
-            float dm=-1.f;
-            if(!e) aclrtEventElapsedTime(&dm, ev0, ev1);
+            float dInEv=-1.f, dm=-1.f, dOutEv=-1.f;
+            if(!e){ aclrtEventElapsedTime(&dInEv, evIn, ev0);
+                    aclrtEventElapsedTime(&dm, ev0, ev1);
+                    aclrtEventElapsedTime(&dOutEv, ev1, evOut); }
             if(e){ printf("long launch=%d\n",(int)e); return false; }
-            devSpanMs = dm>=0.f ? (double)dm : -1.0;   // 单跨度：整链无宿主中段同步
+            chainSpanMs = dm>=0.f ? (double)dm : -1.0;    // 6 内核连续跨度，无传输混入
+            h2dSpanMs   = dInEv>=0.f ? (double)dInEv : -1.0;
+            d2hSpanMs   = dOutEv>=0.f ? (double)dOutEv : -1.0;
             return true;
         }
         if(isLong){
@@ -673,9 +695,10 @@ int main(int argc, char** argv){
                         size_t dst=2ull*(((size_t)b*longN2 + j)*longN1 + i);
                         hT[dst]=hIn[src]; hT[dst+1]=hIn[src+1];
                     }
-            float dm0=-1.f, dm1=-1.f;
-            e=aclrtMemcpyAsync(dIn, inElems*4u, hT.data(), inElems*4u,
-                               ACL_MEMCPY_HOST_TO_DEVICE, s);
+            float dm0=-1.f, dm1=-1.f, dInEv=-1.f, dOutEv=-1.f;
+            e=aclrtRecordEvent(evIn, s);
+            if(!e) e=aclrtMemcpyAsync(dIn, inElems*4u, hT.data(), inElems*4u,
+                                      ACL_MEMCPY_HOST_TO_DEVICE, s);
             if(!e) e=aclrtRecordEvent(ev0, s);
             if(!e) e=issuePass(dA, dIn, longN1, longN2*batch,
                                dTwR, dTwI, dIdx, pp1.packArg);
@@ -683,7 +706,8 @@ int main(int argc, char** argv){
             if(!e) e=aclrtMemcpyAsync(hMid.data(), inElems*4u, dA, inElems*4u,
                                       ACL_MEMCPY_DEVICE_TO_HOST, s);
             if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
-            if(!e) aclrtEventElapsedTime(&dm0, ev0, ev1);
+            if(!e){ aclrtEventElapsedTime(&dm0, ev0, ev1);
+                    aclrtEventElapsedTime(&dInEv, evIn, ev0); }   // h2d = 输入 H2D 段
             if(!e){ // 宿主段①：twiddle W_N^{j·k1} + 转置成 pass2 行布局
                 for(uint32_t b=0;b<batch;b++)
                     for(uint32_t j=0;j<longN2;j++)
@@ -705,8 +729,10 @@ int main(int argc, char** argv){
             if(!e) e=aclrtRecordEvent(ev1, s);
             if(!e) e=aclrtMemcpyAsync(hMid.data(), inElems*4u, dOut, outElems*4u,
                                       ACL_MEMCPY_DEVICE_TO_HOST, s);
+            if(!e) e=aclrtRecordEvent(evOut, s);
             if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
-            if(!e) aclrtEventElapsedTime(&dm1, ev0, ev1);
+            if(!e){ aclrtEventElapsedTime(&dm1, ev0, ev1);
+                    aclrtEventElapsedTime(&dOutEv, ev1, evOut); }  // d2h = 输出 D2H 段
             if(!e){ // 宿主段②：E[k1][k2] -> X[k1+N1·k2] 自然序
                 for(uint32_t b=0;b<batch;b++)
                     for(uint32_t k1=0;k1<longN1;k1++)
@@ -719,7 +745,9 @@ int main(int argc, char** argv){
             }
             // 结果就地留在 hOut：pass2 的 D2H 就是唯一逻辑输出传输，不再回写 dOut
             if(e){ printf("long launch=%d\n",(int)e); return false; }
-            devSpanMs = (dm0>=0.f && dm1>=0.f) ? (double)(dm0+dm1) : -1.0;  // ms
+            chainSpanMs = (dm0>=0.f && dm1>=0.f) ? (double)(dm0+dm1) : -1.0;  // ms
+            h2dSpanMs   = dInEv>=0.f ? (double)dInEv : -1.0;
+            d2hSpanMs   = dOutEv>=0.f ? (double)dOutEv : -1.0;
             return true;
         }
         float dm=-1.f;
@@ -733,7 +761,7 @@ int main(int argc, char** argv){
         if(e){ printf("launch=%d\n",(int)e); return false; }
         { aclError se=aclrtSynchronizeStream(s); if(se){ printf("sync=%d\n",(int)se); return false; } }
         aclrtEventElapsedTime(&dm, ev0, ev1);
-        devSpanMs = dm>=0.f ? (double)dm : -1.0;   // ms
+        chainSpanMs = dm>=0.f ? (double)dm : -1.0;   // ms；短路径无逐次传输 => h2d/d2h=NA
         return true;
     };
 
@@ -829,8 +857,9 @@ int main(int argc, char** argv){
 
     // 逐次 launch 计时：均值与最小值都报。均值与 §8.5 的 η 标定同口径，
     // 最小值与 bench_native_npu.py 的统计量同口径 —— 两边可以各自对齐比。
-    // device_only 取各次 launch 内核 span（事件对测量）的最小值。
-    double sumUs=0, minUs=0, devMinUs=-1;
+    // h2d/device_chain/d2h 取各次 launch 事件跨度的最小值（与墙钟 min 同次迭代，
+    // 逐次满足 wall_i >= h2d_i+chain_i+d2h_i => min/mean 口径下不等式仍成立）。
+    double sumUs=0, minUs=0, chainMinUs=-1, h2dMinUs=-1, d2hMinUs=-1;
     std::vector<double> samples; samples.reserve(reps);
     for(int i=0;i<reps;i++){
         auto a0=std::chrono::steady_clock::now();
@@ -838,8 +867,12 @@ int main(int argc, char** argv){
         auto a1=std::chrono::steady_clock::now();
         double u=std::chrono::duration<double,std::micro>(a1-a0).count();
         sumUs+=u; if(i==0||u<minUs) minUs=u; samples.push_back(u);
-        if(devSpanMs>=0 && (devMinUs<0 || devSpanMs*1000.0<devMinUs))
-            devMinUs=devSpanMs*1000.0;
+        if(chainSpanMs>=0 && (chainMinUs<0 || chainSpanMs*1000.0<chainMinUs))
+            chainMinUs=chainSpanMs*1000.0;
+        if(h2dSpanMs>=0 && (h2dMinUs<0 || h2dSpanMs*1000.0<h2dMinUs))
+            h2dMinUs=h2dSpanMs*1000.0;
+        if(d2hSpanMs>=0 && (d2hMinUs<0 || d2hSpanMs*1000.0<d2hMinUs))
+            d2hMinUs=d2hSpanMs*1000.0;
     }
     double us=sumUs/reps;
     double medUs=0;
@@ -854,11 +887,20 @@ int main(int argc, char** argv){
         }
     }
 
-    // 四个计时口径显式成行（PR 评论 P1-A）：plan 一次性准备、首次执行、
-    // 同步 host 端到端（含宿主段与段间拷贝）、纯 device 内核 span。
+    // 计时口径显式成行（PR #2 阶段 1）：plan 一次性准备、首次执行、同步 host
+    // 端到端（墙钟，含宿主段与段间拷贝）、h2d / device_chain / d2h 事件跨度。
+    // 同名字段跨宿主/设备边界同语义；不适用（短路径无逐次传输）显式打印 NA。
+    auto spanStr=[](double v){
+        char b[40];
+        if(v>=0) snprintf(b,sizeof b,"%.1f us",v);
+        else     snprintf(b,sizeof b,"NA");
+        return std::string(b);
+    };
     printf("scopes: plan_setup=%.1f us first_use=%.1f us host_end_to_end mean=%.1f "
-           "min=%.1f us device_only=%.1f us reps=%d\n",
-           planUs, firstUseUs, us, minUs, devMinUs, reps);
+           "min=%.1f us h2d=%s device_chain=%s d2h=%s reps=%d\n",
+           planUs, firstUseUs, us, minUs,
+           spanStr(h2dMinUs).c_str(), spanStr(chainMinUs).c_str(),
+           spanStr(d2hMinUs).c_str(), reps);
 
     if(!isLong)   // 长链的逻辑输出 D2H 已在 launch 内完成，结果就在 hOut
         CK(aclrtMemcpy(hOut.data(), outElems*4u, dOut, outElems*4u, ACL_MEMCPY_DEVICE_TO_HOST));

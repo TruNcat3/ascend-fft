@@ -17,10 +17,14 @@
 // readArgSize 对整个 .o 只给一个值；kfft_lt_tr 的 tw 不用但必须占位）。
 #include "kernel_operator.h"
 #include "basic_api/kernel_operator_vec_gather_intf.h"
+// 分块常量与 UB 资源公式同源（PR #2 阶段 3）：描述符层 query_lowering 用
+// include/butterfly/long_fft_ub.h 的 AB_TRANSPOSE_UB_BYTES 校验本内核峰值，
+// 两处共享同一份宏，防止 descriptor 与实现漂移。
+#include "butterfly/long_fft_ub.h"
 using namespace AscendC;
 
-#define LT_H 128u   // 分块行数（src 行内切块），blockCount <= 4095
-#define LT_W 32u    // 分块列数（dst 行内一段），须 4 的倍数（32B 对齐）
+#define LT_H AB_LT_H   // 分块行数（src 行内切块），blockCount <= 4095
+#define LT_W AB_LT_W   // 分块列数（dst 行内一段），须 4 的倍数（32B 对齐）
 
 // ---- 分块转置 ------------------------------------------------------------
 // tile 读入 [H][W]（行=i 列=c，交错复数），Gather 重排为 dst 行序 [W][H]，
