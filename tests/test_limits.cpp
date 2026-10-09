@@ -15,6 +15,7 @@
 
 #include "butterfly/plan.hpp"
 #include "butterfly/reference.hpp"
+#include "butterfly/descriptors.hpp"
 
 using bfly::Context;
 using bfly::State;
@@ -136,6 +137,48 @@ int main(int argc, char** argv) {
                 newMargin, oldMargin);
         else
             ok("ubBytes margin honest");
+        // R0.1 单一来源：ubBytes 必须逐字节等于共享宏（同一结构 D/K），
+        // 否则 StagePlan 与 long_fft_ub.h 的公式又漂移了。
+        {
+            const uint32_t sD = bfly::foldDFor(probeN);
+            const size_t viaMacro = (size_t)AB_ROW_FFT_UB_BYTES(probeN, sD, K);
+            if (viaMacro != got)
+                bad("ubBytes single source",
+                    "ubBytes(4096)=%zu != AB_ROW_FFT_UB_BYTES=%zu (D=%u)",
+                    got, viaMacro, sD);
+            else
+                ok("ubBytes single source (macro)");
+        }
+        // rows 感知 (D,K) 解析 —— descriptor 门禁与 launch 的同一入口：
+        {
+            using butterfly::resolve_row_fft;
+            auto r1 = resolve_row_fft(64, 128, 0, 0);      // 8192x1 pass1
+            auto r2 = resolve_row_fft(128, 64, 0, 0);      // 8192x1 pass2
+            auto r3 = resolve_row_fft(64, 524288, 0, 0);   // 8192x4096 pass1
+            auto r4 = resolve_row_fft(4096, 4096, 0, 0);   // n > 2048
+            auto ro = resolve_row_fft(64, 128, 4, 32);     // override + K clamp
+            const size_t ub1 = (size_t)AB_ROW_FFT_UB_BYTES(64, r1.fold_d, r1.plane_k);
+            const size_t ub2 = (size_t)AB_ROW_FFT_UB_BYTES(128, r2.fold_d, r2.plane_k);
+            const size_t ub3 = (size_t)AB_ROW_FFT_UB_BYTES(64, r3.fold_d, r3.plane_k);
+            if (r1.fold_d != 2 || r1.plane_k != 8 || ub1 != 5056ull)
+                bad("resolve_row_fft 8192x1 pass1",
+                    "D=%u K=%u ub=%zu != 2/8/5056", r1.fold_d, r1.plane_k, ub1);
+            else if (r2.fold_d != 1 || r2.plane_k != 8 || ub2 != 6208ull)
+                bad("resolve_row_fft 8192x1 pass2",
+                    "D=%u K=%u ub=%zu != 1/8/6208", r2.fold_d, r2.plane_k, ub2);
+            else if (r3.fold_d != 4 || ub3 != 8832ull)
+                bad("resolve_row_fft 8192x4096 pass1",
+                    "D=%u ub=%zu != 4/8832", r3.fold_d, ub3);
+            else if (r4.fold_d != 1 || r4.plane_k != 16)
+                bad("resolve_row_fft n=4096",
+                    "D=%u K=%u != 1/16", r4.fold_d, r4.plane_k);
+            else if (ro.fold_d != 4 || ro.plane_k != 8)
+                bad("resolve_row_fft overrides",
+                    "forced D=4 kept=%d, K=32 illegal for n=64 must clamp to 8, got %u",
+                    ro.fold_d == 4, ro.plane_k);
+            else
+                ok("resolve_row_fft rows-aware (D,K) goldens + K clamp");
+        }
     }
 
     // ---------- 1) n 下界 / 非 2 幂 / UB 上界（B1-1）----------

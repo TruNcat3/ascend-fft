@@ -8,8 +8,8 @@ control and the E2E single-input/single-output transfer assertion.  Every
 shape also gets 5 independent metric trials (one process invocation each,
 raw samples retained, median/min/mean/CV reported).
 
-Hard acceptance (PR #2 stage 4, verify_* functions are unit-tested in
-tests/test_collect_evidence.py):
+Hard acceptance (PR #2 stage 4 / R0.2 contract, verify_* functions are
+unit-tested in tests/test_collect_evidence.py):
   - every long shape exits rc == 0;
   - exactly three seq entries in `impulse, random-seeded, impulse` order,
     each PASS, finite, <= threshold, never STALE-OUTPUT;
@@ -17,16 +17,29 @@ tests/test_collect_evidence.py):
   - the 12 (N, batch) keys are complete and unique;
   - transfer/boundary counters match the selected path (host boundary=2,
     device boundary=0), both per shape and on the dedicated E2E run;
+  - trials: len(raw) is authoritative (count is derived, not trusted),
+    every raw rc==0, PASS/maxRel captured and under threshold, all timing
+    fields finite, host and device scopes validated via scopes.validate_scopes,
+    and stats are recomputed from raw (the cached block is output-only);
   - manifest: clean git tree is required (or --allow-dirty records a patch
-    digest), sha256(build/fft_check), build recipe, CANN/SoC/driver,
-    effective AB_* environment and the exact commands.
+    digest), sha256(build/fft_check), sha256 of the runtime kernel objects
+    (fft_radix2.o / fft_long.o / fft_real.o), sha256 of config/*.json, build
+    recipe, CANN/SoC/driver (+ driver source), effective AB_* environment and
+    the exact commands;
+  - a driver version that cannot be resolved from any source marks the
+    document `status="incomplete"` (non-zero exit unless --allow-incomplete)
+    instead of silently recording "unknown";
+  - verify_document() re-runs the whole contract on a stored acceptance.json
+    (archive-level gate used by CI).
 
   python3 scripts/collect_long_fft_evidence.py               # 宿主中介链（默认）
   python3 scripts/collect_long_fft_evidence.py --boundary device
       # addendum §3 device-materialized 段边界（AB_BOUNDARY=device）：
       # 同一网格 + A/B/A，段边界不回宿主 => 期望 E2E boundary=0，
       # 证据写入 results/evidence/long-fft-device-boundary/。
-  --allow-dirty   记录 patch digest 后继续（默认脏树直接拒绝发布证据）
+  --allow-dirty       记录 patch digest 后继续（默认脏树直接拒绝发布证据）
+  --allow-incomplete  driver/哈希不全时仍发布（status 保持 incomplete）
+  --verify PATH       对已存 acceptance.json 跑归档级校验后退出
 """
 import argparse
 import hashlib
@@ -86,12 +99,21 @@ def parse_point(out):
 
 
 def parse_trial(out):
-    """One independent metric invocation -> raw trial sample."""
+    """One independent metric invocation -> raw trial sample.
+
+    Besides timing/scopes, captures the correctness lines the same run
+    prints (`n=... maxRel=...` + terminal PASS) so per-trial accuracy is
+    part of the raw archive instead of being assumed.
+    """
     e2e = re.search(r"^E2E n=.*e2e_us=([\d.eE+-]+) e2e_min_us=([\d.eE+-]+)",
                     out, re.M)
+    corr = re.search(r"maxAbs=([\d.eE+-]+) maxRel=([\d.eE+-]+)", out)
     sample = {
         "e2e_us": float(e2e.group(1)) if e2e else None,
         "e2e_min_us": float(e2e.group(2)) if e2e else None,
+        "max_abs": float(corr.group(1)) if corr else None,
+        "max_rel": float(corr.group(2)) if corr else None,
+        "pass": bool(re.search(r"^PASS$", out, re.M)),
     }
     line = next((l for l in out.splitlines() if l.startswith("scopes:")), "")
     sample["scopes"] = scopes.parse_scopes(line) if line else None
@@ -163,7 +185,14 @@ def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True):
         if not t:
             problems.append("trials block missing")
         else:
-            if t.get("count") != TRIALS:
+            raw = t.get("raw") or []
+            if len(raw) != TRIALS:
+                problems.append(f"trials.raw has {len(raw)} entries, "
+                                f"want {TRIALS}")
+            if t.get("count") != len(raw):
+                problems.append(f"trials count {t.get('count')} != "
+                                f"len(raw) {len(raw)}")
+            elif t.get("count") != TRIALS:
                 problems.append(f"trials count {t.get('count')} != {TRIALS}")
             stats = t.get("stats") or {}
             samples = stats.get("samples") or []
@@ -176,13 +205,44 @@ def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True):
             for key in ("median", "min", "mean"):
                 if not _finite(stats.get(key)):
                     problems.append(f"trial stats missing {key}")
-            # P0 six-segment instrumentation: device chains must report the
-            # full decomposition (telescoping into device_chain); host chains
-            # must keep the explicit NA so the two never get mixed up.
-            for i, s in enumerate(t.get("raw") or []):
-                seg = (s or {}).get("segments", "unset")
+            # Per-raw contract (R0.2): rc, correctness, finite timings and
+            # validated scopes on every archived sample — never assumed.
+            scope_mode = ("long_device" if expect_boundary == "boundary=0"
+                          else "long_host")
+            for i, s in enumerate(raw):
+                s = s or {}
+                if s.get("rc") != 0:
+                    problems.append(f"trial[{i}] rc={s.get('rc')} (want 0)")
+                for field in ("e2e_us", "e2e_min_us"):
+                    v = s.get(field)
+                    if not _finite(v) or v <= 0:
+                        problems.append(
+                            f"trial[{i}] raw {field} invalid: {v!r}")
+                if not s.get("pass"):
+                    problems.append(f"trial[{i}] PASS line missing")
+                mr = s.get("max_rel")
+                if mr is None:
+                    problems.append(f"trial[{i}] max_rel missing")
+                elif not _finite(mr):
+                    problems.append(f"trial[{i}] max_rel not finite: {mr!r}")
+                elif mr > threshold:
+                    problems.append(f"trial[{i}] max_rel {mr} > "
+                                    f"threshold {threshold}")
+                fields = s.get("scopes")
+                if not fields:
+                    problems.append(f"trial[{i}] scopes missing")
+                else:
+                    problems += [f"trial[{i}] {x}" for x in
+                                 scopes.validate_scopes(fields, scope_mode)]
+                    for name, v in fields.items():
+                        if isinstance(v, (int, float)) and not _finite(v):
+                            problems.append(
+                                f"trial[{i}] scope {name} not finite: {v!r}")
+                # P0 six-segment instrumentation: device chains must report
+                # the full decomposition (telescoping into device_chain);
+                # host chains must keep the explicit NA.
+                seg = s.get("segments", "unset")
                 if expect_boundary == "boundary=0":
-                    fields = (s or {}).get("scopes")
                     if not fields or seg in (None, "unset"):
                         problems.append(
                             f"trial[{i}] device chain missing six segments")
@@ -195,6 +255,21 @@ def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True):
                     problems.append(
                         f"trial[{i}] host chain must report segments=NA, "
                         f"got {seg!r}")
+            # Stats are an output cache: recompute from raw so a tampered
+            # median/min/mean/cv can never drift from the archived samples.
+            recomputed = compute_stats([(s or {}).get("e2e_us")
+                                        for s in raw])
+            for key in ("median", "min", "mean", "cv"):
+                a, b = stats.get(key), recomputed.get(key)
+                if a is None and b is None:
+                    continue
+                if (a is None or b is None
+                        or not math.isclose(a, b, rel_tol=1e-9,
+                                            abs_tol=1e-9)):
+                    problems.append(
+                        f"stats {key}={a!r} != recomputed {b!r}")
+            if samples != recomputed.get("samples"):
+                problems.append("stats samples != raw e2e_us list")
     return problems
 
 
@@ -230,6 +305,59 @@ def verify_grid(points, ns=NS, bs=BS):
         problems.append(f"grid mismatch: missing={sorted(want - set(got))} "
                         f"extra={sorted(set(got) - want)}")
     return problems
+
+
+# ---------- archive-level gate (pure; unit-tested) ------------------------
+def verify_document(doc, threshold=None):
+    """Re-run the whole contract on a stored acceptance.json.
+
+    Returns [] only for a fully attested, passing archive (status "pass"
+    with every stored verdict recomputed identically). Tampered stats/raw
+    samples, malformed manifests and provenance gaps all yield explicit
+    problems; used as the CI gate on the committed archives.
+    """
+    if isinstance(doc, (str, Path)):
+        doc = json.loads(Path(doc).read_text(encoding="utf-8"))
+    missing = [k for k in ("manifest", "points", "grid", "boundary",
+                           "trials_per_shape", "short_control",
+                           "e2e_transfers", "status")
+               if k not in doc]
+    if missing:
+        return [f"missing top-level key {k!r}" for k in missing]
+    boundary = doc["boundary"]
+    expect = BOUNDARY_BY_MODE.get(boundary)
+    if expect is None:
+        return [f"unknown boundary {boundary!r}"]
+    thr = doc.get("threshold", THRESHOLD) if threshold is None else threshold
+    grid = doc.get("grid") or {}
+    problems = [f"grid: {x}" for x in
+                verify_grid(doc["points"], tuple(grid.get("ns") or ()),
+                            tuple(grid.get("bs") or ()))]
+    for p in doc["points"]:
+        problems += [f"point n={p.get('n')} b={p.get('b')}: {x}"
+                     for x in verify_point(p, expect, threshold=thr)]
+    problems += [f"control: {x}" for x in
+                 verify_control(doc["short_control"], threshold=thr)]
+    problems += [f"e2e: {x}" for x in
+                 verify_e2e(doc["e2e_transfers"], expect)]
+    problems += [f"manifest: {x}" for x in
+                 verify_manifest(doc["manifest"], boundary)]
+    incomplete = manifest_incomplete(doc["manifest"])
+    status = ("fail" if problems else
+              "incomplete" if incomplete else "pass")
+    out = list(problems)
+    if status == "incomplete":
+        out += [f"incomplete: {x}" for x in incomplete]
+    # Self-consistency: stored verdicts must equal the recomputation.
+    if doc.get("status") != status:
+        out.append(f"status {doc.get('status')!r} != recomputed {status!r}")
+    if list(doc.get("problems") or []) != problems:
+        out.append("stored problems list != recomputation "
+                   f"({len(doc.get('problems') or [])} vs {len(problems)})")
+    if list(doc.get("incomplete") or []) != incomplete:
+        out.append("stored incomplete list != recomputation: "
+                   f"{doc.get('incomplete')!r} vs {incomplete!r}")
+    return out
 
 
 # ---------- manifest -----------------------------------------------------
@@ -274,23 +402,128 @@ def detect_cann_version():
     return "unknown"
 
 
-def detect_driver():
+def driver_info():
+    """(version, source) of the NPU driver, multi-source.
+
+    Order: AB_DRIVER_VERSION env -> /usr/local/Ascend/driver/version.info
+    (`Version=`) -> `npu-smi info` regex. source is None only when every
+    source fails: callers must treat that as `status="incomplete"` evidence
+    rather than silently publishing "unknown".
+    """
+    env = os.environ.get("AB_DRIVER_VERSION")
+    if env:
+        return env, "env:AB_DRIVER_VERSION"
+    info = Path("/usr/local/Ascend/driver/version.info")
+    try:
+        for line in info.read_text(encoding="utf-8").splitlines():
+            if line.startswith("Version="):
+                v = line.split("=", 1)[1].strip()
+                if v:
+                    return v, str(info)
+    except OSError:
+        pass
     try:
         out = subprocess.run(["npu-smi", "info"], capture_output=True,
                              text=True, timeout=30).stdout
     except (OSError, subprocess.SubprocessError):
-        return "unknown"
+        out = ""
     m = re.search(r"Driver Version\s*[:=]\s*(\S+)", out)
-    return m.group(1) if m else "unknown"
+    if m:
+        return m.group(1), "npu-smi"
+    return "unknown", None
+
+
+def detect_driver():
+    return driver_info()[0]
+
+
+def kernel_object_paths():
+    """Runtime-loaded device objects as (name -> relative path)."""
+    return {
+        "fft_radix2.o": os.environ.get("AB_FFT_O", "build/fft_radix2.o"),
+        "fft_long.o": os.environ.get("AB_LONG_O", "build/fft_long.o"),
+        "fft_real.o": os.environ.get("AB_REAL_O", "build/fft_real.o"),
+    }
+
+
+def manifest_incomplete(man):
+    """Evidence-completeness reasons (content-level, not structure).
+
+    Non-empty => the document must be `status="incomplete"`: the numbers may
+    be valid but provenance cannot be fully attested (R0.2).
+    """
+    reasons = []
+    if "driver_source" not in man:
+        reasons.append("driver_source key missing from manifest")
+    elif not man.get("driver_source"):
+        reasons.append("driver version unrecognized "
+                       "(AB_DRIVER_VERSION/version.info/npu-smi all failed)")
+    kos = man.get("kernel_objects")
+    if not isinstance(kos, dict):
+        reasons.append("kernel_objects missing")
+    else:
+        for name in sorted(set(kernel_object_paths()) - set(kos)):
+            reasons.append(f"kernel object {name} not hashed")
+        for name, v in sorted(kos.items()):
+            if v is None:
+                reasons.append(f"kernel object {name} hash unavailable")
+    if not man.get("config_sha256"):
+        reasons.append("config_sha256 empty")
+    return reasons
+
+
+def verify_manifest(man, boundary):
+    """Structural manifest contract; [] == well-formed (content completeness
+    is manifest_incomplete()'s job)."""
+    problems = []
+    if not re.fullmatch(r"[0-9a-f]{40}", str(man.get("git_sha") or "")):
+        problems.append(f"git_sha malformed: {man.get('git_sha')!r}")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(man.get("binary_sha256") or "")):
+        problems.append(f"binary_sha256 malformed: "
+                        f"{man.get('binary_sha256')!r}")
+    kos = man.get("kernel_objects")
+    if not isinstance(kos, dict) or set(kos) != set(kernel_object_paths()):
+        problems.append(f"kernel_objects keys wrong: "
+                        f"{sorted(kos) if isinstance(kos, dict) else kos!r}")
+    else:
+        for name, v in sorted(kos.items()):
+            if v is not None and not re.fullmatch(r"[0-9a-f]{64}", str(v)):
+                problems.append(f"kernel_objects[{name}] malformed: {v!r}")
+    cfg = man.get("config_sha256")
+    if not isinstance(cfg, dict) or not cfg:
+        problems.append(f"config_sha256 missing/empty: {cfg!r}")
+    else:
+        for name, v in sorted(cfg.items()):
+            if not re.fullmatch(r"[0-9a-f]{64}", str(v)):
+                problems.append(f"config_sha256[{name}] malformed: {v!r}")
+    if "driver_source" not in man:
+        problems.append("driver_source key missing from manifest")
+    if "driver_version" not in man:
+        problems.append("driver_version key missing from manifest")
+    if not man.get("cann_version"):
+        problems.append("cann_version missing")
+    if man.get("boundary") != boundary:
+        problems.append(f"manifest boundary {man.get('boundary')!r} != "
+                        f"document {boundary!r}")
+    if not man.get("build", {}).get("recipe"):
+        problems.append("build recipe missing")
+    if not isinstance(man.get("env"), dict):
+        problems.append("env block missing")
+    return problems
 
 
 def build_manifest(mode, allow_dirty):
     sha, dirty = git_state()
+    driver_version, driver_source = driver_info()
     man = {
         "git_sha": sha,
         "git_dirty": dirty,
         "binary": "build/fft_check",
         "binary_sha256": sha256_file(ROOT / "build" / "fft_check"),
+        "kernel_objects": {name: sha256_file(ROOT / rel)
+                           for name, rel in kernel_object_paths().items()},
+        "config_sha256": {p.name: sha256_file(p)
+                          for p in sorted((ROOT / "config").glob("*.json"))},
         "build": {
             "script": "bash scripts/build.sh",
             "recipe": "scripts/env.sh: ab_ccec (ccec -c --cce-aicore-only "
@@ -300,7 +533,8 @@ def build_manifest(mode, allow_dirty):
         },
         "soc": os.environ.get("AB_SOC", "Ascend910_9382"),
         "cann_version": detect_cann_version(),
-        "driver_version": detect_driver(),
+        "driver_version": driver_version,
+        "driver_source": driver_source,
         "python": sys.version.split()[0],
         "env": {k: v for k, v in sorted(os.environ.items())
                 if k.startswith("AB_")},
@@ -397,6 +631,7 @@ def collect(mode, allow_dirty=False):
                      for x in verify_point(p, expect_boundary)]
     problems += [f"control: {x}" for x in verify_control(control)]
     problems += [f"e2e: {x}" for x in verify_e2e(e2e, expect_boundary)]
+    incomplete = manifest_incomplete(manifest)
 
     document = {
         "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -413,7 +648,9 @@ def collect(mode, allow_dirty=False):
         "short_control": control,
         "e2e_transfers": e2e,
         "problems": problems,
-        "status": "pass" if not problems else "fail",
+        "incomplete": incomplete,
+        "status": ("fail" if problems else
+                   "incomplete" if incomplete else "pass"),
     }
     return (document, transcripts), problems
 
@@ -424,7 +661,24 @@ def main(argv=None):
     ap.add_argument("--allow-dirty", action="store_true",
                     help="record a patch digest instead of refusing on a "
                          "dirty tree")
+    ap.add_argument("--allow-incomplete", action="store_true",
+                    help="publish and exit 0 even when provenance is "
+                         "incomplete (status stays 'incomplete')")
+    ap.add_argument("--verify", metavar="PATH",
+                    help="verify a stored acceptance.json "
+                         "(archive-level gate) and exit")
     args = ap.parse_args(argv)
+
+    if args.verify:
+        probs = verify_document(Path(args.verify))
+        if probs:
+            for x in probs:
+                print(x, file=sys.stderr)
+            print(f"{args.verify}: {len(probs)} problem(s)",
+                  file=sys.stderr)
+            return 1
+        print(f"{args.verify}: archive accepted")
+        return 0
 
     sha, dirty = git_state()
     if dirty and not args.allow_dirty:
@@ -456,6 +710,13 @@ def main(argv=None):
         for p in problems:
             print(f"  problem: {p}", file=sys.stderr)
         return 1
+    if document["status"] == "incomplete":
+        for r in document["incomplete"]:
+            print(f"  incomplete: {r}", file=sys.stderr)
+        if not args.allow_incomplete:
+            print("evidence incomplete; rerun with --allow-incomplete to "
+                  "publish with status=incomplete anyway", file=sys.stderr)
+            return 1
     return 0
 
 

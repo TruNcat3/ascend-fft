@@ -1,0 +1,15 @@
+{
+ "schema": "long-fft-p0-msprof/1",
+ "collected": "2026-10-09T04:16:21Z",
+ "profiles_dir": "results/profiles/20261009T041621Z",
+ "profiles_committed": false,
+ "command": "scripts/profile_test.sh --only lfft8k1,lfft16k47,lfft32k47,lfft65k47 && python3 scripts/sum_prof.py --csv results/profiles/20261009T041621Z/lfft8k1 results/profiles/20261009T041621Z/lfft16k47 results/profiles/20261009T041621Z/lfft32k47 results/profiles/20261009T041621Z/lfft65k47",
+ "aggregation": "sum_prof.py mean of the per-iteration op sums (op_summary Task Duration(us), default --drop 3 warmup iterations); one profile run per shape",
+ "note": "Profiles stay local (not committed); this json archives the extracted numbers so docs/benchmarks/long-fft-p0-report.md section 4 stays inside the lock chain.",
+ "shapes": {
+  "8192x1": {"profile": "lfft8k1", "kfft_lt_tr": 128.677, "kfft_fwd": 16.043, "kfft_lt_tw": 5.846},
+  "16384x47": {"profile": "lfft16k47", "kfft_lt_tr": 155.36, "kfft_fwd": 178.543, "kfft_lt_tw": 116.401},
+  "32768x47": {"profile": "lfft32k47", "kfft_lt_tr": 280.238, "kfft_fwd": 310.227, "kfft_lt_tw": 259.778},
+  "65536x47": {"profile": "lfft65k47", "kfft_lt_tr": 719.675, "kfft_fwd": 527.85, "kfft_lt_tw": 336.316}
+ }
+}

@@ -49,7 +49,8 @@ UB 估算或修改测试参数宣称支持。
   `twiddle_resource`：峰值字节、AIV 核类、同步范围、形状约束），串行计划取各
   内核峰值的最大值而非相加；公式经 `include/butterfly/long_fft_ub.h` 与
   `src/ascendc/fft_long.cpp`/`fft_radix2.cpp` 共享（转置 3×128×32×8=98304 B、
-  点乘 24n、行 FFT 46.5n+128），按 manifest 发射序逐一校验——UB<98304 的
+  点乘 24n、行 FFT UB(n,D,K)=24nD+8n+8(n+16)+4(nD+max(n/2,nD/K)+3nD/K)，D/K
+  与发射实参同源解析），按 manifest 发射序逐一校验——UB<98304 的
   DeviceGM 降级被拒并指名 `kfft_lt_tr`，同行主链（仅行 FFT）可继续通过。
   合法性测试：`tests/test_descriptors.cpp` 自测表 + `tests/test_descriptors.py`
   （纯 g++ 编译、26 个用例、profile 同步、查询先于分配的源码顺序断言、

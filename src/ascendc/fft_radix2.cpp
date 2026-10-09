@@ -37,8 +37,12 @@
 //   idxT[k] = pos(k) * 4              = ((k&(K-1))*rows + (k>>logK)) * 4
 //   idxOut[2j] = 4*j   idxOut[2j+1] = 4*(n+j)
 //
-// UB: plan 8n + plane 8n + idxB 4n + idxT 4n + idxOut 8n + tw (4n+64)*2 + tmp 6.5n
-//   = 46.5n + 128 bytes  (n=4096 -> 186.1 KiB < 192 KiB)
+// UB（单一来源 R0.1）：plan 8nD + plane 8nD + idxB 4n + idxT 4n + idxOut 8nD
+//   + tw (4n+64)*2 + tmp 4*tmpF，tmpF = 2*(n/2)*D + max(n/2, rows*D) + 3*rows*D
+//   （rows = n/K，见下方 InitBuffer；D=第 8 参低 8 位，K=高 8 位/规则自选）
+//   => AB_ROW_FFT_UB_BYTES(n,D,K) = 24nD + 8n + 8(n+16) + 4(nD + max(n/2, nD/K)
+//      + 3nD/K) 字节（include/butterfly/long_fft_ub.h；D=1,K=16,n=4096 ->
+//      191616 B = 187.1 KiB < 192 KiB；旧 46.5n+128 注释忽略了 D/K 且低估 tmp）
 #include "butterfly/fft_k.hpp"
 #include "kernel_operator.h"
 #include "basic_api/kernel_operator_vec_gather_intf.h"

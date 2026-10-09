@@ -7,8 +7,12 @@ unique grid, boundary counters, 5 raw trials, clean-tree manifest) cannot
 silently regress.
 """
 
+import hashlib
+import json
 import math
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -40,8 +44,9 @@ def good_point():
         "boundary_ok": True,
         "trials": {
             "count": 5,
-            "raw": [dict(e2e_us=v, e2e_min_us=v, scopes=dict(HOST_SCOPES),
-                         segments=None)
+            "raw": [{"e2e_us": v, "e2e_min_us": v, "rc": 0,
+                     "max_rel": 1e-7, "max_abs": 3e-6, "pass": True,
+                     "scopes": dict(HOST_SCOPES), "segments": None}
                     for v in (100.0, 101.0, 99.0, 102.0, 98.0)],
             "stats": coll.compute_stats([100.0, 101.0, 99.0, 102.0, 98.0]),
         },
@@ -296,6 +301,153 @@ class ManifestTest(unittest.TestCase):
         self.assertIn("cann_version", man)
         self.assertIn("driver_version", man)
         self.assertIn("env", man)
+        self.assertCountEqual(
+            man["kernel_objects"],
+            ["fft_radix2.o", "fft_long.o", "fft_real.o"])
+        for v in man["kernel_objects"].values():
+            self.assertRegex(v, r"^[0-9a-f]{64}$")
+        self.assertTrue(man["config_sha256"])
+        for v in man["config_sha256"].values():
+            self.assertRegex(v, r"^[0-9a-f]{64}$")
+        self.assertIn("driver_source", man)
+        if man["driver_source"] is None:
+            self.assertEqual(man["driver_version"], "unknown")
+        self.assertEqual(coll.manifest_incomplete(man), [])
+
+
+class ErrorInjectionTest(unittest.TestCase):
+    """R0.2: injected corruptions must each be rejected explicitly."""
+
+    def test_empty_raw_rejected(self):
+        def empty(p):
+            p["trials"]["raw"] = []
+            p["trials"]["count"] = 0
+            p["trials"]["stats"] = coll.compute_stats([])
+        got = problems_of(empty)
+        self.assertTrue(any("trials.raw has 0" in x for x in got))
+
+    def test_trial_rc_nonzero_rejected(self):
+        got = problems_of(lambda p: p["trials"]["raw"][1].update(rc=1))
+        self.assertTrue(any("trial[1] rc=1" in x for x in got))
+
+    def test_tampered_stats_median_rejected(self):
+        def tamper(p):
+            p["trials"]["stats"]["median"] = 1.0
+        got = problems_of(tamper)
+        self.assertTrue(any("stats median" in x and "!= recomputed" in x
+                            for x in got))
+
+    def test_tampered_stats_samples_rejected(self):
+        def tamper(p):
+            p["trials"]["stats"]["samples"][0] = 123.0
+        got = problems_of(tamper)
+        self.assertTrue(any("samples != raw" in x for x in got))
+
+    def test_trial_missing_pass_rejected(self):
+        got = problems_of(
+            lambda p: p["trials"]["raw"][0].update({"pass": False}))
+        self.assertTrue(any("trial[0] PASS line missing" in x for x in got))
+
+    def test_trial_max_rel_over_threshold_rejected(self):
+        got = problems_of(lambda p: p["trials"]["raw"][2].update(max_rel=2e-4))
+        self.assertTrue(any("trial[2] max_rel 0.0002" in x for x in got))
+
+    def test_trial_scopes_missing_rejected(self):
+        got = problems_of(lambda p: p["trials"]["raw"][0].update(scopes=None))
+        self.assertTrue(any("trial[0] scopes missing" in x for x in got))
+
+    def test_kernel_object_change_changes_manifest(self):
+        if not (ROOT / "build" / "fft_check").is_file():
+            self.skipTest("build/fft_check not built in this environment")
+        with tempfile.TemporaryDirectory() as td:
+            a = Path(td) / "a.o"
+            b = Path(td) / "b.o"
+            a.write_bytes(b"kernel-a")
+            b.write_bytes(b"kernel-b")
+            digests = []
+            for obj in (a, b):
+                os.environ["AB_FFT_O"] = str(obj)
+                try:
+                    man = coll.build_manifest("host", allow_dirty=False)
+                finally:
+                    os.environ.pop("AB_FFT_O", None)
+                digests.append(man["kernel_objects"]["fft_radix2.o"])
+            self.assertNotEqual(digests[0], digests[1])
+            self.assertEqual(digests[1],
+                             hashlib.sha256(b"kernel-b").hexdigest())
+
+
+class DriverDetectionTest(unittest.TestCase):
+    def test_driver_info_env_override(self):
+        os.environ["AB_DRIVER_VERSION"] = "9.9.9-test"
+        try:
+            self.assertEqual(
+                coll.driver_info(),
+                ("9.9.9-test", "env:AB_DRIVER_VERSION"))
+            self.assertEqual(coll.detect_driver(), "9.9.9-test")
+        finally:
+            os.environ.pop("AB_DRIVER_VERSION", None)
+
+    def test_unresolved_driver_is_incomplete_not_unknown(self):
+        man = {"driver_source": None, "driver_version": "unknown",
+               "kernel_objects": {"fft_radix2.o": "0" * 64,
+                                  "fft_long.o": "0" * 64,
+                                  "fft_real.o": "0" * 64},
+               "config_sha256": {"x.json": "0" * 64}}
+        got = coll.manifest_incomplete(man)
+        self.assertTrue(any("driver version unrecognized" in x for x in got))
+
+    def test_missing_hash_is_incomplete(self):
+        man = {"driver_source": "npu-smi", "driver_version": "1",
+               "kernel_objects": {"fft_radix2.o": "0" * 64},
+               "config_sha256": {}}
+        got = coll.manifest_incomplete(man)
+        self.assertTrue(any("fft_long.o" in x for x in got))
+        self.assertTrue(any("config_sha256 empty" in x for x in got))
+
+
+class VerifyDocumentTest(unittest.TestCase):
+    ARCHIVES = [ROOT / "results" / "evidence" / d / "acceptance.json"
+                for d in ("long-fft-acceptance", "long-fft-device-boundary")]
+    HAVE = all(p.is_file() for p in ARCHIVES)
+
+    @unittest.skipUnless(HAVE, "acceptance archives not present")
+    def test_committed_archives_accepted(self):
+        for path in self.ARCHIVES:
+            self.assertEqual(coll.verify_document(path), [], str(path))
+
+    @classmethod
+    def _load(cls, i=0):
+        return json.loads(cls.ARCHIVES[i].read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(HAVE, "acceptance archives not present")
+    def test_tampered_stats_rejected(self):
+        doc = self._load()
+        doc["points"][0]["trials"]["stats"]["median"] = 1.0
+        got = coll.verify_document(doc)
+        self.assertTrue(any("stats median" in x for x in got))
+
+    @unittest.skipUnless(HAVE, "acceptance archives not present")
+    def test_tampered_raw_rc_rejected(self):
+        doc = self._load()
+        doc["points"][0]["trials"]["raw"][0]["rc"] = 1
+        got = coll.verify_document(doc)
+        self.assertTrue(any("trial[0] rc=1" in x for x in got))
+
+    @unittest.skipUnless(HAVE, "acceptance archives not present")
+    def test_missing_kernel_hash_rejected(self):
+        doc = self._load()
+        doc["manifest"].pop("kernel_objects", None)
+        got = coll.verify_document(doc)
+        self.assertTrue(any("kernel_objects" in x for x in got))
+
+    @unittest.skipUnless(HAVE, "acceptance archives not present")
+    def test_missing_top_level_key_rejected(self):
+        doc = self._load()
+        doc.pop("points")
+        got = coll.verify_document(doc)
+        self.assertTrue(any("missing top-level key 'points'" in x
+                            for x in got))
 
 
 if __name__ == "__main__":
