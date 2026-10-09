@@ -35,10 +35,8 @@ import math
 import os
 import re
 import statistics
-import struct
 import subprocess
 import sys
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -57,22 +55,6 @@ BASE_ENV = {"AB_E2E": "1"}
 BOUNDARY_BY_MODE = {"host": "boundary=2", "device": "boundary=0"}
 OUT_BY_MODE = {"host": "long-fft-acceptance",
                "device": "long-fft-device-boundary"}
-
-
-def gen_input(path, n, batch, pattern):
-    elems = n * batch
-    if pattern == "A":  # impulse at k = batch % n
-        data = [0.0] * (2 * elems)
-        k = batch % n
-        for b in range(batch):
-            data[b * 2 * n + 2 * k] = 1.0
-    else:  # B: deterministic pseudo-random
-        data = []
-        state = 0x9E3779B9 ^ (n * 131 + batch)
-        for _ in range(2 * elems):
-            state = (1664525 * state + 1013904223) & 0xFFFFFFFF
-            data.append(((state >> 8) & 0xFFFF) / 32768.0 - 1.0)
-    path.write_bytes(struct.pack(f"<{len(data)}f", *data))
 
 
 def run(args, env=None):
@@ -325,70 +307,65 @@ def collect(mode, allow_dirty=False):
     manifest = build_manifest(mode, allow_dirty)
     points, transcripts = [], []
     commands = []
-    with tempfile.TemporaryDirectory(prefix="lfft-evi-") as tmp:
-        tmp = Path(tmp)
-        for n in NS:
-            for b in BS:
-                fa = tmp / f"A_{n}_{b}.bin"
-                fb = tmp / f"B_{n}_{b}.bin"
-                gen_input(fa, n, b, "A")
-                gen_input(fb, n, b, "B")
-                seq = f"{fa},{fb},{fa}"
-                seq_cmd = ["./build/fft_check", str(n), str(b), "3"]
-                if not commands:
-                    commands.append({"kind": "aba_seq", "argv": seq_cmd,
-                                     "env": ["AB_INPUT_SEQ=<A,B,A files>",
-                                             "AB_E2E=1"] +
-                                            (["AB_BOUNDARY=device"]
-                                             if mode == "device" else []),
-                                     "reps": 3, "note": "first shape"})
-                rc, out = run(seq_cmd, env=mode_env(mode, AB_INPUT_SEQ=seq))
-                point = {"n": n, "b": b, "rc": rc, **parse_point(out)}
-                point["boundary_ok"] = (expect_boundary in
-                                        point["e2e_transfers"])
-                # 5 independent metric trials: one invocation each, raw kept
-                trial_cmd = ["./build/fft_check", str(n), str(b), "5"]
-                samples = []
-                for _ in range(TRIALS):
-                    rct, outt = run(trial_cmd, env=mode_env(mode, AB_E2E="5"))
-                    if rct != 0 or not commands or \
-                            commands[-1]["kind"] != "trial":
-                        commands.append(
-                            {"kind": "trial", "argv": trial_cmd,
-                             "env": ["AB_E2E=5"] + (["AB_BOUNDARY=device"]
-                                                    if mode == "device" else []),
-                             "reps": 5, "note": "repeated per shape"})
-                    sample = parse_trial(outt)
-                    sample["rc"] = rct
-                    samples.append(sample)
-                stats = compute_stats([s["e2e_us"] for s in samples])
-                point["trials"] = {"count": TRIALS, "raw": samples,
-                                   "stats": stats}
-                points.append(point)
-                transcripts.append(
-                    f"===== long A/B/A n={n} b={b} rc={rc} =====\n{out}")
-        rc, out = run(["./build/fft_check", "4096", "3", "3"],
-                      env=mode_env(mode,
-                                   AB_INPUT_SEQ="impulse,random-seeded,impulse"))
-        control = {"n": 4096, "b": 3, "rc": rc, **parse_point(out),
-                   "path": "short"}
-        transcripts.append(f"===== short A/B/A control rc={rc} =====\n{out}")
-
-        eenv = mode_env(mode, AB_E2E="3")
-        e2e_cmd = ["./build/fft_check", "8192", "1", "3"]
-        rc, out = run(e2e_cmd, env=eenv)
-        e2e = {"rc": rc,
-               "transfers": (re.search(r"^(E2E transfers: .*)$", out, re.M)
-                             .group(1)
-                             if re.search(r"^E2E transfers: .*$", out, re.M)
-                             else ""),
-               "line": (re.search(r"^(E2E n=.*)$", out, re.M).group(1)
-                        if re.search(r"^E2E n=.*$", out, re.M) else "")}
-        commands.append({"kind": "e2e", "argv": e2e_cmd,
-                         "env": ["AB_E2E=3"] + (["AB_BOUNDARY=device"]
+    for n in NS:
+        for b in BS:
+            seq_cmd = ["./build/fft_check", str(n), str(b), "3"]
+            if not commands:
+                commands.append({"kind": "aba_seq", "argv": seq_cmd,
+                                 "env": [
+                                     "AB_INPUT_SEQ=impulse,random-seeded,impulse",
+                                     "AB_E2E=1"] +
+                                    (["AB_BOUNDARY=device"]
+                                     if mode == "device" else []),
+                                 "reps": 3, "note": "first shape"})
+            rc, out = run(seq_cmd, env=mode_env(
+                mode, AB_INPUT_SEQ="impulse,random-seeded,impulse"))
+            point = {"n": n, "b": b, "rc": rc, **parse_point(out)}
+            point["boundary_ok"] = (expect_boundary in
+                                    point["e2e_transfers"])
+            # 5 independent metric trials: one invocation each, raw kept
+            trial_cmd = ["./build/fft_check", str(n), str(b), "5"]
+            samples = []
+            for _ in range(TRIALS):
+                rct, outt = run(trial_cmd, env=mode_env(mode, AB_E2E="5"))
+                if rct != 0 or not commands or \
+                        commands[-1]["kind"] != "trial":
+                    commands.append(
+                        {"kind": "trial", "argv": trial_cmd,
+                         "env": ["AB_E2E=5"] + (["AB_BOUNDARY=device"]
                                                 if mode == "device" else []),
-                         "reps": 3})
-        transcripts.append(f"===== E2E transfer assertion rc={rc} =====\n{out}")
+                         "reps": 5, "note": "repeated per shape"})
+                sample = parse_trial(outt)
+                sample["rc"] = rct
+                samples.append(sample)
+            stats = compute_stats([s["e2e_us"] for s in samples])
+            point["trials"] = {"count": TRIALS, "raw": samples,
+                               "stats": stats}
+            points.append(point)
+            transcripts.append(
+                f"===== long A/B/A n={n} b={b} rc={rc} =====\n{out}")
+    rc, out = run(["./build/fft_check", "4096", "3", "3"],
+                  env=mode_env(mode,
+                               AB_INPUT_SEQ="impulse,random-seeded,impulse"))
+    control = {"n": 4096, "b": 3, "rc": rc, **parse_point(out),
+               "path": "short"}
+    transcripts.append(f"===== short A/B/A control rc={rc} =====\n{out}")
+
+    eenv = mode_env(mode, AB_E2E="3")
+    e2e_cmd = ["./build/fft_check", "8192", "1", "3"]
+    rc, out = run(e2e_cmd, env=eenv)
+    e2e = {"rc": rc,
+           "transfers": (re.search(r"^(E2E transfers: .*)$", out, re.M)
+                         .group(1)
+                         if re.search(r"^E2E transfers: .*$", out, re.M)
+                         else ""),
+           "line": (re.search(r"^(E2E n=.*)$", out, re.M).group(1)
+                    if re.search(r"^E2E n=.*$", out, re.M) else "")}
+    commands.append({"kind": "e2e", "argv": e2e_cmd,
+                     "env": ["AB_E2E=3"] + (["AB_BOUNDARY=device"]
+                                            if mode == "device" else []),
+                     "reps": 3})
+    transcripts.append(f"===== E2E transfer assertion rc={rc} =====\n{out}")
 
     problems = []
     problems += [f"grid: {p}" for p in verify_grid(points)]
@@ -404,7 +381,7 @@ def collect(mode, allow_dirty=False):
         "commands": commands,
         "command": "python3 scripts/collect_long_fft_evidence.py"
                    + (" --boundary device" if mode == "device" else ""),
-        "binary": "build/fft_check (AB_INPUT_SEQ A/B/A file inputs)",
+        "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
         "boundary": mode,
         "threshold": THRESHOLD,
         "grid": {"ns": list(NS), "bs": list(BS)},
