@@ -124,5 +124,79 @@ class ValidateTest(unittest.TestCase):
             scopes.parse_scopes(HOST_LINE), False), "long_host")
 
 
+# P0 six-segment decomposition (PR #2 performance comment): real capture from
+# `AB_BOUNDARY=device ./build/fft_check 8192 1 3` on ascend910_9382.
+SEG_DEVICE_SCOPES = ("scopes: plan_setup=752.5 us first_use=882.4 us "
+                     "host_end_to_end mean=348.6 min=342.0 us "
+                     "h2d=61.2 us device_chain=167.0 us d2h=62.6 us reps=3")
+SEG_DEVICE_LINE = ("segments: transpose_in=57.8 us fft1=9.4 us twiddle=6.1 us "
+                   "transpose_boundary=43.0 us fft2=7.4 us transpose_out=43.3 us")
+SEG_NA_LINE = "segments: NA"
+
+
+class SegmentsTest(unittest.TestCase):
+    def test_parse_device_segments(self):
+        seg = scopes.parse_segments(SEG_DEVICE_LINE)
+        self.assertEqual(sorted(seg), sorted(scopes.SEGMENT_FIELDS))
+        self.assertAlmostEqual(seg["transpose_in"], 57.8)
+        self.assertAlmostEqual(seg["transpose_out"], 43.3)
+
+    def test_parse_na(self):
+        self.assertIsNone(scopes.parse_segments(SEG_NA_LINE))
+
+    def test_missing_segment_rejected(self):
+        with self.assertRaises(ValueError):
+            scopes.parse_segments(SEG_DEVICE_LINE.replace(" twiddle=6.1 us", ""))
+
+    def test_unexpected_field_rejected(self):
+        with self.assertRaises(ValueError):
+            scopes.parse_segments(SEG_DEVICE_LINE + " device_only=1.0 us")
+
+    def test_not_a_segments_line(self):
+        with self.assertRaises(ValueError):
+            scopes.parse_segments("scopes: plan_setup=1.0 us")
+
+    def test_device_segments_telescope_into_chain(self):
+        fields = scopes.parse_scopes(SEG_DEVICE_SCOPES)
+        seg = scopes.parse_segments(SEG_DEVICE_LINE)
+        self.assertEqual(scopes.validate_segments(seg, fields,
+                                                  "long_device"), [])
+        self.assertAlmostEqual(sum(seg.values()),
+                               fields["device_chain"], places=1)
+
+    def test_device_requires_segments(self):
+        fields = scopes.parse_scopes(SEG_DEVICE_SCOPES)
+        problems = scopes.validate_segments(None, fields, "long_device")
+        self.assertTrue(any("six segments" in p for p in problems))
+
+    def test_na_required_on_host_and_short(self):
+        fields = scopes.parse_scopes(SEG_DEVICE_SCOPES)
+        for mode in ("long_host", "short"):
+            self.assertEqual(scopes.validate_segments(None, fields, mode), [])
+            problems = scopes.validate_segments(
+                scopes.parse_segments(SEG_DEVICE_LINE), fields, mode)
+            self.assertTrue(any("must be NA" in p for p in problems))
+
+    def test_sum_mismatch_rejected(self):
+        # segments that no longer telescope with the reported chain span
+        fields = scopes.parse_scopes(
+            SEG_DEVICE_SCOPES.replace("device_chain=167.0 us",
+                                      "device_chain=9900.0 us"))
+        seg = scopes.parse_segments(SEG_DEVICE_LINE)
+        problems = scopes.validate_segments(seg, fields, "long_device")
+        self.assertTrue(any("sum(segments)=" in p for p in problems))
+
+    def test_negative_segment_rejected(self):
+        fields = scopes.parse_scopes(SEG_DEVICE_SCOPES)
+        seg = scopes.parse_segments(
+            SEG_DEVICE_LINE.replace("fft1=9.4 us", "fft1=-1.0 us"))
+        problems = scopes.validate_segments(seg, fields, "long_device")
+        self.assertTrue(any("fft1 must be >= 0" in p for p in problems))
+
+    def test_unknown_mode_rejected(self):
+        problems = scopes.validate_segments(None, {}, "sideways")
+        self.assertTrue(any("unknown mode" in p for p in problems))
+
+
 if __name__ == "__main__":
     unittest.main()

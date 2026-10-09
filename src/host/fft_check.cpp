@@ -645,11 +645,16 @@ int main(int argc, char** argv){
     aclrtEvent evIn=nullptr, ev0=nullptr, ev1=nullptr, evOut=nullptr;
     CK(aclrtCreateEvent(&evIn));  CK(aclrtCreateEvent(&ev0));
     CK(aclrtCreateEvent(&ev1));   CK(aclrtCreateEvent(&evOut));
+    // P0 六段分解（PR #2 性能评论阶段 2）：device 链相邻内核间的事件对，
+    // 六段跨度 telescope 求和 == ev0..ev1 的 device_chain（同一次 launch）。
+    aclrtEvent evSeg[5];
+    for(auto &ev:evSeg) CK(aclrtCreateEvent(&ev));
     double chainSpanMs=-1, h2dSpanMs=-1, d2hSpanMs=-1;
+    double segMs[6]={-1,-1,-1,-1,-1,-1}; bool segOk=false;
     // 一次 launch = 整条方向链（多内核在同一流上串行），末尾一次同步 => 计的是整链 device 时间
     auto launch=[&](){
         aclError e=ACL_SUCCESS;
-        chainSpanMs=-1; h2dSpanMs=-1; d2hSpanMs=-1;
+        chainSpanMs=-1; h2dSpanMs=-1; d2hSpanMs=-1; segOk=false;
         if(isLong && devBoundary){
             // device-materialized 链（addendum §3 step 3），逐步对齐宿主四步：
             //   H2D(逻辑输入) -> 转置入 lt_tr(n1,n2) -> 行FFT(N1) ->
@@ -661,12 +666,17 @@ int main(int argc, char** argv){
                                       ACL_MEMCPY_HOST_TO_DEVICE, s);
             if(!e) e=aclrtRecordEvent(ev0, s);        // chain 起点：H2D 完成之后
             if(!e) e=issueLt(fLtTr, dA, dIn, nullptr, longN1, longN2);
+            if(!e) e=aclrtRecordEvent(evSeg[0], s);    // transpose_in |
             if(!e) e=issuePass(dIn, dA, longN1, longN2*batch,
                                dTwR, dTwI, dIdx, pp1.packArg);
+            if(!e) e=aclrtRecordEvent(evSeg[1], s);    // fft1 |
             if(!e) e=issueLt(fLtTw, dIn, dIn, dWB, longN1, longN2);
+            if(!e) e=aclrtRecordEvent(evSeg[2], s);    // twiddle |
             if(!e) e=issueLt(fLtTr, dA, dIn, nullptr, longN2, longN1);
+            if(!e) e=aclrtRecordEvent(evSeg[3], s);    // transpose_boundary |
             if(!e) e=issuePass(dIn, dA, longN2, longN1*batch,
                                dTw2R, dTw2I, dIdx2, pp2.packArg);
+            if(!e) e=aclrtRecordEvent(evSeg[4], s);    // fft2 |
             if(!e) e=issueLt(fLtTr, dOut, dIn, nullptr, longN1, longN2);
             if(!e) e=aclrtRecordEvent(ev1, s);        // chain 止点：末次转置之后、D2H 之前
             if(!e) e=aclrtMemcpyAsync(hOut.data(), outElems*4u, dOut, outElems*4u,
@@ -677,6 +687,17 @@ int main(int argc, char** argv){
             if(!e){ aclrtEventElapsedTime(&dInEv, evIn, ev0);
                     aclrtEventElapsedTime(&dm, ev0, ev1);
                     aclrtEventElapsedTime(&dOutEv, ev1, evOut); }
+            if(!e){ // 六段：transpose_in | fft1 | twiddle | transpose_boundary | fft2 | transpose_out
+                const aclrtEvent evA[6]={ev0,evSeg[0],evSeg[1],evSeg[2],evSeg[3],evSeg[4]};
+                const aclrtEvent evB[6]={evSeg[0],evSeg[1],evSeg[2],evSeg[3],evSeg[4],ev1};
+                bool ok=true;
+                for(int k=0;k<6 && ok;k++){
+                    float t=-1.f;
+                    if(aclrtEventElapsedTime(&t, evA[k], evB[k])!=ACL_SUCCESS || t<0.f) ok=false;
+                    else segMs[k]=t;
+                }
+                segOk=ok;
+            }
             if(e){ printf("long launch=%d\n",(int)e); return false; }
             chainSpanMs = dm>=0.f ? (double)dm : -1.0;    // 6 内核连续跨度，无传输混入
             h2dSpanMs   = dInEv>=0.f ? (double)dInEv : -1.0;
@@ -860,6 +881,9 @@ int main(int argc, char** argv){
     // h2d/device_chain/d2h 取各次 launch 事件跨度的最小值（与墙钟 min 同次迭代，
     // 逐次满足 wall_i >= h2d_i+chain_i+d2h_i => min/mean 口径下不等式仍成立）。
     double sumUs=0, minUs=0, chainMinUs=-1, h2dMinUs=-1, d2hMinUs=-1;
+    // 六段与 device_chain 绑定同一次 launch（产生 chain 最小值那次），
+    // 这样 sum(segments) == device_chain 恒等成立，不被逐段独立取 min 破坏。
+    double segMinUs[6]={-1,-1,-1,-1,-1,-1}; bool segHave=false;
     std::vector<double> samples; samples.reserve(reps);
     for(int i=0;i<reps;i++){
         auto a0=std::chrono::steady_clock::now();
@@ -867,8 +891,13 @@ int main(int argc, char** argv){
         auto a1=std::chrono::steady_clock::now();
         double u=std::chrono::duration<double,std::micro>(a1-a0).count();
         sumUs+=u; if(i==0||u<minUs) minUs=u; samples.push_back(u);
-        if(chainSpanMs>=0 && (chainMinUs<0 || chainSpanMs*1000.0<chainMinUs))
+        if(chainSpanMs>=0 && (chainMinUs<0 || chainSpanMs*1000.0<chainMinUs)){
             chainMinUs=chainSpanMs*1000.0;
+            if(segOk){
+                for(int k=0;k<6;k++) segMinUs[k]=segMs[k]*1000.0;
+                segHave=true;
+            }
+        }
         if(h2dSpanMs>=0 && (h2dMinUs<0 || h2dSpanMs*1000.0<h2dMinUs))
             h2dMinUs=h2dSpanMs*1000.0;
         if(d2hSpanMs>=0 && (d2hMinUs<0 || d2hSpanMs*1000.0<d2hMinUs))
@@ -901,6 +930,17 @@ int main(int argc, char** argv){
            planUs, firstUseUs, us, minUs,
            spanStr(h2dMinUs).c_str(), spanStr(chainMinUs).c_str(),
            spanStr(d2hMinUs).c_str(), reps);
+    // P0 六段分解行：仅 device 边界长链有六内核清单；宿主/短路径显式 NA。
+    // 与 scopes 的 device_chain 取自同一次 launch（chain 最小值那次），
+    // 因此 sum(segments) == device_chain（事件对 telescope，仅浮点误差）。
+    if(segHave){
+        printf("segments: transpose_in=%.1f us fft1=%.1f us twiddle=%.1f us "
+               "transpose_boundary=%.1f us fft2=%.1f us transpose_out=%.1f us\n",
+               segMinUs[0], segMinUs[1], segMinUs[2],
+               segMinUs[3], segMinUs[4], segMinUs[5]);
+    }else{
+        printf("segments: NA\n");
+    }
 
     if(!isLong)   // 长链的逻辑输出 D2H 已在 launch 内完成，结果就在 hOut
         CK(aclrtMemcpy(hOut.data(), outElems*4u, dOut, outElems*4u, ACL_MEMCPY_DEVICE_TO_HOST));

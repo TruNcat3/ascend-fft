@@ -20,6 +20,15 @@ SEQ_LINE = ("seq: 3 inputs re-executed under one plan (no rebuild), "
             "stale-check on -> PASS")
 
 
+HOST_SCOPES = {"plan_setup": 1.0, "first_use": 2.0, "e2e_mean": 100.0,
+               "e2e_min": 95.0, "h2d": 10.0, "device_chain": 40.0,
+               "d2h": 11.0, "reps": 5}
+# six device segments telescoping into device_chain=40.0 (same launch)
+DEVICE_SEGMENTS = {"transpose_in": 10.0, "fft1": 8.0, "twiddle": 6.0,
+                   "transpose_boundary": 7.0, "fft2": 6.0,
+                   "transpose_out": 3.0}
+
+
 def good_point():
     return {
         "n": 8192, "b": 1, "rc": 0, "max_rel": 1e-7, "max_abs": 3e-6,
@@ -31,11 +40,19 @@ def good_point():
         "boundary_ok": True,
         "trials": {
             "count": 5,
-            "raw": [{"e2e_us": v, "e2e_min_us": v} for v in
-                    (100.0, 101.0, 99.0, 102.0, 98.0)],
+            "raw": [dict(e2e_us=v, e2e_min_us=v, scopes=dict(HOST_SCOPES),
+                         segments=None)
+                    for v in (100.0, 101.0, 99.0, 102.0, 98.0)],
             "stats": coll.compute_stats([100.0, 101.0, 99.0, 102.0, 98.0]),
         },
     }
+
+
+def to_device_trials(p):
+    """Host-shaped trial samples -> realistic device-boundary samples."""
+    for s in p["trials"]["raw"]:
+        s["segments"] = dict(DEVICE_SEGMENTS)
+    return p
 
 
 def problems_of(mutate, expect_boundary="boundary=2", trials=True):
@@ -104,11 +121,37 @@ class VerifyPointTest(unittest.TestCase):
         self.assertTrue(any("boundary_ok" in x for x in got))
 
     def test_device_mode_accepts_boundary_zero(self):
-        p = good_point()
+        p = to_device_trials(good_point())
         p["e2e_transfers"] = "E2E transfers: in=1 out=1 boundary=0 " \
                              "per_execution"
         p["boundary_ok"] = True
         self.assertEqual(coll.verify_point(p, "boundary=0"), [])
+
+    def test_device_missing_segments_rejected(self):
+        p = good_point()
+        p["e2e_transfers"] = "E2E transfers: in=1 out=1 boundary=0 " \
+                             "per_execution"
+        p["boundary_ok"] = True
+        got = coll.verify_point(p, "boundary=0")
+        self.assertTrue(any("missing six segments" in x for x in got))
+        self.assertEqual(len([x for x in got if "missing six" in x]), 5)
+
+    def test_device_non_telescoping_segments_rejected(self):
+        p = to_device_trials(good_point())
+        p["e2e_transfers"] = "E2E transfers: in=1 out=1 boundary=0 " \
+                             "per_execution"
+        p["boundary_ok"] = True
+        p["trials"]["raw"][2]["segments"]["twiddle"] = 999.0
+        got = coll.verify_point(p, "boundary=0")
+        self.assertTrue(any("trial[2]" in x and "sum(segments)" in x
+                            for x in got))
+
+    def test_host_trial_with_segments_rejected(self):
+        p = good_point()
+        p["trials"]["raw"][0]["segments"] = dict(DEVICE_SEGMENTS)
+        got = coll.verify_point(p, "boundary=2")
+        self.assertTrue(any("trial[0]" in x and "segments=NA" in x
+                            for x in got))
 
     def test_trials_count_enforced(self):
         def shrink(p):
@@ -216,10 +259,21 @@ class StatsAndParseTest(unittest.TestCase):
                "mode=async host=chain input=random-seeded\n"
                "scopes: plan_setup=1.0 us first_use=2.0 us "
                "host_end_to_end mean=100.0 min=95.0 us h2d=10.0 us "
-               "device_chain=40.0 us d2h=11.0 us reps=5\n")
+               "device_chain=40.0 us d2h=11.0 us reps=5\n"
+               "segments: transpose_in=10.0 us fft1=8.0 us twiddle=6.0 us "
+               "transpose_boundary=7.0 us fft2=6.0 us transpose_out=3.0 us\n")
         s = coll.parse_trial(out)
         self.assertEqual(s["e2e_us"], 100.0)
         self.assertEqual(s["scopes"]["device_chain"], 40.0)
+        self.assertAlmostEqual(sum(s["segments"].values()), 40.0)
+
+    def test_parse_trial_segments_na(self):
+        out = ("scopes: plan_setup=1.0 us first_use=2.0 us "
+               "host_end_to_end mean=100.0 min=95.0 us h2d=10.0 us "
+               "device_chain=40.0 us d2h=11.0 us reps=5\n"
+               "segments: NA\n")
+        s = coll.parse_trial(out)
+        self.assertIsNone(s["segments"])
 
 
 class ManifestTest(unittest.TestCase):

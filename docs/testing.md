@@ -143,7 +143,7 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   门槛、12 个 (N,batch) 键完整唯一、传输/边界计数匹配所选路径、每形状 5 次
   独立 trial 保留原始样本），manifest 绑定 clean git 提交与
   `sha256(build/fft_check)`（脏树默认拒绝发布），由
-  `tests/test_collect_evidence.py`（31 用例）锁定；数字复算与文档表由
+  `tests/test_collect_evidence.py`（35 用例，device trial 必须携带六段分解）锁定；数字复算与文档表由
   `scripts/summarize_long_fft_evidence.py [--check]` +
   `tests/test_evidence_summary.py` 锁定，汇总见
   [长 FFT 验收证据](generated/long-fft-evidence.md)。P1-B：R2C/C2R 已按 5-trial 对称协议重采
@@ -159,7 +159,7 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   profile 同步 + 查询顺序断言 + 6-launch manifest/2-launch 清单回归 + 串行 UB 峰值
   （`long_fft_ub.h` 与内核共享公式，转置 98304 B 边界）回归，`make desc`），
   接线后验收重跑 12/12 PASS 证明短 FFT 结果不变。
-  计时口径由 `scripts/scopes.py` 解析、`tests/test_scopes.py`（14 用例）锁定字段名
+  计时口径由 `scripts/scopes.py` 解析、`tests/test_scopes.py`（25 用例，含 P0 六段 `segments:` 行的解析与 telescope 校验）锁定字段名
   （`h2d`/`device_chain`/`d2h` 同名同义、短路径 `NA`）、退役 `device_only` 拒绝与
   `host_end_to_end ≥ h2d+device_chain+d2h` 预算不等式，字段同步边界见
   [长 FFT 计划 · 计时字段](benchmarks/long-fft-plan.md)。

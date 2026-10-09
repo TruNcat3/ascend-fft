@@ -105,11 +105,16 @@ UB 估算或修改测试参数宣称支持。
 | `device_chain` | 链上 device 计算内核的事件跨度，**不含任何传输** | `ev0..ev1`：device 边界 = 3×转置 + 2×FFT + 1×点乘的连续跨度；host 边界 = pass1+pass2 两次 FFT 跨度之和（段间传输/宿主段只在墙钟里） | 全部 |
 | `d2h` | 逻辑输出 D2H 的事件跨度 | `ev1..evOut`；host 边界为 pass2 出数那次（宿主重排在其后，属宿主段） | 仅长链，否则 `NA` |
 | `reps` | 采样次数（事件跨度与墙钟取同一迭代集合的最小值/均值） | — | 全部 |
+| `segments:` 行 | 六段分解：`transpose_in / fft1 / twiddle / transpose_boundary / fft2 / transpose_out` | 六对相邻内核事件跨度，与产生 `device_chain` 最小值的同一次 launch 绑定；`sum(segments) == device_chain`（telescope 恒等） | 仅 device 边界长链，否则 `segments: NA` |
 
 宿主边界与设备边界使用同名同语义字段，不适用的范围显式打印 `NA`；恒有
 `host_end_to_end ≥ h2d + device_chain + d2h`（逐次成立，允许时钟域与调度噪声）。
 字段名、NA 规则与预算不等式由 `scripts/scopes.py` + `tests/test_scopes.py` 解析测试锁定，
-防止后续把传输重新计入 device kernel 时间。
+防止后续把传输重新计入 device kernel 时间。P0 六段分解（PR #2 性能评论阶段 2）进一步锁定
+`segments:` 行的存在性、六段之和与 `device_chain` 的 telescope 恒等与逐段非负；原始样本随
+evidence trial 归档，逐 kernel 侧写用 `scripts/profile_test.sh --only lfft8k1,lfft16k47,
+lfft32k47,lfft65k47`（msprof `--task-time`），同尺寸 torch_npu 基线用
+`scripts/bench_long_baseline.py`（device-only 与 pinned E2E 两口径）。
 
 每个实验固定 SoC、CANN、构建、FP32、前向 1D C2C、稠密交错输入和自然序输出；其他语义
 使用独立结果集。设备计时、同步 host 端到端、Plan 创建和首次执行分别报告。

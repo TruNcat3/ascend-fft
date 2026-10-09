@@ -24,6 +24,10 @@ import re
 FIELDS = ("plan_setup", "first_use", "e2e_mean", "e2e_min",
           "h2d", "device_chain", "d2h", "reps")
 
+# P0 六段分解（PR #2 性能评论）：device 边界链的内核执行序。
+SEGMENT_FIELDS = ("transpose_in", "fft1", "twiddle",
+                  "transpose_boundary", "fft2", "transpose_out")
+
 _MODES = ("short", "long_host", "long_device")
 
 
@@ -116,6 +120,69 @@ def validate_scopes(fields, mode, slack_frac=0.10, slack_us=200.0):
                     "%s=%r below h2d+device_chain+d2h=%r (slack=%r): "
                     "transfers are not allowed inside device_chain"
                     % (key, wall, budget, slack))
+    return problems
+
+
+def parse_segments(line):
+    """Parse the `segments:` line emitted next to `scopes:`.
+
+    Returns a dict of six per-kernel spans in microseconds for the device
+    boundary chain, or None for the literal `segments: NA` (host boundary
+    and short path have no six-kernel device chain).  Raises ValueError on a
+    malformed line or missing/extra segment fields.
+    """
+    if not isinstance(line, str) or not line.startswith("segments:"):
+        raise ValueError("not a segments line: %r" % (line,))
+    body = line[len("segments:"):].strip()
+    if body == "NA":
+        return None
+    fields = {}
+    for name in SEGMENT_FIELDS:
+        m = re.search(r"\b%s=([0-9.eE+-]+) us\b" % name, body)
+        if not m:
+            raise ValueError("missing segment %s: %r" % (name, line))
+        fields[name] = float(m.group(1))
+    for name in set(re.findall(r"([a-z0-9_]+)=", body)) - set(SEGMENT_FIELDS):
+        raise ValueError("unexpected segment field %r: %r" % (name, line))
+    return fields
+
+
+def validate_segments(seg, fields, mode, rel_tol=0.01, abs_tol_us=20.0):
+    """Applicability + range + telescoping checks for a `segments:` dict.
+
+    `seg` is the parsed dict (or None for NA), `fields` the parsed scopes
+    dict, `mode` one of _MODES.  The six spans must come from the same
+    launch as device_chain, so sum(seg) == device_chain up to event-clock
+    float noise; a larger gap means the segment events stopped telescoping
+    (e.g. an event pair was moved across a memcpy).
+    """
+    problems = []
+    if mode not in _MODES:
+        return ["unknown mode %r (expected one of %r)" % (mode, _MODES,)]
+    if mode != "long_device":
+        if seg is not None:
+            problems.append("segments must be NA on %s, got %r" % (mode, seg))
+        return problems
+    if seg is None:
+        problems.append("long_device chain must report the six segments")
+        return problems
+    total = 0.0
+    for name in SEGMENT_FIELDS:
+        v = seg.get(name)
+        if not isinstance(v, (int, float)):
+            problems.append("segment %s missing" % name)
+        elif not v >= 0:
+            problems.append("segment %s must be >= 0, got %r" % (name, v))
+        else:
+            total += v
+    chain = fields.get("device_chain")
+    if chain is None or total == 0.0:
+        return problems
+    if abs(total - chain) > max(rel_tol * chain, abs_tol_us):
+        problems.append(
+            "sum(segments)=%r != device_chain=%r (tolerance %r): segment "
+            "events must telescope inside the reported chain span"
+            % (total, chain, max(rel_tol * chain, abs_tol_us)))
     return problems
 
 

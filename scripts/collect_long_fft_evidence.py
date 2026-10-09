@@ -95,6 +95,10 @@ def parse_trial(out):
     }
     line = next((l for l in out.splitlines() if l.startswith("scopes:")), "")
     sample["scopes"] = scopes.parse_scopes(line) if line else None
+    seg_line = next((l for l in out.splitlines() if l.startswith("segments:")),
+                    "")
+    sample["segments"] = (scopes.parse_segments(seg_line)
+                          if seg_line else None)
     return sample
 
 
@@ -172,6 +176,25 @@ def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True):
             for key in ("median", "min", "mean"):
                 if not _finite(stats.get(key)):
                     problems.append(f"trial stats missing {key}")
+            # P0 six-segment instrumentation: device chains must report the
+            # full decomposition (telescoping into device_chain); host chains
+            # must keep the explicit NA so the two never get mixed up.
+            for i, s in enumerate(t.get("raw") or []):
+                seg = (s or {}).get("segments", "unset")
+                if expect_boundary == "boundary=0":
+                    fields = (s or {}).get("scopes")
+                    if not fields or seg in (None, "unset"):
+                        problems.append(
+                            f"trial[{i}] device chain missing six segments")
+                    else:
+                        problems += [
+                            f"trial[{i}] {x}" for x in
+                            scopes.validate_segments(seg, fields,
+                                                     "long_device")]
+                elif expect_boundary and seg not in (None,):
+                    problems.append(
+                        f"trial[{i}] host chain must report segments=NA, "
+                        f"got {seg!r}")
     return problems
 
 
