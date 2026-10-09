@@ -56,6 +56,7 @@ nav:
       - 长 FFT 目的化实验计划: benchmarks/long-fft-plan.md
       - 长 FFT 预声明数据表: generated/long-fft-tables.md
       - 长 FFT 验收证据: generated/long-fft-evidence.md
+      - 长 FFT 同尺寸基线: generated/long-fft-baseline.md
       - 当前结果: benchmarks/results.md
       - 复现实验: benchmarks/reproducibility.md
       - 相关工作与基线: benchmarks/related-work.md

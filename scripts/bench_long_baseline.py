@@ -180,10 +180,11 @@ def render_markdown(doc):
         "`results/evidence/long-fft-baseline/baseline.json` 渲染校验；请勿手改。",
         "",
         "- 基线：`torch.fft.fft`（torch_npu op-plugin，复->复）同网格同语义，"
-        "device-only 取 `bench_native_npu.py` 的 min，E2E 取 pinned 口径 min"
-        "（与 fft_check `AB_E2E_HOST` 默认一致）。",
+        "device-only 取 `bench_native_npu.py` 的 min，E2E 取其 pinned 口径 min。",
         "- 自研：device 边界链 5-trial 归档的 `device_chain` / E2E 中位数"
-        "（`segments:` 六段之和即 chain）。",
+        "（`segments:` 六段之和即 chain）。自研长链 E2E 当前从 `std::vector` "
+        "发起（`fft_check.cpp` 的 pinned 分配仅覆盖短路径），传输为 pageable "
+        "口径；E2E 列的差距包含此项，与 device-only 列要分开解读。",
         "- `speedup = native_min / ours_median`，>1 表示自研更快；"
         "误差门槛 `maxRel ≤ %g`。" % doc["threshold"],
         "",
@@ -257,11 +258,24 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--check", action="store_true",
                     help="verify the docs table matches the archived JSON")
+    ap.add_argument("--refresh-docs", action="store_true",
+                    help="re-render docs/generated/long-fft-baseline.md from "
+                         "the archived JSON without re-measuring")
     ap.add_argument("--reps", type=int, default=20,
                     help="native bench reps per shape (default 20)")
     ap.add_argument("--allow-dirty", action="store_true",
                     help="record the dirty flag instead of refusing")
     args = ap.parse_args(argv)
+
+    if args.refresh_docs:
+        if not OUT_JSON.is_file():
+            raise SystemExit("missing %s; run without --refresh-docs first"
+                             % OUT_JSON)
+        doc = json.loads(OUT_JSON.read_text(encoding="utf-8"))
+        OUT_MD.parent.mkdir(parents=True, exist_ok=True)
+        OUT_MD.write_text(render_markdown(doc), encoding="utf-8")
+        print("refreshed %s from the archive JSON" % OUT_MD.relative_to(ROOT))
+        return 0
 
     if args.check:
         problems, doc = check()

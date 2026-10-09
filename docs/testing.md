@@ -146,7 +146,11 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   `tests/test_collect_evidence.py`（35 用例，device trial 必须携带六段分解）锁定；数字复算与文档表由
   `scripts/summarize_long_fft_evidence.py [--check]` +
   `tests/test_evidence_summary.py` 锁定，汇总见
-  [长 FFT 验收证据](generated/long-fft-evidence.md)。P1-B：R2C/C2R 已按 5-trial 对称协议重采
+  [长 FFT 验收证据](generated/long-fft-evidence.md)。P0 同尺寸 torch_npu 基线
+  由 `scripts/bench_long_baseline.py` 采集为
+  `results/evidence/long-fft-baseline/baseline.json`（清洁树才允许发布），
+  文档表由 `--check` 校验、`tests/test_long_baseline.py`（7 用例）锁定，见
+  [长 FFT 同尺寸基线](generated/long-fft-baseline.md)。P1-B：R2C/C2R 已按 5-trial 对称协议重采
   56/56 行，发布进新不可变快照 `ascend910_9382-cann9.0.0-v2`（含 `raw_trials`、协议、
   raw/derived 哈希与 UTC 起止），新汇总见[当前结果 · 实数变换](benchmarks/results.md)；
   旧 min 口径的 1.91x/3.35x 不再被引用。独立模型验证仍待完成。

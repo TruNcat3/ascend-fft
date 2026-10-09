@@ -114,7 +114,12 @@ UB 估算或修改测试参数宣称支持。
 `segments:` 行的存在性、六段之和与 `device_chain` 的 telescope 恒等与逐段非负；原始样本随
 evidence trial 归档，逐 kernel 侧写用 `scripts/profile_test.sh --only lfft8k1,lfft16k47,
 lfft32k47,lfft65k47`（msprof `--task-time`），同尺寸 torch_npu 基线用
-`scripts/bench_long_baseline.py`（device-only 与 pinned E2E 两口径）。
+`scripts/bench_long_baseline.py`（device-only 与 E2E 两口径，12/12 基线 PASS，
+对照表见 [长 FFT 同尺寸基线](../generated/long-fft-baseline.md)）。P0 分段归因
+（5-trial 中位数）已入归档：`8192×1` 的 chain 中 3 次转置占约 86%（固定成本
+主导）；batch=47 形状的独立 twiddle 段占约 21%~31%，是 P1 融合消融的首选目标。
+E2E 对照须与 device-only 分列解读：自研长链 E2E 目前从 `std::vector` 发起
+（pinned 分配仅覆盖短路径），传输为 pageable 口径，差距包含此项。
 
 每个实验固定 SoC、CANN、构建、FP32、前向 1D C2C、稠密交错输入和自然序输出；其他语义
 使用独立结果集。设备计时、同步 host 端到端、Plan 创建和首次执行分别报告。
