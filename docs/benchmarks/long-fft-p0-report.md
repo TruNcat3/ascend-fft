@@ -48,8 +48,9 @@
 - **batch=47 形状：独立 twiddle 是最大单段**（16384×47 26.1%、32768×47 30.5%、
   65536×47 21.2%），超过任一段 FFT —— 它对中间态做一次完整 GM 读 + 写外加
   两次 Gather 重排，是 P1 融合（twiddle+transpose-boundary）的首选目标。
-- `65536×47` 六段均衡（各 14.9%–21.2%），说明大形状已进入带宽受限区间，
-  单段优化收益上限 = 该段占比；融合后可省去中间态一整次 GM 写+读。
+- `65536×47` 六段均衡（各 14.9%–21.2%），与带宽受限假设一致（待 MTE/GM/
+  Vector 计数器验证，task-time/event 只能定位昂贵段、不能证明瓶颈类型）；
+  融合后可省去中间态一整次 GM 写+读。
 
 ## 4. msprof task-time 交叉验证（µs/launch，4 优先形状）
 
@@ -68,7 +69,7 @@ event 计时。
 
 ## 5. E2E 分解与传输口径
 
-| 形状 | host E2E | device E2E | device/host | device h2d+d2h | 占 device E2E |
+| 形状 | host E2E | device E2E | host/device | device h2d+d2h | 占 device E2E |
 |---|---|---|---|---|---|
 | 8192x1 | 293.6 | 315.4 | 0.93× | 105.7 | 34% |
 | 8192x3 | 447.0 | 347.1 | 1.29× | 119.7 | 34% |
@@ -106,10 +107,10 @@ event 计时。
 （`results/evidence/long-fft-baseline/baseline.json`，12/12 native PASS，
 torch 2.10.0 / torch_npu 2.10.0 / CANN 9.0.0，native 20 reps min）。要点：
 
-- **device-only：自研 chain / native min = 0.345×–1.029×**（native 领先为主，
-  仅 `65536×3` 持平 1.03×）。native 是单次融合变换不物化三转置段边界，
-  形态不同；3.4× 的 device-vs-host 结论**不能**外推为对外部库优势。
-- **E2E：0.108×–0.594×**，b=47 最差（0.108×–0.15×）——其中含自研 pageable
+- **device-only：`native_min / ours_median` = 0.345×–1.029×**（>1 表示自研更快：
+  仅 `65536×3` 为 1.03×，其余 native 领先）。native 是单次融合变换不物化本实现的
+  三转置段边界，形态不同；3.4× 的 device-vs-host 结论**不能**外推为对外部库优势。
+- **E2E：同一比值 0.108×–0.594×**，b=47 最差（0.108×–0.15×）——其中含自研 pageable
   传输口径 vs native pinned 的差距（第 5 节），与 kernel 差距必须分列。
 - 两口径、两协议均已归档，后续任何候选以同表复测对比。
 
