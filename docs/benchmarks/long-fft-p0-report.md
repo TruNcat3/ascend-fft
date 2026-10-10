@@ -11,7 +11,7 @@
 | 基线协议 | `torch.fft.fft`（torch_npu 2.10.0 op-plugin，复→复）同网格，device-only 与 E2E 各 20 reps 取 min；E2E 为 pinned 口径 |
 | 逐 kernel 校验 | msprof `--task-time`（`profile_test.sh --only lfft8k1,lfft16k47,lfft32k47,lfft65k47`），提取值归档于 `results/evidence/long-fft-p0/msprof-task-time.json`，原始 profile 在 `results/profiles/20261009T041621Z/`（本地，不入库） |
 
-归档绑定（全部清洁提交）：device `git=f537a9ec`、host `git=54bfd868`、baseline `git=b186c34b`、fused `git=be60293b`。
+归档绑定（全部清洁提交）：device `git=f537a9ec`、host `git=54bfd868`、baseline `git=f56b960b`、fused `git=be60293b`。
 
 ## 2. 六段归因（separate impl，全网格，5-trial 中位数，µs）
 
@@ -91,8 +91,8 @@ msprof 列数据源：`results/evidence/long-fft-p0/msprof-task-time.json`（`su
 
 完整 12 行对照见生成页 [长 FFT 同尺寸基线](../generated/long-fft-baseline.md)（`results/evidence/long-fft-baseline/baseline.json`，12/12 native PASS，torch 2.10.0 / torch_npu 2.10.0 / CANN 9.0.0，native 20 reps min）。要点：
 
-- **device-only：`native_min / ours_median` = 0.358×–1.057×**（>1 表示自研更快：仅 `65536×3` 为 1.06×，其余 native 领先）。native 是单次融合变换不物化本实现的三转置段边界，形态不同；3.4× 的 device-vs-host 结论**不能**外推为对外部库优势。
-- **E2E：同一比值 0.197×–0.579×**，b=47 最差（0.197×–0.315×）——其中含自研 pageable 传输口径 vs native 的差距（第 5 节），与 kernel 差距必须分列。
+- **device-only：`native_min / ours_median` = 0.364×–1.094×**（>1 表示自研更快：仅 `65536×3` 为 1.09×，其余 native 领先）。native 是单次融合变换不物化本实现的三转置段边界，形态不同；3.4× 的 device-vs-host 结论**不能**外推为对外部库优势。
+- **E2E：同一比值 0.106×–0.615×**，b=47 最差（0.106×–0.149×）——其中含自研 pageable 传输口径 vs native 的差距（第 5 节），与 kernel 差距必须分列。
 - 两口径、两协议均已归档，后续任何候选以同表复测对比。
 
 ## 8. 结论 → P1 优先级
