@@ -39,6 +39,7 @@ helpers without hardware.
 import argparse
 import json
 import math
+import os
 import re
 import statistics
 import sys
@@ -65,11 +66,24 @@ UB_HEADER = ROOT / "include" / "butterfly" / "long_fft_ub.h"
 
 
 def ub_peak_bytes(path=UB_HEADER):
-    """AB_FUSED_UB_BYTES = 4 * LT_H * LT_W * 8 (bIn+bOut+bIdx+bTw)."""
+    """kfft_lt_tr peak UB for the selected configuration.
+
+    Rebuild mode (default): 4 * LT_H * LT_W * 8 (bIn+bOut+bIdx+bTw).
+    Resident mode (AB_LT_IDX=resident, R2-A Round 3): + 16*K bytes for the
+    dedicated stripe-index buffer.  Tile/stripe overrides keep the same
+    4*H*W*8 product only when H*W is unchanged -- the default-shape macros
+    are the contract for the default configuration, and the R2-A candidates
+    all keep H*W=4096.
+    """
     text = Path(path).read_text(encoding="utf-8")
     h = int(re.search(r"#define AB_LT_H (\d+)u", text).group(1))
     w = int(re.search(r"#define AB_LT_W (\d+)u", text).group(1))
-    return 4 * h * w * 8
+    peak = 4 * h * w * 8
+    if os.environ.get("AB_LT_IDX") == "resident":
+        k = int(os.environ.get("AB_LT_STRIPE_K")
+                or re.search(r"#define AB_FUSE_STRIPE_K (\d+)u", text).group(1))
+        peak += 16 * k
+    return peak
 
 
 def modeled_payload_gm_rw(impl, n, batch):

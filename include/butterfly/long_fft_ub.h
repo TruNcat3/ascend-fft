@@ -29,13 +29,19 @@
   (8ull * (unsigned long long)(H) * (unsigned long long)(W))
 
 /* kfft_lt_tr peak UB for tile HxW in the single fused-capable .o entry:
- * four tile buffers bIn+bOut+bIdx+bTw; the stripe planarize/multiply
- * machinery (planar data, planar tw, product + three index tables) is
- * carved out of bOut's lifetime under 10*K <= 2*H*W (ab_stripe_legal).
- * K does not change the peak in this layout but stays in the signature so
- * the future resident-index layout (16*K bytes, +bIdx stripe) keeps one
- * formula per stage.  Locked by test_limits: 4*128*32*8 = 131072 <= 192K. */
+ * four tile buffers bIn+bOut+bIdx+bTw.  R2-A Round 3 (resident stripe
+ * index): the three stripe index tables (4*K uint32 = 16*K bytes) move
+ * out of bOut's lifetime into a dedicated read-only buffer built ONCE per
+ * AIV at entry (no per-tile rebuild after the big transpose Gather wipes
+ * bOut); the planar carve in bOut shrinks to 6*K floats (3K <= H*W).
+ *   rebuild mode  (R=0): peak = 4*H*W*8,        carve 10K <= 2HW
+ *   resident mode (R=1): peak = 4*H*W*8 + 16K,  carve  3K <= HW
+ * Locked by test_limits: 4*128*32*8 = 131072 <= 192K (+4096 at K=256). */
 #define AB_FUSED_UB_BYTES_HWK(H, W, K) (4ull * AB_LT_TILE_BYTES(H, W))
+#define AB_RESIDENT_IDX_UB_BYTES(K) (16ull * (unsigned long long)(K))
+#define AB_FUSED_UB_BYTES_HWKR(H, W, K, R)                                 \
+  (AB_FUSED_UB_BYTES_HWK(H, W, K) +                                        \
+   ((R) ? AB_RESIDENT_IDX_UB_BYTES(K) : 0ull))
 
 /* Separate (no-bTw) peak for a future split entry: three tile buffers. */
 #define AB_LT_SEPARATE_UB_BYTES_HW(H, W) (3ull * AB_LT_TILE_BYTES(H, W))
@@ -58,15 +64,17 @@
 
 /* R2-A single-source legality: candidate membership, 32B row-slice
  * alignment (W multiple of 4), Gather range (K <= H*W) and the stripe
- * carve (10K <= 2HW).  Used by the host entry selector, the descriptor
- * gate and the kernel static_asserts alike. */
+ * carve in bOut -- rebuild mode carves idx tables there too (10K <= 2HW),
+ * resident mode only the planar regions (3K <= HW).  Used by the host
+ * entry selector, the descriptor gate and the kernel static_asserts. */
 static inline int ab_lt_in_set(unsigned v, const unsigned* s, unsigned n) {
   unsigned i;
   for (i = 0; i < n; i++)
     if (s[i] == v) return 1;
   return 0;
 }
-static inline int ab_stripe_legal(unsigned h, unsigned w, unsigned k) {
+static inline int ab_stripe_legal(unsigned h, unsigned w, unsigned k,
+                                  unsigned resident) {
   static const unsigned hs[] = AB_LT_H_CANDIDATES;
   static const unsigned ws[] = AB_LT_W_CANDIDATES;
   static const unsigned ks[] = AB_FUSE_K_CANDIDATES;
@@ -75,7 +83,11 @@ static inline int ab_stripe_legal(unsigned h, unsigned w, unsigned k) {
     return 0;
   if ((w & 3u) != 0u) return 0;                                   /* 32B */
   if ((unsigned long long)k > (unsigned long long)h * w) return 0; /* Gather */
-  if (10ull * k > 2ull * h * w) return 0;                          /* carve */
+  if (resident) {
+    if (3ull * k > (unsigned long long)h * w) return 0; /* planar carve */
+  } else {
+    if (10ull * k > 2ull * h * w) return 0;             /* planar + idx */
+  }
   return 1;
 }
 

@@ -43,31 +43,37 @@ using namespace AscendC;
 #define AB_LT_TR_H 128
 #define AB_LT_TR_W 32
 #define AB_LT_TR_K AB_FUSE_STRIPE_K
+#define AB_LT_TR_RESIDENT 0
 #include "fft_long_lt_tr.inc"
 #undef AB_LT_TR_SUFFIX
 #undef AB_LT_TR_H
 #undef AB_LT_TR_W
 #undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
 
 #define AB_LT_TR_SUFFIX _t64x64
 #define AB_LT_TR_H 64
 #define AB_LT_TR_W 64
 #define AB_LT_TR_K AB_FUSE_STRIPE_K
+#define AB_LT_TR_RESIDENT 0
 #include "fft_long_lt_tr.inc"
 #undef AB_LT_TR_SUFFIX
 #undef AB_LT_TR_H
 #undef AB_LT_TR_W
 #undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
 
 #define AB_LT_TR_SUFFIX _t256x16
 #define AB_LT_TR_H 256
 #define AB_LT_TR_W 16
 #define AB_LT_TR_K AB_FUSE_STRIPE_K
+#define AB_LT_TR_RESIDENT 0
 #include "fft_long_lt_tr.inc"
 #undef AB_LT_TR_SUFFIX
 #undef AB_LT_TR_H
 #undef AB_LT_TR_W
 #undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
 
 // ---- 段边界点乘（原地、行连续） ------------------------------------------
 // 行 r 属批 b 的第 j 行：dIn[(b*n2+j)][k1] *= wT[j][k1]（wT 与 j 对齐、批共享）。
@@ -140,18 +146,37 @@ extern "C" __global__ __aicore__ __vector__ void kfft_lt_tw(
 #define AB_LT_TR_H 128
 #define AB_LT_TR_W 32
 #define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 0
 #include "fft_long_lt_tr.inc"
 #undef AB_LT_TR_SUFFIX
 #undef AB_LT_TR_H
 #undef AB_LT_TR_W
 #undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
 
 #define AB_LT_TR_SUFFIX _k128
 #define AB_LT_TR_H 128
 #define AB_LT_TR_W 32
 #define AB_LT_TR_K 128
+#define AB_LT_TR_RESIDENT 0
 #include "fft_long_lt_tr.inc"
 #undef AB_LT_TR_SUFFIX
 #undef AB_LT_TR_H
 #undef AB_LT_TR_W
 #undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+
+// R2-A Round 3（索引常驻，默认 128x32 tile）：条带索引表移入独立只读
+// bSidx（16K 字节），入口建一次、grid-stride 不再重建。先在 K=256 上
+// 与 rebuild A/B（k256_ri vs k256），赢家后再补 K=512/128 的 _ri 入口。
+#define AB_LT_TR_SUFFIX _k256_ri
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 1
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT

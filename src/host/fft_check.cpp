@@ -602,11 +602,24 @@ int main(int argc, char** argv){
         std::string trName = "kfft_lt_tr";
         const char* tileEnv = getenv("AB_LT_TILE");
         const char* kEnv = getenv("AB_LT_STRIPE_K");
+        const char* idxEnv = getenv("AB_LT_IDX");
+        const bool resident = idxEnv && *idxEnv && strcmp(idxEnv, "resident") == 0;
+        if(idxEnv && *idxEnv && !resident){
+            printf("illegal AB_LT_IDX=%s: only 'resident' is a compiled "
+                   "mode (rebuild is the default)\n", idxEnv);
+            return 2;
+        }
         unsigned th = AB_LT_H, tw = AB_LT_W, sk = AB_FUSE_STRIPE_K;
         if(tileEnv && *tileEnv){
             char junk=0;
             if(sscanf(tileEnv, "%ux%u%c", &th, &tw, &junk) != 2){
                 printf("illegal AB_LT_TILE=%s: need HxW (e.g. 64x32)\n", tileEnv);
+                return 2;
+            }
+            if(resident){
+                printf("AB_LT_TILE=%s + AB_LT_IDX=resident has no compiled "
+                       "entry (resident index exists for the default 128x32 "
+                       "tile only)\n", tileEnv);
                 return 2;
             }
             char buf[32];
@@ -631,10 +644,12 @@ int main(int argc, char** argv){
                 return 2;
             }
         }
-        if(!ab_stripe_legal(th, tw, sk)){
-            printf("illegal tile/stripe: H=%u W=%u K=%u (candidates "
-                   "H={64,128,256} W={16,32,64} K={128,256,512}, 32B align, "
-                   "K <= H*W, 10K <= 2HW)\n", th, tw, sk);
+        if(resident) trName += "_ri";
+        if(!ab_stripe_legal(th, tw, sk, resident ? 1u : 0u)){
+            printf("illegal tile/stripe: H=%u W=%u K=%u resident=%d "
+                   "(candidates H={64,128,256} W={16,32,64} K={128,256,512}, "
+                   "32B align, K <= H*W, carve 10K<=2HW rebuild / "
+                   "3K<=HW resident)\n", th, tw, sk, (int)resident);
             return 2;
         }
         CK(aclrtBinaryGetFunction(lb, trName.c_str(), &fLtTr));

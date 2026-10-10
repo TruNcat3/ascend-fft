@@ -107,6 +107,21 @@ int main(){
         auto r = query_lowering({8192, 1}, fdev, unit, hw);
         emit_case("lt_tile_64x32_k256_supported", r);
         unsetenv("AB_LT_TILE"); unsetenv("AB_LT_STRIPE_K"); }
+      // R2-A Round 3: resident stripe index (AB_LT_IDX=resident) adds the
+      // 16*K index buffer to the peak and relaxes the carve to 3K<=HW.
+      { setenv("AB_LT_IDX", "resident", 1); setenv("AB_LT_STRIPE_K", "256", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_idx_resident_k256_supported", r);
+        emit_struct("lt_idx_resident_k256", r);
+        unsetenv("AB_LT_IDX"); unsetenv("AB_LT_STRIPE_K"); }
+      { setenv("AB_LT_IDX", "resident", 1); setenv("AB_LT_TILE", "64x16", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_idx_resident_tile_rejected", r);
+        unsetenv("AB_LT_IDX"); unsetenv("AB_LT_TILE"); }
+      { setenv("AB_LT_IDX", "bogus", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_idx_bogus_rejected", r);
+        unsetenv("AB_LT_IDX"); }
       { auto r = query_lowering({8192, 1}, fdev, unit, hw);
         emit_struct("fused_after_unset", r); }  // env must not leak
     }

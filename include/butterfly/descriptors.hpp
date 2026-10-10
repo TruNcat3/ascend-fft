@@ -9,6 +9,7 @@
 #pragma once
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 // UB 资源公式与内核同源（PR #2 阶段 3）：AB_LT_* / AB_*_UB_BYTES 由
@@ -281,7 +282,16 @@ inline uint32_t parse_lt_stripe_k(const char* env = nullptr) {
   static const unsigned ks[] = AB_FUSE_K_CANDIDATES;
   return ab_lt_in_set(sk, ks, 3) ? (uint32_t)sk : 0u;
 }
+// Parse AB_LT_IDX: -1 = illegal, 0 = rebuild (default), 1 = resident.
+inline int parse_lt_idx(const char* env = nullptr) {
+  const char* s = env ? env : getenv("AB_LT_IDX");
+  if (!s || !*s) return 0;
+  if (strcmp(s, "resident") == 0) return 1;
+  if (strcmp(s, "rebuild") == 0) return 0;
+  return -1;
+}
 inline LtTilePlan resolve_lt_tile(uint32_t k = AB_FUSE_STRIPE_K,
+                                  int resident = 0,
                                   const char* env = nullptr) {
   LtTilePlan p;
   const char* s = env ? env : getenv("AB_LT_TILE");
@@ -294,12 +304,13 @@ inline LtTilePlan resolve_lt_tile(uint32_t k = AB_FUSE_STRIPE_K,
                std::string(s) + "'";
     return p;
   }
-  if (!ab_stripe_legal(th, tw, k)) {
+  if (!ab_stripe_legal(th, tw, k, resident ? 1u : 0u)) {
     p.legal = false;
     p.reason = "AB_LT_TILE H=" + std::to_string(th) + " W=" +
                std::to_string(tw) +
-               " violates the R2-A candidate/alignment/10K<=2HW constraints"
-               " at stripe K=" + std::to_string(k);
+               " violates the R2-A candidate/alignment/carve constraints"
+               " at stripe K=" + std::to_string(k) +
+               (resident ? " resident" : " rebuild");
     return p;
   }
   p.h = (uint32_t)th;
@@ -308,17 +319,19 @@ inline LtTilePlan resolve_lt_tile(uint32_t k = AB_FUSE_STRIPE_K,
 }
 inline KernelResource transpose_resource(uint32_t h = AB_LT_H,
                                          uint32_t w = AB_LT_W,
-                                         uint32_t k = AB_FUSE_STRIPE_K){
+                                         uint32_t k = AB_FUSE_STRIPE_K,
+                                         int resident = 0){
   // kfft_lt_tr is one .o entry with the fused tw path statically included
   // (bTw in InitBuffer), so EVERY launch of it is gated at the four-tile
-  // peak AB_FUSED_UB_BYTES_HWK(H,W,K) (PR-B; R2-A makes the peak follow
-  // the selected tile instead of a fixed 128 KiB).
-  (void)k;  // rebuild-mode carve shares bOut: K does not move the peak
+  // peak plus the resident-index buffer when selected (R2-A Rounds 1-3).
   return KernelResource{"kfft_lt_tr", CoreKind::AIVVectorCore,
-                        (size_t)AB_FUSED_UB_BYTES_HWK(h, w, k),
+                        (size_t)AB_FUSED_UB_BYTES_HWKR(h, w, k,
+                                                       resident ? 1u : 0u),
                         SyncScope::AIVIntraCore,
-                        "fused-capable HxW tile (bIn+bOut+bIdx+bTw), "
-                        "peak = 4*H*W*8 (R2-A: follows AB_LT_TILE)"};
+                        resident ? "fused-capable HxW tile + resident stripe "
+                                   "idx (4*H*W*8 + 16K)"
+                                 : "fused-capable HxW tile (bIn+bOut+bIdx+bTw),"
+                                   " peak = 4*H*W*8 (R2-A)"};
 }
 inline KernelResource twiddle_resource(uint32_t len){
   return KernelResource{"kfft_lt_tw", CoreKind::AIVVectorCore,
@@ -564,10 +577,10 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
     r.modeled_payload_gm_rw_bytes = rw;
   }
 
-  // R2-A: an illegal AB_LT_TILE / AB_LT_STRIPE_K is a loud rejection (same
-  // contract as an illegal row-FFT plan) -- the gate must never launch an
-  // uncompiled or over-budget tile shape.  K parses first; the tile carve
-  // is checked jointly at that K.
+  // R2-A: an illegal AB_LT_TILE / AB_LT_STRIPE_K / AB_LT_IDX is a loud
+  // rejection (same contract as an illegal row-FFT plan) -- the gate must
+  // never launch an uncompiled or over-budget tile shape.  K and the index
+  // mode parse first; the tile carve is checked jointly at that (K, mode).
   const uint32_t ltsk = parse_lt_stripe_k();
   if (ltsk == 0) {
     r.abstract_feasible = false;
@@ -576,7 +589,15 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
                "128|256|512";
     return r;
   }
-  const LtTilePlan ltp = resolve_lt_tile(ltsk);
+  const int ltidx = parse_lt_idx();
+  if (ltidx < 0) {
+    r.abstract_feasible = false;
+    r.supported = false;
+    r.reason = "illegal transpose index mode: AB_LT_IDX must be "
+               "resident|rebuild";
+    return r;
+  }
+  const LtTilePlan ltp = resolve_lt_tile(ltsk, ltidx);
   if (!ltp.legal) {
     r.abstract_feasible = false;
     r.supported = false;
@@ -618,7 +639,7 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
       case LaunchKind::TransposeIn:
       case LaunchKind::TransposeBoundary:
       case LaunchKind::TransposeOut:
-        kr = transpose_resource(ltp.h, ltp.w, ltsk); break;
+        kr = transpose_resource(ltp.h, ltp.w, ltsk, ltidx); break;
     }
     if(kr.ub_bytes > ub_have){
       r.abstract_feasible = false;

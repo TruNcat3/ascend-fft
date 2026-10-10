@@ -1,11 +1,23 @@
 // R2-A：kfft_lt_tr 的完整内核体，按 (AB_LT_TR_SUFFIX, AB_LT_TR_H,
-// AB_LT_TR_W) 逐候选在包含点展开（ccec 9.0.0 不接受把 TPipe/InitBuffer
-// 移进非入口 __aicore__ 函数——实测 AIV 挂死，故用包含展开而非模板）。
-// 体与 PR-B 行为逐行一致，仅分块常量参数化；TPipe 必须留在 __global__ 入口。
+// AB_LT_TR_W, AB_LT_TR_K, AB_LT_TR_RESIDENT) 逐候选在包含点展开（ccec
+// 9.0.0 不接受把 TPipe/InitBuffer 移进非入口 __aicore__ 函数——实测 AIV
+// 挂死，故用包含展开而非模板）。TPipe 必须留在 __global__ 入口。
+// Round 3（AB_LT_TR_RESIDENT=1）：条带三张索引表迁入独立只读 buffer，
+// 入口建一次，grid-stride 不再逐 tile 重建（bOut 末尾大 Gather 会清 bOut，
+// 重建即本 bug 的 2048 次 scalar SetValue/tile）；bOut 只切平面三区。
+#ifndef AB_LT_TR_RESIDENT
+#define AB_LT_TR_RESIDENT 0
+#endif
 static_assert((AB_LT_TR_W & 3u) == 0u,
               "tile W must keep 32B row-slice alignment");
-static_assert(10ull * AB_LT_TR_K <= 2ull * AB_LT_TR_H * AB_LT_TR_W,
-              "stripe machinery must fit the bOut lifetime carve");
+#if AB_LT_TR_RESIDENT
+static_assert(3ull * AB_LT_TR_K <= (unsigned long long)AB_LT_TR_H * AB_LT_TR_W,
+              "resident planar carve must fit the bOut lifetime");
+#else
+static_assert(10ull * AB_LT_TR_K <=
+                  2ull * AB_LT_TR_H * AB_LT_TR_W,
+              "rebuild stripe machinery must fit the bOut lifetime carve");
+#endif
 
 extern "C" __global__ __aicore__ __vector__ void
     AB_KLTT_CAT(kfft_lt_tr, AB_LT_TR_SUFFIX)(
@@ -19,6 +31,10 @@ extern "C" __global__ __aicore__ __vector__ void
     pipe.InitBuffer(bOut, tileN * 2u * sizeof(float));
     pipe.InitBuffer(bIdx, tileN * 2u * sizeof(uint32_t));
     pipe.InitBuffer(bTw,  tileN * 2u * sizeof(float));  // 融合 tw tile
+#if AB_LT_TR_RESIDENT
+    TBuf<TPosition::VECCALC> bSidx;
+    pipe.InitBuffer(bSidx, AB_LT_TR_K * 4u * sizeof(uint32_t)); // 4K 表
+#endif
     LocalTensor<float> tIn  = bIn.Get<float>();
     LocalTensor<float> tOut = bOut.Get<float>();
     LocalTensor<float> tTw  = bTw.Get<float>();
@@ -30,17 +46,25 @@ extern "C" __global__ __aicore__ __vector__ void
         idx.SetValue(2u * (w * AB_LT_TR_H + i),      p);
         idx.SetValue(2u * (w * AB_LT_TR_H + i) + 1u, p + 4u);
       }
-    // 融合条带机件（tw!=nullptr 才建；bOut 里切出生命周期，float/uint32 等宽）：
+    // 融合条带机件（tw!=nullptr 才建）：
     //   planarA [0,2K) 数据平面 | planarW [2K,4K) tw 平面 | prod [4K,6K) 乘积
-    //   idxRe/idxIm 各 K、idxX 2K 个 uint32 收在 [6K,10K)（10K*4B <= 2HW*4B）
+    // rebuild 模式：idxRe/idxIm 各 K、idxX 2K 个 uint32 收在 bOut [6K,10K)
+    //              （10K*4B <= 2HW*4B），每 tile 重建（末尾大 Gather 清 bOut）。
+    // resident 模式：三表移入独立 bSidx（16K 字节），入口建一次，不重建。
     const uint32_t K = AB_LT_TR_K;
     LocalTensor<float> planA = tOut;
     LocalTensor<float> planW = tOut[2u * K];
     LocalTensor<float> prod  = tOut[4u * K];
+#if AB_LT_TR_RESIDENT
+    LocalTensor<uint32_t> idxRe = bSidx.Get<uint32_t>();
+    LocalTensor<uint32_t> idxIm = idxRe[K];
+    LocalTensor<uint32_t> idxX  = idxRe[2u * K];   // 4K 张表收满 bSidx
+#else
     LocalTensor<uint32_t> uB    = bOut.Get<uint32_t>();
     LocalTensor<uint32_t> idxRe = uB[6u * K];
     LocalTensor<uint32_t> idxIm = uB[7u * K];
     LocalTensor<uint32_t> idxX  = uB[8u * K];
+#endif
     if (tw) {
       for (uint32_t k = 0; k < K; k++) {
         idxRe.SetValue(k,      8u * k);              // 平面 re <- 交错字节
@@ -82,9 +106,11 @@ extern "C" __global__ __aicore__ __vector__ void
       }
       PipeBarrier<PIPE_ALL>();
       if (tw) {
+#if !AB_LT_TR_RESIDENT
         // idx 表切自 bOut，而每 tile 末尾的大 Gather 会全量写 tOut（= bOut）：
         // grid-stride 第 2 个及以后的 tile 必须重建，否则平面 Gather 按被清掉的
         // 垃圾偏移读 UB -> 越界（AIV 507035）。首个 tile 用入口处建好的表。
+        // resident 模式三表在独立 bSidx，永不被清 -> 整段删除。
         if (tt != (uint64_t)blk) {
           for (uint32_t k = 0; k < K; k++) {
             idxRe.SetValue(k,      8u * k);
@@ -94,6 +120,7 @@ extern "C" __global__ __aicore__ __vector__ void
           }
           PipeBarrier<PIPE_ALL>();
         }
+#endif
         const uint32_t C = rCnt * wCnt;               // 打包复数 / tile
         for (uint32_t s = 0; s < C; s += K) {
           const uint32_t kl = (C - s >= K) ? K : (C - s);

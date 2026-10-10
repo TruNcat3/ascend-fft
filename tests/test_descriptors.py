@@ -69,6 +69,10 @@ EXPECTED_CASES = {
     "lt_stripe_k_256_supported": (True, None),
     "lt_stripe_k_12_rejected": (False, "illegal transpose stripe"),
     "lt_tile_64x32_k256_supported": (True, None),
+    # R2-A Round 3 resident stripe index (AB_LT_IDX=resident)
+    "lt_idx_resident_k256_supported": (True, None),
+    "lt_idx_resident_tile_rejected": (False, "illegal transpose tile"),
+    "lt_idx_bogus_rejected": (False, "illegal transpose index mode"),
     "block_resident_needs_multi_role": (False, "multi-role unit"),
     "onchip_without_block_residence": (False, "on-chip boundary"),
     "gm_guard_overflow": (False, "40 GiB guard"),
@@ -284,7 +288,8 @@ class DescriptorLegalityTests(unittest.TestCase):
             status, reason = self.cases[name]
             self.assertEqual(status, "UNSUPPORTED")
             self.assertIn("illegal transpose tile", reason)
-            self.assertIn("10K", reason)
+            self.assertIn("carve", reason)
+            self.assertIn("rebuild", reason)
         status, reason = self.cases["lt_tile_garbage_rejected"]
         self.assertEqual(status, "UNSUPPORTED")
         self.assertIn("illegal transpose tile", reason)
@@ -293,6 +298,19 @@ class DescriptorLegalityTests(unittest.TestCase):
         self.assertEqual(status, "UNSUPPORTED")
         self.assertIn("UB overflow", reason)
         self.assertIn("262144", reason)
+
+    def test_lt_idx_resident_peak_and_legality(self):
+        # R2-A Round 3: resident index adds 16*K bytes to the peak and
+        # relaxes the carve (3K<=HW), unlocking tiles like 64x32 at K=512.
+        self.assertEqual(self.structs["lt_idx_resident_k256"]["ub_peak"],
+                         str(4 * 8 * 128 * 32 + 16 * 256))
+        status, reason = self.cases["lt_idx_resident_tile_rejected"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("illegal transpose tile", reason)
+        self.assertIn("resident", reason)
+        status, reason = self.cases["lt_idx_bogus_rejected"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("illegal transpose index mode", reason)
 
     def test_lt_kernel_entries_cover_the_legal_ub_fitting_set(self):
         # R2-A single source: every (H,W) that is stripe-legal at the default
@@ -329,14 +347,18 @@ class DescriptorLegalityTests(unittest.TestCase):
                 r"#define AB_LT_TR_SUFFIX\s*(\S+)\s*\n"
                 r"#define AB_LT_TR_H (\d+)\s*\n"
                 r"#define AB_LT_TR_W (\d+)\s*\n"
-                r"#define AB_LT_TR_K (\d+)", src):
-            k_entries.add((int(m.group(1).lstrip("_k")) if m.group(1).startswith("_k")
-                           else None, int(m.group(2)), int(m.group(3)),
-                           int(m.group(4))))
-        self.assertEqual(
-            {(h, w, k) for _, h, w, k in k_entries if _ is not None},
-            {(128, 32, 256), (128, 32, 128)},
-            "stripe-K variants must exist for the default 128x32 tile")
+                r"#define AB_LT_TR_K (\d+)\s*\n"
+                r"#define AB_LT_TR_RESIDENT (\d+)", src):
+            k_entries.add((m.group(1), int(m.group(2)), int(m.group(3)),
+                           int(m.group(4)), int(m.group(5))))
+        rebuild_k = {(h, w, k) for suf, h, w, k, r in k_entries
+                     if suf.startswith("_k") and r == 0}
+        self.assertEqual(rebuild_k, {(128, 32, 256), (128, 32, 128)},
+                         "stripe-K variants must exist for the default 128x32 tile")
+        # Round 3: exactly one resident entry, default tile at K=256.
+        resident = {(h, w, k) for suf, h, w, k, r in k_entries if r == 1}
+        self.assertEqual(resident, {(128, 32, 256)},
+                         "resident-index entry must be the default tile at K=256")
 
 
 if __name__ == "__main__":
