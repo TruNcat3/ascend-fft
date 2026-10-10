@@ -33,11 +33,13 @@ Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件
 存储和同步均重新映射到 AIV、UB、MTE 与 GM。方法来源与差异见[相关工作](docs/benchmarks/related-work.md)。
 
 这里需要明确区分两个正交层次。**计算流优化**决定阶段和数据如何分块、复用、交接、重排和
-流水；**计算核心优化**决定每个局部块内部用 radix-2、radix-4、向量指令、Cube 或其他已验证
-蝶形单元完成算术。cuButterfly/Ascend-FFT 的主要研究对象是前者：我们不把某一个核心的指令
+流水；**计算核心优化**决定每个局部块内部用 radix-2、radix-4 或其他已验证
+蝶形算法完成算术；**硬件 lowering** 再决定使用 Vector、Cube 等指令和数据通路。
+cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个核心的指令
 技巧或某个 radix 的实现宣称为新的通用架构。只要满足布局、UB、对齐和同步的 lowering contract，
 同一计算流可以替换不同核心；反过来，同一核心也可以放入不同的分块、驻留和流水组织。因此，
-核心本身可以继续吸收 cuFFTDx、TurboFFT、Cube 等成熟经验，而不会削弱计算流方法的独立性。
+核心及其 lowering 可以继续吸收 cuFFTDx、TurboFFT 等成熟经验，并探索 Cube 等硬件实现，
+而不会削弱计算流方法的独立性。
 当前 Ascend 路径使用 radix-2/局部 radix-4 只是一个可执行的物理实例，不是方法的固定定义。
 
 本项目中关于 Roofline 上界、阶段依赖、纯数据/纯阶段展开的局限、二维空间-时间映射、计算流与
@@ -48,13 +50,13 @@ Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件
 
 ## 当前能力
 
-下表是当前发布版本已经验证的实现范围，不是项目的最终能力边界。
+下表是当前实现的支持契约，不是项目的最终能力边界；历史性能快照仍待用加固后的门禁重验。
 
 | 变换 | 精度 | 长度 | 布局 | 状态 |
 |---|---|---|---|---|
 | C2C forward | fp32 complex | 2 的幂，`64..4096` | host 交错复数 `[batch][2n]` | 稳定实验路径 |
-| R2C | fp32 real | 偶数，`128..8192` | `[batch][n] -> [batch][n+2]` | 已验证 |
-| C2R | fp32 half spectrum | 偶数，`64..4096` | `[batch][n+2] -> [batch][n]` | 已验证 |
+| R2C | fp32 real | 2 的幂，`128..8192` | `[batch][n] -> [batch][n+2]` | 已验证 |
+| C2R | fp32 half spectrum | 2 的幂，`64..4096` | `[batch][n+2] -> [batch][n]` | 已验证 |
 
 当前 C++ API 使用 host 指针并同步完成 H2D、变换和 D2H；尚不提供稳定 C ABI、device-pointer
 异步 API、逆向复数 C2C 或跨设备执行。完整边界见[支持矩阵](docs/reference/support.md)。
@@ -76,6 +78,8 @@ Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件
 <!-- END GENERATED: benchmark-summary -->
 
 数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照 `ascend910_9382-cann9.0.0-v2`。
+**待重验**：review 发现旧数值门禁和快照来源记录存在缺口；本节保留历史数据，不代表
+加固门禁后的最终结论。需在昇腾设备重新验证并更新快照，详见[实验结果](docs/benchmarks/results.md)。
 C2C device-only 为 49/49 点胜出；end-to-end 为 46/49 点胜出。R2C/C2R 按 5-trial
 对称协议各 49 点分别 29 / 44 点胜出（胜/平/负 R2C 29/7/13、C2R 44/3/2；负点如实列出，
 见[胜/平/负热图](docs/figures/fig10_real_speedup_heatmap.png)，逐 trial raw 随快照发布）。

@@ -26,6 +26,7 @@ struct Hardware {
     int minBlockOutputBytes = 64;   // 单 block 输出 < 64B 会跨核丢行
     bool matrixUnitUsable = false;  // Mmad 可编译但结果不可读出（见 docs/阶段0-1）
 
+    // Throws std::exception for unreadable, malformed or invalid configuration.
     static Hardware load(const std::string& profilePath);
     // local_exchange 合法性：shuffle/warp 需要 SIMT，本机不可行
     bool supportsShuffleExchange() const { return simt; }
@@ -76,7 +77,7 @@ struct Mapping {
 struct StagePlan {
     int radix = 2;            // 2 | 4 | 8
     bool coefficientResidency = true;  // 旋转因子全驻留 UB
-    int fusionLevel = 0;      // 融合的 stage 数（radix-2 => 1）
+    int fusionLevel = 1;      // 融合的 stage 数（radix-2 => 1）
     bool bitReverseInput = true;       // 输入位反转（DIT）
 
     // UB 占用估算（字节）

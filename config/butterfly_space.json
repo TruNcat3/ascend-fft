@@ -15,8 +15,10 @@
     "us": [1],
     "local_exchange": ["shared", "register", "shuffle"],
     "local_exchange_feasibility": {
-      "shared":   "feasible",
-      "register": "feasible",
+      "shared":   "lowered",
+      "shared_reason": "kfft_fwd uses fixed UB vector exchange; shared is the only executable local_exchange lowering",
+      "register": "not-lowered",
+      "register_reason": "retained as a design-space option; kfft_fwd does not consume a register-exchange selection",
       "shuffle":  "hardware-infeasible",
       "shuffle_reason": "--enable-simt / -cce-enable-puresimt rejected for every --npu-soc value on ccec 9.0.0; no SIMT programming model on Ascend910_9382"
     }

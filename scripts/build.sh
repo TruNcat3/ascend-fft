@@ -37,14 +37,28 @@ for t in "${targets[@]}"; do
             ab_cxx src/host/baseline_rfft.cpp -o build/baseline_rfft -lopapi -lnnopbase ;;
     probe)  do_kernel "${PROBE[@]}"
             echo "  cxx   src/host/launch.cpp"
-            ab_cxx src/host/launch.cpp -o build/launch ;;
+            ab_cxx src/host/launch.cpp -o build/launch
+            echo "  cxx   src/host/gather_probe.cpp"
+            ab_cxx src/host/gather_probe.cpp -o build/gather_probe ;;
     simt)   echo "  ccec  src/ascendc/probe_simt.cpp"
-            if ab_ccec src/ascendc/probe_simt.cpp -o build/probe_simt.o; then
+            simt_log=$(mktemp "$AB_WORK/probe_simt_XXXXXX.log")
+            if ab_ccec src/ascendc/probe_simt.cpp -o build/probe_simt.o >"$simt_log" 2>&1; then
+              cat "$simt_log"; rm -f "$simt_log"
+              echo "  SIMT_PROBE_SUPPORTED"
               echo "  [ warn ] probe_simt 编译通过 —— 本 SoC 可能支持 SIMT，"
               echo "           docs/阶段0-1-发现与结果.md §1.1 的「SIMT 不可用」需复核"
             else
-              echo "  [ ok  ] probe_simt 编译失败（预期）：本 SoC 无 SIMT"
-              echo "           见 docs/阶段0-1-发现与结果.md §1.1"
+              cat "$simt_log" >&2
+              if ! grep -Eiq 'command not found|file not found|no such file|undeclared identifier|unknown (argument|option)|internal compiler error' "$simt_log" &&
+                 grep -Eiq '(simt|instruction|intrinsic).*(not supported|unsupported|not available).*(soc|target|architecture|platform)|(soc|target|architecture|platform).*(does not support|unsupported|not supported).*(simt|instruction|intrinsic)' "$simt_log"; then
+                rm -f "$simt_log"
+                echo "  SIMT_PROBE_UNSUPPORTED"
+                echo "  [ ok  ] probe_simt 明确报告目标硬件不支持 SIMT/指令"
+              else
+                rm -f "$simt_log"
+                echo "  [ fail ] probe_simt 编译错误不是明确的目标不支持诊断" >&2
+                exit 1
+              fi
             fi ;;
     bw)     echo "  cxx   src/host/bw_probe.cpp"
             ab_cxx src/host/bw_probe.cpp -o build/bw_probe ;;

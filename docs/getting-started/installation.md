@@ -33,6 +33,10 @@ AB_CANN=/path/to/cann AB_PY=/path/to/python3 scripts/init.sh
 ```
 
 `scripts/env.sh`探测工具链并加载可用的`set_env.sh`。详细规则见[配置](../reference/configuration.md)。
+初始化还会将设备0的运行时名称和 `AB_SOC` 编译目标分别与硬件 profile 的
+`soc`/`compatible_device_names`精确匹配；任一不匹配时默认终止，避免把 Ascend910_9382 的参数
+或二进制静默用于其他 SoC。只有人工核验后才可临时设置
+`AB_ALLOW_PROFILE_MISMATCH=1`，该覆盖不能用于发布结果。
 
 ## 构建产物
 
@@ -47,4 +51,7 @@ scripts/build.sh all stride
 
 ## 换SoC
 
-设置匹配的`AB_SOC`编译目标，运行探针，审阅回填硬件配置，然后验证资源约束、正确性与性能。`init.sh`不自动构建新硬件的成本模型，也不自动回填profile。移植方法见[架构](../design/architecture.md)，失败处理见[故障排查](../reference/troubleshooting.md)。
+设置匹配的`AB_SOC`和`AB_PROFILE`，运行探针，审阅回填硬件配置，然后验证资源约束、正确性与性能。
+当前初始化会阻止profile误用，但尚不自动构建新SoC的成本模型或回填测量字段；这是仍待完成的
+安装期校准能力，不能把“通过兼容性检查”等同于“已经校准”。移植方法见[架构](../design/architecture.md)，
+失败处理见[故障排查](../reference/troubleshooting.md)。

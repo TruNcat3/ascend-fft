@@ -16,11 +16,11 @@ from datetime import datetime, timezone
 ROOT = Path(__file__).resolve().parents[1]
 FILES = ("matrix.md", "matrix.csv", "summary.json", "sixway.md", "e2e.json",
          "e2e_app.json", "r2c_c2r.json", "r2c_c2r.raw_trials.json",
-         "r2c_c2r.raw_trials.csv", "protocol.json", "figures.json")
+         "r2c_c2r.raw_trials.csv", "trials.csv", "protocol.json", "figures.json")
 # 原始实验产物（进快照即为不可变原始证据）；matrix.csv/comparison.md 属派生。
 RAW_INPUTS = ("matrix.md", "summary.json", "sixway.md", "e2e.json",
               "e2e_app.json", "r2c_c2r.json", "r2c_c2r.raw_trials.json",
-              "r2c_c2r.raw_trials.csv", "protocol.json", "figures.json")
+              "r2c_c2r.raw_trials.csv", "trials.csv", "protocol.json", "figures.json")
 DERIVED_GENERATED = ("matrix.csv", "matrix.md", "comparison.md")
 
 
@@ -65,29 +65,134 @@ def detect_npu_smi():
         return ""
 
 
+def detect_command_version(command):
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        output = (result.stdout + result.stderr).strip()
+        return output.splitlines()[0][:300] if result.returncode == 0 and output else "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+def detect_ccec_version():
+    for option in ("--version", "-v"):
+        version = detect_command_version(["ccec", option])
+        if version != "unknown":
+            return version
+    return "unknown"
+
+
+def build_hashes():
+    hashes = {}
+    build = ROOT / "build"
+    if not build.is_dir():
+        return hashes
+    for path in sorted(build.iterdir()):
+        if path.is_file() and (os.access(path, os.X_OK) or path.suffix == ".o"):
+            hashes[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashes
+
+
+def provenance_problems(manifest):
+    """Return defects that make a result snapshot unsuitable for publication."""
+    schema = int(manifest.get("schema_version", 1))
+    if schema in (1, 2):
+        if (manifest.get("publication_status") == "legacy-unverified"
+                and manifest.get("provenance_limitations")):
+            return []
+        return [f"schema v{schema} snapshot must declare publication_status=legacy-unverified and provenance_limitations"]
+    if schema != 3:
+        return [f"unsupported manifest schema_version {schema}"]
+    problems = []
+    unknown = {None, "", "?", "unknown", "UNKNOWN"}
+    if manifest.get("dirty") is not False:
+        problems.append("source worktree was dirty")
+    if not re.fullmatch(r"[0-9a-f]{40}", str(manifest.get("commit", ""))):
+        problems.append("commit is missing or is not a full Git SHA")
+    for field in ("soc", "hardware_id", "cann_version"):
+        if manifest.get(field) in unknown:
+            problems.append(f"{field} is unknown")
+    if manifest.get("versions", {}).get("ccec") in unknown:
+        problems.append("ccec version is unknown")
+    digest = re.compile(r"[0-9a-f]{64}")
+    selected = manifest.get("selected_profile", {})
+    if not selected.get("path") or not digest.fullmatch(str(selected.get("sha256", ""))):
+        problems.append("selected hardware profile path/hash is missing or invalid")
+    else:
+        profile_path = Path(selected["path"])
+        if profile_path.is_absolute() or ".." in profile_path.parts:
+            problems.append("selected hardware profile must be archived under the repository")
+        else:
+            profile_path = ROOT / profile_path
+            if not profile_path.is_file():
+                problems.append("selected hardware profile does not exist")
+            elif hashlib.sha256(profile_path.read_bytes()).hexdigest() != selected["sha256"]:
+                problems.append("selected hardware profile hash does not match its contents")
+    target = manifest.get("compiler_target")
+    if target in unknown:
+        problems.append("compiler target SoC is unknown")
+    elif re.sub(r"[^a-z0-9]", "", str(target).lower()) != re.sub(
+            r"[^a-z0-9]", "", str(selected.get("soc", "")).lower()):
+        problems.append("compiler target SoC does not match selected profile")
+    build = manifest.get("build_artifact_sha256", {})
+    if not build:
+        problems.append("built executable/object hashes are missing")
+    else:
+        for name, value in build.items():
+            path = Path(name)
+            if path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] != "build":
+                problems.append("built artifact path must be relative and under build/")
+            if not digest.fullmatch(str(value)):
+                problems.append("built executable/object hash is not SHA-256")
+    if manifest.get("profile_mismatch_override"):
+        problems.append("hardware profile mismatch override was enabled")
+    if manifest.get("environment_drift"):
+        problems.append("run environment changed between recorded experiments")
+    return problems
+
+
+def selected_profile():
+    path = Path(os.environ.get(
+        "AB_PROFILE", ROOT / "config" / "ascend910_93_profile.json")).resolve()
+    if not path.is_file():
+        return {"path": str(path), "sha256": "unknown"}
+    try:
+        label = str(path.relative_to(ROOT.resolve()))
+    except ValueError:
+        label = str(path)
+    data = path.read_bytes()
+    try:
+        soc = json.loads(data).get("soc", "unknown")
+    except (json.JSONDecodeError, AttributeError):
+        soc = "unknown"
+    return {"path": label, "sha256": hashlib.sha256(data).hexdigest(), "soc": soc}
+
+
 def record_run(directory, experiment, command, exit_code):
     directory.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).isoformat()
     path = directory / "manifest.json"
     manifest = json.loads(path.read_text()) if path.exists() else {
-        "schema_version": 2,
+        "schema_version": 3,
         "created_utc": now,
         "started_utc": now,
         "commit": git("rev-parse", "HEAD"),
-        "dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
+        "dirty": bool(git("status", "--porcelain", "--untracked-files=all")),
         "soc": os.environ.get("AB_SOC", "unknown"),
+        "compiler_target": os.environ.get("AB_SOC", "unknown"),
         "cann_path": os.environ.get(
             "AB_CANN", "/usr/local/Ascend/ascend-toolkit/latest"),
         "cann_version": detect_cann_version(),
         "versions": {
             "python": sys.version.split()[0],
             "cann": detect_cann_version(),
+            "ccec": detect_ccec_version(),
         },
-        "hardware_id": os.environ.get("AB_SOC", "unknown"),
+        "hardware_id": os.environ.get("AB_HARDWARE_ID", "unknown"),
         "npu_smi": detect_npu_smi(),
-        "hardware_profile_sha256": {
-            str(item.relative_to(ROOT)): hashlib.sha256(item.read_bytes()).hexdigest()
-            for item in sorted((ROOT / "config").glob("*profile*.json"))},
+        "selected_profile": selected_profile(),
+        "profile_mismatch_override": os.environ.get("AB_ALLOW_PROFILE_MISMATCH") == "1",
+        "build_artifact_sha256": build_hashes(),
         "experiments": [],
     }
     entry = {"name": experiment, "command": command,
@@ -96,6 +201,17 @@ def record_run(directory, experiment, command, exit_code):
     if exit_code is not None:
         entry["exit_code"] = exit_code
         entry["ended_utc"] = now
+        manifest["build_artifact_sha256"] = build_hashes()
+        manifest.setdefault("versions", {})["ccec"] = detect_ccec_version()
+        current_profile = selected_profile()
+        if manifest.get("selected_profile") != current_profile:
+            manifest.setdefault("environment_drift", []).append("selected hardware profile changed during run")
+        manifest["selected_profile"] = current_profile
+        manifest["dirty"] = manifest.get("dirty", False) or bool(
+            git("status", "--porcelain", "--untracked-files=all"))
+        manifest["profile_mismatch_override"] = (
+            manifest.get("profile_mismatch_override", False)
+            or os.environ.get("AB_ALLOW_PROFILE_MISMATCH") == "1")
     if manifest["experiments"] and manifest["experiments"][-1]["name"] == experiment and manifest["experiments"][-1]["status"] == "running":
         entry["started_utc"] = manifest["experiments"][-1].get("started_utc", now)
         manifest["experiments"][-1] = entry
@@ -134,6 +250,8 @@ def validate_json(name, value):
     if name in ("protocol.json", "figures.json"):
         if not isinstance(value, dict):
             raise ValueError(f"{name} must be a JSON object")
+        if name == "protocol.json" and not value:
+            raise ValueError("protocol.json must describe at least one measurement protocol")
         return
     if name.endswith(".raw_trials.json"):
         trials = value.get("raw_trials", [])
@@ -160,6 +278,55 @@ def validate_json(name, value):
             flags.append(row.get("bare_ok", False))
         if not flags or not all(flag is True or flag == 1 for flag in flags):
             raise ValueError(f"{name} has missing or failed correctness flags")
+        for key, item in row.items():
+            if key.endswith(("_us", "_ms")) and item is not None:
+                if not isinstance(item, (int, float)) or not math.isfinite(item) or item <= 0:
+                    raise ValueError(f"{name} has invalid timing {key}={item!r}")
+
+
+def validate_trials_csv(data):
+    rows = list(csv.DictReader(io.StringIO(data.decode("utf-8"))))
+    if not rows:
+        raise ValueError("trials.csv contains no raw trials")
+    required = {"runner", "trial", "n", "batch", "mean_us", "min_us", "max_rel", "correct"}
+    if not required.issubset(rows[0]):
+        raise ValueError("trials.csv is missing required columns")
+    for row in rows:
+        if row["correct"].lower() not in ("true", "1"):
+            raise ValueError("trials.csv contains a failed correctness trial")
+        for key in ("mean_us", "min_us"):
+            value = float(row[key])
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"trials.csv has invalid {key}")
+        error = float(row["max_rel"])
+        if not math.isfinite(error) or error < 0 or error > 1e-4:
+            raise ValueError("trials.csv has invalid max_rel")
+    return rows
+
+
+def validate_trial_coverage(data, summary, matrix_rows):
+    rows = validate_trials_csv(data)
+    rounds = summary.get("rounds")
+    native_enabled = summary.get("native_enabled")
+    if not isinstance(rounds, int) or rounds <= 0 or not isinstance(native_enabled, bool):
+        raise ValueError("summary.json must record positive rounds and boolean native_enabled")
+    runners = {"self", "native"} if native_enabled else {"self"}
+    expected = {(runner, trial, row["n"], row["batch"])
+                for runner in runners for trial in range(1, rounds + 1)
+                for row in matrix_rows}
+    observed = []
+    try:
+        for row in rows:
+            observed.append((row["runner"], int(row["trial"]),
+                             int(row["n"]), int(row["batch"])))
+    except (KeyError, ValueError) as error:
+        raise ValueError(f"trials.csv has invalid identity columns: {error}") from error
+    if len(observed) != len(set(observed)):
+        raise ValueError("trials.csv contains duplicate runner/trial/shape rows")
+    missing = expected - set(observed)
+    extra = set(observed) - expected
+    if missing or extra:
+        raise ValueError(f"trials.csv coverage mismatch: missing={len(missing)}, extra={len(extra)}")
 
 
 def render_matrix(rows):
@@ -176,9 +343,21 @@ def build_artifacts(run):
     if not source.is_file():
         raise ValueError("run requires manifest.json; use repro.sh or record provenance explicitly")
     manifest = json.loads(source.read_text())
+    provenance = provenance_problems(manifest)
+    if provenance:
+        raise ValueError("publication provenance is incomplete: " + "; ".join(provenance))
     experiments = manifest.get("experiments", [])
     if not experiments or any(item.get("status") != "complete" for item in experiments):
         raise ValueError("only completed, successful runs may be published")
+    if manifest.get("schema_version") == 3 and any(
+            item.get("exit_code") != 0 for item in experiments):
+        raise ValueError("schema v3 experiments require an explicit zero exit_code")
+    if manifest.get("schema_version") == 3:
+        required = ("matrix.md", "summary.json", "trials.csv", "protocol.json")
+        missing = [name for name in required if not (run / name).is_file()]
+        if missing:
+            raise ValueError("schema v3 publication is missing required evidence: "
+                             + ", ".join(missing))
     artifacts = {}
     for name in FILES:
         path = run / name
@@ -189,12 +368,16 @@ def build_artifacts(run):
                 artifacts[name] = canonical(value)
             else:
                 artifacts[name] = path.read_bytes()
+                if name == "trials.csv":
+                    validate_trials_csv(artifacts[name])
     if "matrix.md" not in artifacts:
         raise ValueError("publication requires matrix.md; combine experiments with AB_RUN_DIR")
     rows = parse_matrix(artifacts["matrix.md"].decode("utf-8"))
     summary = json.loads(artifacts.get("summary.json", b"{}"))
     if summary and summary["total_points"] != len(rows):
         raise ValueError("matrix.md and summary.json coverage disagree")
+    if manifest.get("schema_version") == 3:
+        validate_trial_coverage(artifacts["trials.csv"], summary, rows)
     if "matrix.csv" not in artifacts:
         output = io.StringIO(newline="")
         writer = csv.DictWriter(output, fieldnames=["n", "batch", "ours_us", "native_us", "speedup"], lineterminator="\n")
@@ -202,7 +385,10 @@ def build_artifacts(run):
         writer.writerows(rows)
         artifacts["matrix.csv"] = output.getvalue().encode()
     geometric = math.exp(sum(math.log(row["speedup"]) for row in rows) / len(rows))
-    report = ("# Published Benchmark Summary\n\n"
+    legacy = manifest.get("publication_status") == "legacy-unverified"
+    warning = ("\n> **Historical evidence only:** provenance or correctness gates in this "
+               "snapshot are incomplete; revalidation is required.\n\n" if legacy else "\n")
+    report = ("# Published Benchmark Summary\n" + warning +
               f"Source commit: `{manifest.get('commit', 'unknown')}`. "
               f"SoC: `{manifest.get('soc', 'unknown')}`.\n\n"
               f"C2C device-only: **{len(rows)} checked points**, "
@@ -229,6 +415,16 @@ def build_artifacts(run):
             manifest["protocol"] = json.loads(artifacts["protocol.json"])
         if "figures.json" in artifacts:
             manifest["figures"] = json.loads(artifacts["figures.json"])
+            if manifest.get("schema_version") == 3:
+                figure_hashes = {}
+                for figure in manifest["figures"]:
+                    source = ROOT / "docs" / "figures" / figure
+                    if not source.is_file():
+                        raise ValueError(f"declared figure output is missing: {source}")
+                    name = f"figures/{figure}"
+                    artifacts[name] = source.read_bytes()
+                    figure_hashes[name] = hashlib.sha256(artifacts[name]).hexdigest()
+                manifest["figure_output_sha256"] = figure_hashes
         manifest["raw_artifact_hashes"] = raw_hashes
         manifest["derived_artifact_hashes"] = derived_hashes
     manifest["published_artifacts"] = {name: hashlib.sha256(data).hexdigest()
@@ -241,6 +437,19 @@ def verify_immutable(destination, artifacts):
     """P2-D：--check 附加的不可变性判据（原始哈希、图形输入、commit 与工作树漂移）。"""
     problems = []
     manifest = json.loads(artifacts["manifest.json"])
+    if manifest.get("schema_version") == 3:
+        selected = manifest["selected_profile"]
+        profile = ROOT / selected["path"]
+        if not profile.is_file():
+            problems.append(f"selected hardware profile missing: {profile}")
+        elif hashlib.sha256(profile.read_bytes()).hexdigest() != selected["sha256"]:
+            problems.append(f"selected hardware profile hash drift: {profile}")
+        for name, digest in manifest.get("figure_output_sha256", {}).items():
+            figure = destination / name
+            if not figure.is_file():
+                problems.append(f"published figure output missing: {figure}")
+            elif hashlib.sha256(figure.read_bytes()).hexdigest() != digest:
+                problems.append(f"published figure output hash drift: {figure}")
     published = manifest.get("published_artifacts", {})
     for name, digest in sorted(published.items()):
         path = destination / name
@@ -282,7 +491,7 @@ def synchronize(directory, files, check):
             if not path.exists() or path.read_bytes() != data:
                 stale.append(str(path))
         else:
-            directory.mkdir(parents=True, exist_ok=True)
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
     return stale
 
@@ -294,6 +503,8 @@ def main():
     parser.add_argument("--published-root", type=Path, default=ROOT / "results/published")
     parser.add_argument("--generated-dir", type=Path, default=ROOT / "docs/generated")
     parser.add_argument("--check", action="store_true", help="verify artifacts without writing")
+    parser.add_argument("--replace-existing", action="store_true",
+                        help="explicit migration only; allow rewriting an existing snapshot")
     parser.add_argument("--record-run", type=Path)
     parser.add_argument("--experiment")
     parser.add_argument("--command")
@@ -312,10 +523,9 @@ def main():
         parser.error("publication requires --run")
     try:
         artifacts, generated = build_artifacts(run)
-        if not args.check and destination.exists():
-            leftovers = [name for name in FILES if (destination / name).exists() and name not in artifacts]
-            if leftovers:
-                raise ValueError("snapshot contains additional artifacts; use a new --snapshot or supply them in the run: " + ", ".join(leftovers))
+        if not args.check and destination.exists() and not args.replace_existing:
+            raise ValueError("published snapshots are immutable; choose a new --snapshot "
+                             "or use --replace-existing for an explicit migration")
         stale = synchronize(destination, artifacts, args.check)
         # docs/generated 只归"声明了图形映射"的快照所有，避免多快照互相覆盖；
         # legacy(v1) 快照不再触碰生成物，v2 起由 figures.json 声明所有权。
@@ -330,7 +540,12 @@ def main():
     if stale:
         print("out-of-date artifacts:\n" + "\n".join(stale), file=sys.stderr)
         return 1
-    print("Published artifacts verified" if args.check else f"Published snapshot: {destination}")
+    if args.check:
+        status = json.loads(artifacts["manifest.json"]).get("publication_status")
+        print("Artifact integrity verified; provenance remains legacy-unverified"
+              if status == "legacy-unverified" else "Published artifacts and provenance verified")
+    else:
+        print(f"Published snapshot: {destination}")
     return 0
 
 

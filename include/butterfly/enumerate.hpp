@@ -41,7 +41,8 @@ struct DesignSpace {
     std::vector<int> coeffResidency;         // P.coefficient_residency: 1=驻留
     std::string raw;                         // 原始 JSON（留档）
 
-    // 从 config/*.json 读取；读不到的轴回落到 applyDefaults() 的缺省值
+    // Strict config loading; missing/malformed files or axes throw std::exception.
+    // applyDefaults() is only for explicitly constructed in-memory spaces.
     static DesignSpace load(const std::string& path);
     void applyDefaults();
 

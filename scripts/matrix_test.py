@@ -16,12 +16,13 @@
 
 输出 markdown 表到 stdout（进度到 stderr）。`--no-eta` 关掉可省掉选型开销。
 """
-import argparse, math, os, re, subprocess, sys
+import argparse, math, os, random, re, shlex, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
 PY = abenv.python_bin()
+PROFILE = os.environ.get("AB_PROFILE", os.path.join(ROOT, "config/ascend910_93_profile.json"))
 
 
 def sh(cmd, env=None, cwd=ROOT, timeout=3600):
@@ -47,6 +48,16 @@ def f(pat, s, d=float("nan")):
     return float(m.group(1)) if m else d
 
 
+def runner_orders(rounds, native_enabled, seed):
+    rng = random.Random(seed)
+    orders = []
+    for _ in range(rounds):
+        order = ["self"] if not native_enabled else ["native", "self"]
+        rng.shuffle(order)
+        orders.append(order)
+    return orders
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--ns", default="64,128,256,512,1024,2048,4096")
@@ -56,6 +67,8 @@ def main(argv=None):
                     help="整套测量跑几遍、逐点取 min（0 噪声口径，见文件头）")
     ap.add_argument("--no-eta", action="store_true")
     ap.add_argument("--no-native", action="store_true")
+    ap.add_argument("--order-seed", type=int, default=0,
+                    help="可复现地随机交错 native/self 轮次，降低时序漂移偏差")
     from datetime import datetime, timezone
     run_name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ-matrix")
     ap.add_argument("--out", default=f"results/runs/{run_name}/matrix.md")
@@ -74,84 +87,90 @@ def main(argv=None):
     native_errors = {}
 
     nat, nat_ok = {}, True
+    ours = {key: {"mean": float("nan"), "min": float("nan"),
+                  "maxRel": float("nan"), "ok": True} for key in expected}
+    orders = runner_orders(rounds, not a.no_native, a.order_seed)
+    print(f"[1/3 + 2/3] paired runner rounds seed={a.order_seed}: {orders}", file=sys.stderr)
+    for trial, order in enumerate(orders, 1):
+        for runner in order:
+            if runner == "native":
+                result = sh(f"{PY} scripts/bench_native_npu.py --ns {a.ns} --bs {a.bs} "
+                            f"--reps {max(a.reps, 20)}")
+                records = {key: [] for key in expected}
+                for line in output(result).splitlines():
+                    match = re.match(
+                        r"NATIVE n=(\d+) b=(\d+) native_us=([\d.]+) native_mean_us=([\d.]+) "
+                        r"maxRel=([\d.eE+-]+) (\w+)", line)
+                    if match:
+                        key = (int(match.group(1)), int(match.group(2)))
+                        if key in records:
+                            records[key].append(match)
+                for key, matches in sorted(records.items()):
+                    if len(matches) != 1:
+                        native_status[key] = nat_ok = False
+                        trials.append({"runner": "native", "trial": trial, "n": key[0],
+                                       "batch": key[1], "returncode": result.returncode,
+                                       "correct": False,
+                                       "failure": f"expected one record, found {len(matches)}"})
+                        continue
+                    match = matches[0]
+                    nmin, nmean = float(match.group(3)), float(match.group(4))
+                    error = float(match.group(5))
+                    good = (result.returncode == 0 and match.group(6) == "PASS"
+                            and valid_measurement(nmean, nmin, error))
+                    native_status[key] &= good
+                    nat_ok &= good
+                    native_errors[key] = max(native_errors.get(key, error), error)
+                    trials.append({"runner": "native", "trial": trial, "n": key[0],
+                                   "batch": key[1], "returncode": result.returncode,
+                                   "mean_us": nmean, "min_us": nmin, "max_rel": error,
+                                   "correct": good,
+                                   "failure": "" if good else "command, PASS marker, timing or error check failed"})
+                    previous = nat.get(key)
+                    nat[key] = ([nmin, nmean] if previous is None else
+                                [min(previous[0], nmin), min(previous[1], nmean)])
+            else:
+                for n in ns:
+                    for b in bs:
+                        current = ours[(n, b)]
+                        result = sh(f"./build/fft_check {n} {b} {a.reps}")
+                        text = output(result)
+                        mean = f(r"kfft_fwd: ([\d.]+) us/call", text)
+                        minimum = f(r"\(min ([\d.]+) us\)", text)
+                        error = f(r"maxRel=([\d.eE+-]+)", text)
+                        good = (result.returncode == 0
+                                and bool(re.search(r"^PASS$", text, re.M))
+                                and not bool(re.search(r"^FAIL\b", text, re.M))
+                                and valid_measurement(mean, minimum, error))
+                        current["ok"] &= good
+                        trials.append({"runner": "self", "trial": trial, "n": n,
+                                       "batch": b, "returncode": result.returncode,
+                                       "mean_us": mean, "min_us": minimum,
+                                       "max_rel": error, "correct": good,
+                                       "failure": "" if good else "command, PASS marker, timing or error check failed"})
+                        if math.isfinite(error):
+                            current["maxRel"] = (error if not math.isfinite(current["maxRel"])
+                                                 else max(current["maxRel"], error))
+                        if math.isfinite(mean):
+                            current["mean"] = (mean if not math.isfinite(current["mean"])
+                                               else min(current["mean"], mean))
+                        if math.isfinite(minimum):
+                            current["min"] = (minimum if not math.isfinite(current["min"])
+                                              else min(current["min"], minimum))
     if not a.no_native:
-        print(f"[1/3] CANN 原生复数 FFT  ({len(ns)}x{len(bs)} x{rounds}) ...", file=sys.stderr)
-        for trial in range(1, rounds + 1):
-            result = sh(f"{PY} scripts/bench_native_npu.py --ns {a.ns} --bs {a.bs} "
-                     f"--reps {max(a.reps, 20)}")
-            records = {key: [] for key in expected}
-            for ln in output(result).splitlines():
-                m = re.match(r"NATIVE n=(\d+) b=(\d+) native_us=([\d.]+) native_mean_us=([\d.]+) "
-                             r"maxRel=([\d.eE+-]+) (\w+)", ln)
-                if not m:
-                    continue
-                k = (int(m.group(1)), int(m.group(2)))
-                if k in records:
-                    records[k].append(m)
-            for k, matches in sorted(records.items()):
-                if len(matches) != 1:
-                    native_status[k] = nat_ok = False
-                    trials.append({"runner": "native", "trial": trial, "n": k[0], "batch": k[1],
-                                   "returncode": result.returncode, "correct": False,
-                                   "failure": f"expected one record, found {len(matches)}"})
-                    continue
-                m = matches[0]
-                nmin, nmean = float(m.group(3)), float(m.group(4))
-                error = float(m.group(5))
-                good = (result.returncode == 0 and m.group(6) == "PASS"
-                        and valid_measurement(nmean, nmin, error))
-                native_status[k] &= good
-                nat_ok &= good
-                native_errors[k] = max(native_errors.get(k, error), error)
-                trials.append({"runner": "native", "trial": trial, "n": k[0], "batch": k[1],
-                               "returncode": result.returncode, "mean_us": nmean, "min_us": nmin,
-                               "max_rel": error, "correct": good,
-                               "failure": "" if good else "command, PASS marker, timing or error check failed"})
-                prev = nat.get(k)
-                # 逐点各自取 min：min 列与 mean 列互不牵连
-                if prev is None:
-                    nat[k] = [nmin, nmean]
-                else:
-                    nat[k] = [min(prev[0], nmin), min(prev[1], nmean)]
         print(f"    native {len(nat)} 点 {'PASS' if nat_ok else 'FAIL'}", file=sys.stderr)
-
-    print(f"[2/3] 自研 kfft_fwd ({len(ns)}x{len(bs)}, reps={a.reps} x{rounds}) ...",
-          file=sys.stderr)
-    ours = {}
     for n in ns:
         for b in bs:
-            cmd = f"./build/fft_check {n} {b} {a.reps}"
-            best_mean = best_min = float("nan")
-            rel = float("nan"); ok = True
-            for trial in range(1, rounds + 1):
-                result = sh(cmd)
-                s = output(result)
-                mn, mi = f(r"kfft_fwd: ([\d.]+) us/call", s), f(r"\(min ([\d.]+) us\)", s)
-                r = f(r"maxRel=([\d.eE+-]+)", s)
-                good = (result.returncode == 0 and bool(re.search(r"^PASS$", s, re.M))
-                        and not bool(re.search(r"^FAIL\b", s, re.M))
-                        and valid_measurement(mn, mi, r))
-                ok &= good
-                trials.append({"runner": "self", "trial": trial, "n": n, "batch": b,
-                               "returncode": result.returncode, "mean_us": mn, "min_us": mi,
-                               "max_rel": r, "correct": good,
-                               "failure": "" if good else "command, PASS marker, timing or error check failed"})
-                if r == r:
-                    rel = r if rel != rel else max(rel, r)
-                if math.isfinite(mn):
-                    best_mean = mn if best_mean != best_mean else min(best_mean, mn)
-                if math.isfinite(mi):
-                    best_min = mi if best_min != best_min else min(best_min, mi)
-            ours[(n, b)] = {"mean": best_mean, "min": best_min, "maxRel": rel, "ok": ok}
-            print(f"    n={n:<5} b={b:<5} {'PASS' if ok else 'FAIL'}"
-                  f"  {best_mean:.1f} us", file=sys.stderr)
+            current = ours[(n, b)]
+            print(f"    n={n:<5} b={b:<5} {'PASS' if current['ok'] else 'FAIL'}"
+                  f"  {current['mean']:.1f} us", file=sys.stderr)
 
     eta = {}
     if not a.no_eta:
         print("[3/3] 框架 η / 选型闭环 ...", file=sys.stderr)
         for n in ns:
             for b in bs:
-                s = output(sh(f"./build/test_framework config/ascend910_93_profile.json "
+                s = output(sh(f"./build/test_framework {shlex.quote(PROFILE)} "
                               f"config/butterfly_space.json build/fft_radix2.o {n} {b}"))
                 e = f(r"eta=([\d.]+) us", s)
                 ok = "selected:" in s and "no feasible" not in s
@@ -181,7 +200,8 @@ def main(argv=None):
     L(f"> 硬件 Ascend910_9382（48 AIV）；reps={a.reps}；"
       f"`自研 mean` 与 `原生 mean` 同口径、`自研 min` 与 `原生 min` 同口径。\n")
     L(f"> 每点 {rounds} trials；所有启用 runner 的每轮必须成功、PASS 且完整覆盖；"
-      "耗时保留 min-of-means，maxRel 取所有自研轮次最大值。\n")
+      f"runner 按 seed={a.order_seed} 逐轮随机交错；耗时保留 min-of-means，"
+      "maxRel 取所有自研轮次最大值。\n")
     L("> **η** 来自框架选型闭环（`test_framework`），同一行的 `η/实测` 列给出模型相对"
       "`自研 mean` 的偏差；`原生/自研` > 1 表示自研更快。\n")
     L("| n | batch | 自研 mean | 自研 min | CANN 原生 mean | CANN 原生 min | 原生/自研(mean) "
@@ -231,6 +251,7 @@ def main(argv=None):
         with open(os.path.join(os.path.dirname(a.out), "summary.json"), "w", encoding="utf-8") as handle:
             json.dump({"operator": "c2c", "precision": "fp32", "direction": "forward",
                        "timing": "device-only", "reps": a.reps, "rounds": rounds,
+                       "runner_order_seed": a.order_seed, "runner_orders": orders,
                        "ns": ns, "batches": bs, "correctness_threshold": 1e-4,
                        "correct_points": n_ok, "total_points": len(rows),
                        "native_enabled": not a.no_native, "total_trials": len(trials),

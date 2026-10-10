@@ -13,8 +13,8 @@ Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实�
     阅读顺序：FFT 依赖图 → 二维空间/时间映射 → Ascend AIV/UB/MTE/GM lowering →
     profile、模型与实测共同选择 Plan。点击可查看可编辑 SVG；
     <span class="doc-diagram__links"><a href="figures/method_layers.pdf">PDF</a> ·
-    <a href="design/motivation.md">设计动机</a> ·
-    <a href="design/architecture.md">架构细化</a></span>。
+    <a href="design/motivation/">设计动机</a> ·
+    <a href="design/architecture/">架构细化</a></span>。
   </figcaption>
 </figure>
 
@@ -27,8 +27,8 @@ Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实�
          alt="Ascend-FFT 在 Ascend910_9382 上相对 CANN 原生基线的 C2C device-only、C2C end-to-end 和应用 end-to-end 几何均值 speedup 柱状图">
   </a>
   <figcaption>
-    当前发布快照的性能摘要；完整点数、协议、胜平负和限制见
-    <a href="benchmarks/results.md">实验结果</a>。这张图是测量结果，不代表跨硬件或未验证长度的保证。
+    历史发布快照的性能摘要，数值门禁与来源记录加固后待重新验证；完整点数、协议、胜平负和限制见
+    <a href="benchmarks/results/">实验结果</a>。这张图是测量结果，不代表跨硬件或未验证长度的保证。
   </figcaption>
 </figure>
 

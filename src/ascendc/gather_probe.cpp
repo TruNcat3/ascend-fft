@@ -24,7 +24,7 @@ extern "C" __global__ __aicore__ __vector__ void kgather(__gm__ float* out, __gm
     Gather(outL, srcL, idx, 0u, 32u);          // A: 偏移原值
     Gather(outL[32], srcL, idx[32], 0u, 32u);  // B: 偏移*4
     PipeBarrier<PIPE_ALL>();
-    Gather(outL[64], srcL, idx, 16u, 8u);
+    Gather(outL[64], srcL, idx[32], 16u, 8u);
     PipeBarrier<PIPE_ALL>();      // C: base=16
 
     GlobalTensor<float> go;

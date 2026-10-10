@@ -26,6 +26,11 @@ jobs:
       - run: python -m pip install -r requirements-docs.txt
       - name: Run hardware-independent tests
         run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Check shell script syntax
+        run: |
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
       - name: Check planned long FFT tables
         run: python scripts/generate_long_fft_tables.py --check
       - name: Check published generated artifacts

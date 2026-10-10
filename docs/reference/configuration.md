@@ -11,6 +11,7 @@
 | `AB_CANN` | 完整工具包根，含`bin/ccec`、`include`和`lib64` |
 | `AB_PY` | 可import torch/torch_npu的解释器，自动选择缓存于`.ab_py` |
 | `AB_SOC` | 编译SoC，默认`Ascend910_9382` |
+| `AB_PROFILE` | 硬件 profile 路径；默认仓库内的 Ascend910_9382 profile |
 | `AB_MSPROF` | 可选profiler路径 |
 | `AB_ROOT/AB_BUILD/AB_WORK` | 环境辅助函数使用的仓库/构建/临时目录 |
 
@@ -33,9 +34,9 @@
 
 ## 硬件profile
 
-[`config/ascend910_93_profile.json`](https://github.com/TruNcat3/ascend-fft/blob/master/config/ascend910_93_profile.json)记录SoC、核数、UB、矢量宽度、L2及证据。loader为缺项使用默认值，不做完整schema验证。
+[`config/ascend910_93_profile.json`](https://github.com/TruNcat3/ascend-fft/blob/master/config/ascend910_93_profile.json)记录SoC、核数、UB、矢量宽度、L2及证据。loader 严格验证当前实现消费的必需字段、类型和正资源值；文件缺失或配置非法时 `Context::init()` fail closed。仅 `l2_bytes`、SIMT/子块和少量对齐能力字段具有明确的保守默认值。
 
-当前profile保留历史`cann_version`和部分占位证据，不要用该字符串代替实际安装版本。能力约束还须核对loader默认值、设计空间与探针；未被loader消费的字段不是运行时参数。换硬件先探测再审阅回填，当前不自动标定。
+当前profile保留历史`cann_version`和部分占位证据，不要用该字符串代替实际安装版本。能力约束还须核对 loader 已消费字段、设计空间与探针；未被 loader 消费的字段不是运行时参数。初始化会同时检查运行设备名、`AB_SOC` 编译目标与 profile 是否一致。换硬件先探测再审阅回填，当前不自动标定。
 
 ## 设计空间
 
