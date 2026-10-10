@@ -616,10 +616,12 @@ int main(int argc, char** argv){
                 printf("illegal AB_LT_TILE=%s: need HxW (e.g. 64x32)\n", tileEnv);
                 return 2;
             }
-            if(resident){
+            if(resident && !(tileEnv && strcmp(tileEnv, "64x32") == 0)){
+                // 64x32+resident 仅为 R5 pp2 原型编译（下面 AB_LT_PIPE 块
+                // 放行并重定向到专用入口）；其余 tile+resident 无入口。
                 printf("AB_LT_TILE=%s + AB_LT_IDX=resident has no compiled "
                        "entry (resident index exists for the default 128x32 "
-                       "tile only)\n", tileEnv);
+                       "tile and the 64x32 pp2 prototype only)\n", tileEnv);
                 return 2;
             }
             char buf[32];
@@ -637,7 +639,9 @@ int main(int argc, char** argv){
                 snprintf(buf, sizeof(buf), "_k%u", sk);
                 trName += buf;
             }
-            if((tileEnv && *tileEnv) && sk != AB_FUSE_STRIPE_K){
+            const char* pipeEnvEarly = getenv("AB_LT_PIPE");
+            const bool pp2Early = pipeEnvEarly && strcmp(pipeEnvEarly, "pp2") == 0;
+            if((tileEnv && *tileEnv) && sk != AB_FUSE_STRIPE_K && !pp2Early){
                 printf("AB_LT_TILE+AB_LT_STRIPE_K combination %s/%s has no "
                        "compiled entry (K variants exist for the default "
                        "128x32 tile only)\n", tileEnv, kEnv);
@@ -652,29 +656,48 @@ int main(int argc, char** argv){
                    "3K<=HW resident)\n", th, tw, sk, (int)resident);
             return 2;
         }
-        // R2-B：AB_LT_PIPE=nb|pp 选择管线实验入口 kfft_lt_tr_k256ri_{nb,pp}
-        // （固定胜者配置：默认 tile + K=256 + resident）。缺省（未设）走
-        // 上面拼好的常规入口；非法/未编译组合 rc=2，绝不静默回落。
+        // R2-B/R5：AB_LT_PIPE=nb|pp|pp2 选择管线实验入口。
+        //   nb/pp  = kfft_lt_tr_k256ri_{nb,pp}（默认 128x32 tile + K=256 +
+        //             resident，R2-A 胜者配置）；
+        //   pp2    = kfft_lt_tr_t64x32_k256ri_pp2（R5 原型：64x32 半 tile，
+        //             in/out/tw 全双缓冲，需显式 AB_LT_TILE=64x32）。
+        // 缺省（未设）走上面拼好的常规入口；非法/未编译组合 rc=2，绝不静默回落。
         const char* pipeEnv = getenv("AB_LT_PIPE");
         if(pipeEnv && *pipeEnv){
-            if(!(strcmp(pipeEnv,"nb")==0 || strcmp(pipeEnv,"pp")==0)){
-                printf("illegal AB_LT_PIPE=%s: only 'nb' (narrow barriers) "
-                       "or 'pp' (input ping-pong) are compiled\n", pipeEnv);
+            const bool pp2 = strcmp(pipeEnv, "pp2") == 0;
+            if(!(pp2 || strcmp(pipeEnv,"nb")==0 || strcmp(pipeEnv,"pp")==0)){
+                printf("illegal AB_LT_PIPE=%s: only 'nb' (narrow barriers), "
+                       "'pp' (input ping-pong) or 'pp2' (R5 full "
+                       "double-buffer at 64x32) are compiled\n", pipeEnv);
                 return 2;
             }
             if(!resident){
                 printf("AB_LT_PIPE=%s requires AB_LT_IDX=resident (the pipe "
-                       "entries are fixed at the R2-A winner config)\n",
+                       "entries are fixed at resident-index configs)\n",
                        pipeEnv);
                 return 2;
             }
-            if((tileEnv && *tileEnv) || sk != 256u){
-                printf("AB_LT_PIPE=%s has no compiled entry: needs the "
-                       "default 128x32 tile and K=256\n", pipeEnv);
+            if(sk != 256u){
+                printf("AB_LT_PIPE=%s has no compiled entry: needs K=256\n",
+                       pipeEnv);
                 return 2;
             }
-            trName = "kfft_lt_tr_k256ri_";
-            trName += pipeEnv;
+            if(pp2){
+                if(!(tileEnv && strcmp(tileEnv, "64x32") == 0)){
+                    printf("AB_LT_PIPE=pp2 needs AB_LT_TILE=64x32 (R5 "
+                           "half-tile full double-buffer prototype)\n");
+                    return 2;
+                }
+                trName = "kfft_lt_tr_t64x32_k256ri_pp2";
+            }else{
+                if(tileEnv && *tileEnv){
+                    printf("AB_LT_PIPE=%s has no compiled entry: needs the "
+                           "default 128x32 tile\n", pipeEnv);
+                    return 2;
+                }
+                trName = "kfft_lt_tr_k256ri_";
+                trName += pipeEnv;
+            }
         }
         CK(aclrtBinaryGetFunction(lb, trName.c_str(), &fLtTr));
         CK(aclrtBinaryGetFunction(lb, "kfft_lt_tw", &fLtTw));

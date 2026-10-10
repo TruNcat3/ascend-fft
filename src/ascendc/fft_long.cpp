@@ -211,3 +211,20 @@ extern "C" __global__ __aicore__ __vector__ void kfft_lt_tw(
 #undef AB_LT_TR_K
 #undef AB_LT_TR_RESIDENT
 #undef AB_LT_TR_PP
+
+// R5：resident 混合数据流原型——64x32 半 tile（16KiB/缓冲）使 in/out/tw
+// 全双缓冲落进 UB（6*16K + bIdx 16K + bSidx 4K = 116KiB <= 192KiB），
+// 稳态 MTE2(t+1) 与 vector(t) 重叠、vector(t+1) 与 MTE3(t) 重叠。
+#define AB_LT_TR_SUFFIX _t64x32_k256ri_pp2
+#define AB_LT_TR_H 64
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 1
+#define AB_LT_TR_PP 2
+#include "fft_long_lt_tr_pipe.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+#undef AB_LT_TR_PP
