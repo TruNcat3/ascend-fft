@@ -730,6 +730,18 @@ int main(int argc, char** argv){
     };
     // 转置/点乘内核实参（两内核同签名 36B：dst,src,tw,nRows,nCols,batch；
     // kfft_lt_tr 的 tw 不用但占位，与 fft_real 的 dummy ex0/ex1 同约定）。
+    // R2-A Round 4：AB_LT_BLOCKS 覆盖转置/点乘内核的 launch blocks
+    // （缺省 min(48, rows)；候选 12/24/48/96，多出的块走 grid-stride 第二波）。
+    uint32_t ltBlocksOverride = 0;
+    if(const char* bEnv = getenv("AB_LT_BLOCKS")){
+        char junk = 0; unsigned bv = 0;
+        if(sscanf(bEnv, "%u%c", &bv, &junk) != 1 || bv == 0 || bv > 4095u){
+            printf("illegal AB_LT_BLOCKS=%s: need an integer in [1,4095]\n",
+                   bEnv);
+            return 2;
+        }
+        ltBlocksOverride = bv;
+    }
     std::vector<unsigned char> abL(argBytesL, 0);
     auto issueLt=[&](aclrtFuncHandle fh, void* dst, void* src, void* tw,
                      uint32_t nRows, uint32_t nCols)->aclError{
@@ -741,7 +753,8 @@ int main(int argc, char** argv){
         memcpy(abL.data()+24,&nRows, 4);
         memcpy(abL.data()+28,&nCols, 4);
         memcpy(abL.data()+32,&batch, 4);
-        return aclrtLaunchKernelWithHostArgs(fh, blocks, s, nullptr,
+        uint32_t lb = ltBlocksOverride ? ltBlocksOverride : blocks;
+        return aclrtLaunchKernelWithHostArgs(fh, lb, s, nullptr,
                                              abL.data(), abL.size(), nullptr, 0);
     };
     // 计时口径（PR #2 阶段 1）：三段同名字段 + 显式 NA，宿主/设备边界语义一致。
