@@ -595,7 +595,25 @@ int main(int argc, char** argv){
     if(devBoundary){
         const char* lpath = getenv("AB_LONG_O")?getenv("AB_LONG_O"):"build/fft_long.o";
         CK(aclrtBinaryLoadFromFile(lpath, nullptr, &lb));
-        CK(aclrtBinaryGetFunction(lb, "kfft_lt_tr", &fLtTr));
+        // R2-A：AB_LT_TILE=HxW 选择编译期候选入口 kfft_lt_tr_t{H}x{W}
+        // （合法性与 descriptor 门禁同源 ab_stripe_legal）；缺省走默认 128x32
+        // 入口，行为与 PR-B 一致。非法 tile 直接 rc=2，绝不静默回落。
+        std::string trName = "kfft_lt_tr";
+        const char* tileEnv = getenv("AB_LT_TILE");
+        if(tileEnv && *tileEnv){
+            unsigned th=0, tw=0; char junk=0;
+            if(sscanf(tileEnv, "%ux%u%c", &th, &tw, &junk) != 2 ||
+               !ab_stripe_legal(th, tw, AB_FUSE_STRIPE_K)){
+                printf("illegal AB_LT_TILE=%s: need H in {64,128,256} "
+                       "W in {16,32,64} with 32B align, K=%u <= H*W and "
+                       "10K <= 2HW\n", tileEnv, (unsigned)AB_FUSE_STRIPE_K);
+                return 2;
+            }
+            char buf[32];
+            snprintf(buf, sizeof(buf), "_t%ux%u", th, tw);
+            trName += buf;
+        }
+        CK(aclrtBinaryGetFunction(lb, trName.c_str(), &fLtTr));
         CK(aclrtBinaryGetFunction(lb, "kfft_lt_tw", &fLtTw));
         uint32_t lbs=readArgSize(lpath);
         if(lbs>=36) argBytesL=lbs;      // 下界防御：abL 以 36B 下界做 memcpy

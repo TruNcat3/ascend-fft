@@ -181,6 +181,33 @@ int main(int argc, char** argv) {
         }
     }
 
+    // ---------- R2-A：tile 候选单源公式与合法性黄金值 ----------
+    {
+        // 峰值黄金：4*H*W*8；默认 128x32 -> 131072（PR-B 不变）。
+        if ((size_t)AB_FUSED_UB_BYTES != 131072ull ||
+            (size_t)AB_FUSED_UB_BYTES_HWK(64, 32, 512) != 65536ull ||
+            (size_t)AB_FUSED_UB_BYTES_HWK(256, 16, 512) != 131072ull ||
+            (size_t)AB_LT_SEPARATE_UB_BYTES_HW(128, 32) != 98304ull ||
+            AB_UB_TOTAL_BYTES != 196608u)
+            bad("R2-A UB goldens",
+                "default=%llu 64x32=%llu 256x16=%llu sep=%llu budget=%u",
+                (unsigned long long)AB_FUSED_UB_BYTES,
+                (unsigned long long)AB_FUSED_UB_BYTES_HWK(64, 32, 512),
+                (unsigned long long)AB_FUSED_UB_BYTES_HWK(256, 16, 512),
+                (unsigned long long)AB_LT_SEPARATE_UB_BYTES_HW(128, 32),
+                (unsigned)AB_UB_TOTAL_BYTES);
+        else if (!ab_stripe_legal(64, 64, 512) || !ab_stripe_legal(128, 32, 512) ||
+                 !ab_stripe_legal(256, 16, 512))
+            bad("R2-A stripe legal", "UB-fitting default-K candidates must be legal");
+        else if (ab_stripe_legal(64, 32, 512) ||   // 10K=5120 > 2HW=4096
+                 ab_stripe_legal(64, 16, 512) ||   // 10K=5120 > 2HW=2048
+                 ab_stripe_legal(128, 32, 1024) || // K out of candidate set
+                 ab_stripe_legal(48, 32, 512))     // H out of candidate set
+            bad("R2-A stripe illegal", "carve/set violations must be rejected");
+        else
+            ok("R2-A tile UB goldens + stripe legality (single source)");
+    }
+
     // ---------- 1) n 下界 / 非 2 幂 / UB 上界（B1-1）----------
     expectInfeasible(ctx, 8,     64, "rows",        "n=8 below floor");
     expectInfeasible(ctx, 16,    64, "rows",        "n=16 below floor");

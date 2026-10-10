@@ -9,6 +9,7 @@
 // Build: g++ -std=c++17 -Iinclude tests/test_descriptors.cpp -o build/test_descriptors
 #include "butterfly/descriptors.hpp"
 #include <cstdio>
+#include <cstdlib>
 
 using namespace butterfly;
 
@@ -67,7 +68,32 @@ int main(){
     // (twiddle record merged into transpose_boundary, boundary_edge stays 1).
     { auto fdev = dev; fdev.boundary_impl = BoundaryImpl::Fused;
       emit_case("fused_device_gm", query_lowering({8192, 1}, fdev, unit, hw));
-      emit_struct("fused_device_gm", query_lowering({8192, 1}, fdev, unit, hw)); }
+      emit_struct("fused_device_gm", query_lowering({8192, 1}, fdev, unit, hw));
+
+      // R2-A: AB_LT_TILE candidates.  Legal tiles reshape the transpose UB
+      // peak (single-source AB_FUSED_UB_BYTES_HWK); illegal tiles are loud
+      // rejections, never silent reshapes.
+      struct { const char* tile; bool supported; } ltcases[] = {
+        {"64x64",   true},    // stripe-legal, UB 4*8*64*64   = 131072
+        {"256x16",  true},    // stripe-legal, UB 4*8*256*16  = 131072
+        {"64x32",   false},   // stripe-illegal: 10K=5120 > 2HW=4096 at K=512
+        {"64x16",   false},   // stripe-illegal: 10K=5120 > 2HW=2048 at K=512
+        {"garbage", false},   // not HxW
+        {"128x64",  false},   // stripe-legal but UB 262144 > 192 KiB budget
+      };
+      for (const auto& tc : ltcases) {
+        setenv("AB_LT_TILE", tc.tile, 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        std::string cname = std::string("lt_tile_") + tc.tile +
+                            (tc.supported ? "_supported" : "_rejected");
+        emit_case(cname.c_str(), r);
+        if (tc.supported && r.supported)
+          emit_struct((cname + "_struct").c_str(), r);
+      }
+      unsetenv("AB_LT_TILE");
+      { auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_struct("fused_after_unset", r); }  // env must not leak
+    }
     emit_struct("default_host_memory", query_lowering({8192, 1}, m, unit, hw));
     // Resource-abstract feasible but the runtime does not implement the tuple.
     auto cell = m;

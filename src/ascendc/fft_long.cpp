@@ -27,138 +27,41 @@
 #include "butterfly/long_fft_ub.h"
 using namespace AscendC;
 
-#define LT_H AB_LT_H   // 分块行数（src 行内切块），blockCount <= 4095
-#define LT_W AB_LT_W   // 分块列数（dst 行内一段），须 4 的倍数（32B 对齐）
-
 // ---- 分块转置（+ 可融合 twiddle）------------------------------------------
 // tile 读入 [H][W]（行=i 列=c，交错复数），tw!=nullptr 时先做带内 twiddle
-// 复乘（AB_FUSE_STRIPE_K 复数一条带：交错->平面 Gather data/tw 各两发 ->
-// 平面复乘，与 kfft_lt_tw 同式 -> 交错 Gather 写回本带），再 Gather 重排为
-// dst 行序 [W][H]，按 dst 行逐段连续写回。dst 行号按批线性展开，grid-stride 分块。
-// 融合时 UB 只多 bTw 一块（AB_FUSED_UB_BYTES = 128 KiB，四块 tile 缓冲）：
-// 平面/乘积区与三张索引表全部切自 bOut 的生命周期（转置阶段才写满 bOut），
-// 索引只依赖 K 且按条带基址偏移，启动时建一次；tw 表与 src 同形同参、批共享
-// （gt 不带 b*span），src 元素 (iT0+i, wT0+w) 即 wT 的 (j,k1) 坐标。
-extern "C" __global__ __aicore__ __vector__ void kfft_lt_tr(
-    __gm__ float* dst, __gm__ float* src, __gm__ float* tw,
-    uint32_t nRows, uint32_t nCols, uint32_t batch)
-{
-    TPipe pipe;
-    TBuf<TPosition::VECCALC> bIn, bOut, bIdx, bTw;
-    const uint32_t tileN = LT_H * LT_W;                    // 复数 / tile
-    pipe.InitBuffer(bIn,  tileN * 2u * sizeof(float));
-    pipe.InitBuffer(bOut, tileN * 2u * sizeof(float));
-    pipe.InitBuffer(bIdx, tileN * 2u * sizeof(uint32_t));
-    pipe.InitBuffer(bTw,  tileN * 2u * sizeof(float));    // 融合 tw tile（峰值 AB_FUSED_UB_BYTES）
-    LocalTensor<float> tIn  = bIn.Get<float>();
-    LocalTensor<float> tOut = bOut.Get<float>();
-    LocalTensor<float> tTw  = bTw.Get<float>();
-    LocalTensor<uint32_t> idx = bIdx.Get<uint32_t>();
-    // 重排索引：dst 行序 t=2*(w*H+i)+e <- tile 位置 (i*W+w)
-    for (uint32_t i = 0; i < LT_H; i++)
-        for (uint32_t w = 0; w < LT_W; w++) {
-            uint32_t p = (i * LT_W + w) * 8u;
-            idx.SetValue(2u * (w * LT_H + i),      p);
-            idx.SetValue(2u * (w * LT_H + i) + 1u, p + 4u);
-        }
-    // 融合条带机件（tw!=nullptr 才建；bOut 里切出生命周期，float/uint32 等宽）：
-    //   planarA [0,2K) 数据平面 | planarW [2K,4K) tw 平面 | prod [4K,6K) 乘积
-    //   idxRe/idxIm 各 K、idxX 2K 个 uint32 收在 [6K,10K)（10K*4B = 20KB <= 32KB）
-    const uint32_t K = AB_FUSE_STRIPE_K;
-    LocalTensor<float> planA = tOut;
-    LocalTensor<float> planW = tOut[2u * K];
-    LocalTensor<float> prod  = tOut[4u * K];
-    LocalTensor<uint32_t> uB    = bOut.Get<uint32_t>();
-    LocalTensor<uint32_t> idxRe = uB[6u * K];
-    LocalTensor<uint32_t> idxIm = uB[7u * K];
-    LocalTensor<uint32_t> idxX  = uB[8u * K];
-    if (tw) {
-        for (uint32_t k = 0; k < K; k++) {
-            idxRe.SetValue(k,      8u * k);              // 平面 re <- 交错字节
-            idxIm.SetValue(k,      8u * k + 4u);         // 平面 im <- 交错字节
-            idxX.SetValue(2u * k,      4u * k);          // 交错 re <- 平面 re
-            idxX.SetValue(2u * k + 1u, 4u * K + 4u * k); // 交错 im <- 平面 im
-        }
-    }
-    PipeBarrier<PIPE_ALL>();
+// 复乘（AB_FUSE_STRIPE_K 复数一条带），Gather 重排为 dst 行序写回。
+// R2-A：内核体在 src/ascendc/fft_long_lt_tr.inc，按候选 (H,W) 逐个展开；
+// TPipe 必须留在 __global__ 入口（ccec 9.0.0 约束，见 .inc 头注释）。
+#define AB_KLTT_CAT2(a, b) a##b
+#define AB_KLTT_CAT(a, b) AB_KLTT_CAT2(a, b)
 
-    int64_t nblk = GetBlockNum(); if (nblk <= 0) nblk = 1;
-    int64_t blk  = GetBlockIdx();
-    const uint32_t nC = nCols / LT_W;                      // dst 行 tile 数 / 批
-    const uint32_t nI = (nRows + LT_H - 1u) / LT_H;        // src 行 tile 数
-    const uint64_t tiles = (uint64_t)batch * nC * nI;
-    const uint64_t span  = 2ull * (uint64_t)nRows * nCols; // float / 批（复数*2）
-    for (uint64_t tt = (uint64_t)blk; tt < tiles; tt += (uint64_t)nblk) {
-        const uint32_t wT0 = (uint32_t)(tt % nC) * LT_W;
-        const uint32_t iT0 = (uint32_t)((tt / nC) % nI) * LT_H;
-        const uint32_t b   = (uint32_t)(tt / ((uint64_t)nC * nI));
-        const uint32_t wCnt = nCols - wT0 >= LT_W ? LT_W : nCols - wT0;
-        const uint32_t rCnt = nRows - iT0 >= LT_H ? LT_H : nRows - iT0;
-        GlobalTensor<float> gs, gd;
-        // 块 r 起点 = base + r*(nCols*8 字节)；块长 wCnt*8，gap = (nCols-wCnt)*8
-        gs.SetGlobalBuffer(src + (uint64_t)b * span +
-                           ((uint64_t)iT0 * nCols + (uint64_t)wT0) * 2u,
-                           (uint64_t)rCnt * nCols * 2u);
-        DataCopy(tIn, gs,
-                 DataCopyParams{(uint16_t)rCnt, (uint16_t)(wCnt / 4u),
-                                (uint16_t)((nCols - wCnt) / 4u), 0});
-        if (tw) {
-            // tw 切片与数据切片同坐标同参（wT 形状 [nRows][nCols]，批共享 -> 无 b*span）
-            GlobalTensor<float> gt;
-            gt.SetGlobalBuffer(tw + ((uint64_t)iT0 * nCols + (uint64_t)wT0) * 2u,
-                               (uint64_t)rCnt * nCols * 2u);
-            DataCopy(tTw, gt,
-                     DataCopyParams{(uint16_t)rCnt, (uint16_t)(wCnt / 4u),
-                                    (uint16_t)((nCols - wCnt) / 4u), 0});
-        }
-        PipeBarrier<PIPE_ALL>();
-        if (tw) {
-            // idx 表切自 bOut，而每 tile 末尾的大 Gather 会全量写 tOut（= bOut）：
-            // grid-stride 第 2 个及以后的 tile 必须重建，否则平面 Gather 按被清掉的
-            // 垃圾偏移读 UB -> 越界（AIV 507035）。首个 tile 用入口处建好的表。
-            if (tt != (uint64_t)blk) {
-                for (uint32_t k = 0; k < K; k++) {
-                    idxRe.SetValue(k,      8u * k);
-                    idxIm.SetValue(k,      8u * k + 4u);
-                    idxX.SetValue(2u * k,      4u * k);
-                    idxX.SetValue(2u * k + 1u, 4u * K + 4u * k);
-                }
-                PipeBarrier<PIPE_ALL>();
-            }
-            const uint32_t C = rCnt * wCnt;               // 打包复数 / tile
-            for (uint32_t s = 0; s < C; s += K) {
-                const uint32_t kl = (C - s >= K) ? K : (C - s);
-                LocalTensor<float> ds = tIn[2u * s];
-                LocalTensor<float> ts = tTw[2u * s];
-                Gather(planA,    ds, idxRe, 0u, kl);
-                Gather(planA[K], ds, idxIm, 0u, kl);
-                Gather(planW,    ts, idxRe, 0u, kl);
-                Gather(planW[K], ts, idxIm, 0u, kl);
-                PipeBarrier<PIPE_ALL>();
-                // 平面复乘（与 kfft_lt_tw 同式）：
-                //   im = ar*wi + ai*wr    re = ar*wr + ai*(-wi)
-                Mul(prod[K], planA,     planW[K], kl);
-                MulAddDst(prod[K], planA[K], planW, kl);
-                Muls(planW[K], planW[K], -1.f, kl);
-                Mul(prod, planA, planW, kl);
-                MulAddDst(prod, planA[K], planW[K], kl);
-                Muls(planW[K], planW[K], -1.f, kl);
-                PipeBarrier<PIPE_ALL>();
-                Gather(ds, prod, idxX, 0u, 2u * kl);       // 写回本带（交错、已乘 tw）
-                PipeBarrier<PIPE_ALL>();
-            }
-        }
-        Gather(tOut, tIn, idx, 0u, 2u * tileN);
-        PipeBarrier<PIPE_ALL>();
-        for (uint32_t w = 0; w < wCnt; w++) {
-            gd.SetGlobalBuffer(dst + (uint64_t)b * span +
-                               ((uint64_t)(wT0 + w) * nRows + iT0) * 2u, rCnt * 2u);
-            DataCopy(gd, tOut[w * 2u * LT_H], rCnt * 2u);
-        }
-        PipeBarrier<PIPE_ALL>();
-    }
-    PipeBarrier<PIPE_ALL>();
-}
+// 默认 128x32（PR-B 行为不变）+ K=512 下裁剪后的融合合法候选。
+// 裁剪：10K=5120 <= 2HW => HW>=2560；4*HW*8 <= 192 KiB => HW<=6144。
+// (64,32)/(128,16) 在 K=512 非法（stripe K 轮解锁）；(128,64)/(256,32/
+// 256,64) UB 超预算，不导出。
+#define AB_LT_TR_SUFFIX
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+
+#define AB_LT_TR_SUFFIX _t64x64
+#define AB_LT_TR_H 64
+#define AB_LT_TR_W 64
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+
+#define AB_LT_TR_SUFFIX _t256x16
+#define AB_LT_TR_H 256
+#define AB_LT_TR_W 16
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
 
 // ---- 段边界点乘（原地、行连续） ------------------------------------------
 // 行 r 属批 b 的第 j 行：dIn[(b*n2+j)][k1] *= wT[j][k1]（wT 与 j 对齐、批共享）。

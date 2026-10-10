@@ -260,15 +260,51 @@ inline KernelResource row_fft_resource(uint32_t len, uint32_t launch_rows,
                         "row length power of two in [64,4096]; "
                         "UB(n,D,K) with the launch's fold D and plane K"};
 }
-inline KernelResource transpose_resource(){
+// R2-A: transpose tile shape candidates.  AB_LT_TILE=HxW selects a compiled
+// kfft_lt_tr entry; legality is the single-source ab_stripe_legal shared
+// with the kernel static_asserts and the host entry selector.  An illegal
+// tile is rejected loudly -- never silently reshaped.
+struct LtTilePlan {
+  uint32_t h = AB_LT_H;
+  uint32_t w = AB_LT_W;
+  bool legal = true;
+  std::string reason;
+};
+inline LtTilePlan resolve_lt_tile(const char* env = nullptr) {
+  LtTilePlan p;
+  const char* s = env ? env : getenv("AB_LT_TILE");
+  if (!s || !*s) return p;
+  unsigned th = 0, tw = 0;
+  char junk = 0;
+  if (sscanf(s, "%ux%u%c", &th, &tw, &junk) != 2) {
+    p.legal = false;
+    p.reason = "AB_LT_TILE must look like HxW (e.g. 64x32), got '" +
+               std::string(s) + "'";
+    return p;
+  }
+  if (!ab_stripe_legal(th, tw, AB_FUSE_STRIPE_K)) {
+    p.legal = false;
+    p.reason = "AB_LT_TILE H=" + std::to_string(th) + " W=" +
+               std::to_string(tw) +
+               " violates the R2-A candidate/alignment/10K<=2HW constraints"
+               " at stripe K=" + std::to_string(AB_FUSE_STRIPE_K);
+    return p;
+  }
+  p.h = (uint32_t)th;
+  p.w = (uint32_t)tw;
+  return p;
+}
+inline KernelResource transpose_resource(uint32_t h = AB_LT_H,
+                                         uint32_t w = AB_LT_W){
   // kfft_lt_tr is one .o entry with the fused tw path statically included
-  // (bTw in InitBuffer), so EVERY launch of it is gated at AB_FUSED_UB_BYTES
-  // = 128 KiB (PR-B; was 96 KiB when the kernel had three buffers only).
+  // (bTw in InitBuffer), so EVERY launch of it is gated at the four-tile
+  // peak AB_FUSED_UB_BYTES_HWK(H,W,K) (PR-B; R2-A makes the peak follow
+  // the selected tile instead of a fixed 128 KiB).
   return KernelResource{"kfft_lt_tr", CoreKind::AIVVectorCore,
-                        (size_t)AB_FUSED_UB_BYTES,
+                        (size_t)AB_FUSED_UB_BYTES_HWK(h, w, AB_FUSE_STRIPE_K),
                         SyncScope::AIVIntraCore,
-                        "fused-capable LT_H x LT_W tile (bIn+bOut+bIdx+bTw), "
-                        "shape independent"};
+                        "fused-capable HxW tile (bIn+bOut+bIdx+bTw), "
+                        "peak = 4*H*W*8 (R2-A: follows AB_LT_TILE)"};
 }
 inline KernelResource twiddle_resource(uint32_t len){
   return KernelResource{"kfft_lt_tw", CoreKind::AIVVectorCore,
@@ -514,6 +550,17 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
     r.modeled_payload_gm_rw_bytes = rw;
   }
 
+  // R2-A: an illegal AB_LT_TILE is a loud rejection (same contract as an
+  // illegal row-FFT plan) -- the gate must never launch an uncompiled or
+  // over-budget tile shape.
+  const LtTilePlan ltp = resolve_lt_tile();
+  if (!ltp.legal) {
+    r.abstract_feasible = false;
+    r.supported = false;
+    r.reason = "illegal transpose tile: " + ltp.reason;
+    return r;
+  }
+
   // Per-kernel UB fit, checked in launch order (transpose launches come
   // first in the device manifest, so a UB below the transpose peak is
   // rejected naming kfft_lt_tr; row FFT and twiddle follow).
@@ -548,7 +595,7 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
       case LaunchKind::TransposeIn:
       case LaunchKind::TransposeBoundary:
       case LaunchKind::TransposeOut:
-        kr = transpose_resource(); break;
+        kr = transpose_resource(ltp.h, ltp.w); break;
     }
     if(kr.ub_bytes > ub_have){
       r.abstract_feasible = false;

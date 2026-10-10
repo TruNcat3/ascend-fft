@@ -58,6 +58,13 @@ EXPECTED_CASES = {
     "plane_k_12_rejected": (False, "illegal row-FFT plan"),
     "plane_k_24_rejected": (False, "illegal row-FFT plan"),
     "plane_k_32_len64_rejected": (False, "illegal row-FFT plan"),
+    # R2-A transpose tile candidates (AB_LT_TILE=HxW)
+    "lt_tile_64x64_supported": (True, None),
+    "lt_tile_256x16_supported": (True, None),
+    "lt_tile_64x32_rejected": (False, "illegal transpose tile"),
+    "lt_tile_64x16_rejected": (False, "illegal transpose tile"),
+    "lt_tile_garbage_rejected": (False, "illegal transpose tile"),
+    "lt_tile_128x64_rejected": (False, "UB overflow"),
     "block_resident_needs_multi_role": (False, "multi-role unit"),
     "onchip_without_block_residence": (False, "on-chip boundary"),
     "gm_guard_overflow": (False, "40 GiB guard"),
@@ -252,6 +259,66 @@ class DescriptorLegalityTests(unittest.TestCase):
                         "lowering must be queried before device allocation")
         self.assertLess(query, src.index("issuePass(d"),
                         "lowering must be queried before any launch")
+
+    def test_lt_tile_candidates_reshape_ub_peak(self):
+        # R2-A: AB_LT_TILE selects a compiled entry; the descriptor gates the
+        # exact four-tile peak of the selected shape (single-source macro).
+        self.assertEqual(
+            self.structs["lt_tile_64x64_supported_struct"]["ub_peak"],
+            str(4 * 8 * 64 * 64))
+        self.assertEqual(
+            self.structs["lt_tile_256x16_supported_struct"]["ub_peak"],
+            str(4 * 8 * 256 * 16))
+        # unsetenv must restore the default 128x32 peak (no env leakage).
+        self.assertEqual(self.structs["fused_after_unset"]["ub_peak"],
+                         str(4 * 8 * 128 * 32))
+
+    def test_lt_tile_illegal_rejected_loudly(self):
+        # K=512 trim: 10K=5120 must fit 2HW, so 64x32 (2HW=4096) and 64x16
+        # (2HW=2048) are stripe-illegal -- loud rejections, no silent reshape.
+        for name in ("lt_tile_64x32_rejected", "lt_tile_64x16_rejected"):
+            status, reason = self.cases[name]
+            self.assertEqual(status, "UNSUPPORTED")
+            self.assertIn("illegal transpose tile", reason)
+            self.assertIn("10K", reason)
+        status, reason = self.cases["lt_tile_garbage_rejected"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("illegal transpose tile", reason)
+        # 128x64 is stripe-legal but 4*8*128*64 = 262144 > the 192 KiB budget
+        status, reason = self.cases["lt_tile_128x64_rejected"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("UB overflow", reason)
+        self.assertIn("262144", reason)
+
+    def test_lt_kernel_entries_cover_the_legal_ub_fitting_set(self):
+        # R2-A single source: every (H,W) that is stripe-legal at the default
+        # K=512 AND fits the fused UB budget has a compiled entry, and no
+        # other entry exists (the host would fail the symbol lookup).  The
+        # kernel expands src/ascendc/fft_long_lt_tr.inc once per
+        # (AB_LT_TR_SUFFIX, AB_LT_TR_H, AB_LT_TR_W) triple.
+        import re
+        src = (ROOT / "src" / "ascendc" / "fft_long.cpp").read_text()
+        entries = set()
+        for m in re.finditer(
+                r"#define AB_LT_TR_SUFFIX\s*(\S*)\s*\n"
+                r"#define AB_LT_TR_H (\d+)\s*\n"
+                r"#define AB_LT_TR_W (\d+)", src):
+            entries.add((int(m.group(2)), int(m.group(3))))
+
+        def legal(h, w, k=512):
+            if h not in (64, 128, 256) or w not in (16, 32, 64):
+                return False
+            if w % 4:
+                return False
+            if k > h * w or 10 * k > 2 * h * w:
+                return False
+            return 4 * 8 * h * w <= 196608      # fused UB budget
+
+        expect = {(h, w) for h in (64, 128, 256) for w in (16, 32, 64)
+                  if legal(h, w)}
+        self.assertEqual(entries, expect,
+                         "compiled kfft_lt_tr entries must match the legal "
+                         "UB-fitting candidate set at K=512")
 
 
 if __name__ == "__main__":
