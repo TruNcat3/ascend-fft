@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="360" viewBox="0 0 1100 360">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#465466"/>
+    </marker>
+    <style>
+      .title { font: 700 22px Arial, sans-serif; fill: #1f2937; }
+      .label { font: 700 17px Arial, sans-serif; fill: #1f2937; }
+      .body { font: 15px Arial, sans-serif; fill: #334155; }
+      .note { font: 14px Arial, sans-serif; fill: #475569; }
+      .flow { fill: #e8f2ff; stroke: #3478c9; stroke-width: 2; }
+      .core { fill: #fff1df; stroke: #d9822b; stroke-width: 2; }
+      .lower { fill: #f1eaff; stroke: #7856b8; stroke-width: 2; }
+      .evidence { fill: #e8f6ee; stroke: #31805a; stroke-width: 2; }
+      .arrow { stroke: #465466; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1100" height="360" fill="#ffffff"/>
+  <text x="550" y="38" text-anchor="middle" class="title">Method scope: from cuButterfly analysis to Ascend execution</text>
+  <rect x="35" y="90" width="225" height="160" rx="8" class="flow"/>
+  <text x="147" y="122" text-anchor="middle" class="label">Method analysis</text>
+  <text x="55" y="154" class="body">Roofline + dependency limits</text>
+  <text x="55" y="180" class="body">stage/data mapping</text>
+  <text x="55" y="206" class="body">space-time reuse / boundary</text>
+  <text x="55" y="232" class="note">Source: cuButterfly</text>
+  <line x1="260" y1="170" x2="330" y2="170" class="arrow"/>
+  <rect x="330" y="90" width="225" height="160" rx="8" class="core"/>
+  <text x="442" y="122" text-anchor="middle" class="label">Processing unit</text>
+  <text x="350" y="158" class="body">radix-2 / radix-4</text>
+  <text x="350" y="184" class="body">vector / Cube / FFT core</text>
+  <text x="350" y="214" class="body">local arithmetic cost</text>
+  <text x="350" y="238" class="note">replaceable option</text>
+  <line x1="555" y1="170" x2="625" y2="170" class="arrow"/>
+  <rect x="625" y="90" width="225" height="160" rx="8" class="lower"/>
+  <text x="737" y="122" text-anchor="middle" class="label">Lowering contract</text>
+  <text x="645" y="158" class="body">UB / GM / alignment</text>
+  <text x="645" y="184" class="body">instruction + sync legality</text>
+  <text x="645" y="214" class="body">AIV / MTE / layout</text>
+  <text x="645" y="238" class="note">invalid pairs abstain</text>
+  <line x1="850" y1="170" x2="920" y2="170" class="arrow"/>
+  <rect x="920" y="90" width="145" height="160" rx="8" class="evidence"/>
+  <text x="992" y="122" text-anchor="middle" class="label">Evidence</text>
+  <text x="935" y="158" class="body">model</text>
+  <text x="935" y="184" class="body">correctness</text>
+  <text x="935" y="210" class="body">profile</text>
+  <text x="935" y="236" class="body">Plan</text>
+  <text x="550" y="310" text-anchor="middle" class="note">The method analysis is attributed to cuButterfly; Ascend-FFT contributes the platform lowering and evidence.</text>
+</svg>

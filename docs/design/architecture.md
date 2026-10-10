@@ -52,6 +52,11 @@ Ascend lowering：AIV 矢量指令 / 私有 UB / MTE 搬运
 边界、分段和设备交接属于 `A` 轴。后续加入更快的局部核心不会取代这套架构，反而可以作为同一
 流编排中的新候选进行比较。
 
+![Flow organization and processing-unit design space](../figures/flow_core_space.svg)
+
+这张图是上方总览中 `A × P` 交点的放大版：绿色交点表示可以进入 lowering 和实测的候选，
+灰色交点只表示抽象上可讨论，不能据此宣称已有生产实现。
+
 ## 当前生产数据通路
 
 ```text
@@ -66,6 +71,11 @@ GM 交错复数输入
 ```
 
 整个 c2c transform 的中间值在单个 AIV 的 UB 中，不是每一级都写回 GM。多个 AIV 分配独立 batch；单个 AIV 按组循环处理其余批次。满足 repeat、步长和并发约束时，D 个 batch 可共同形成矢量指令工作组。D 的作用是减少重复发射，而不是证明 MTE 与全部计算已经流水重叠。
+
+![Detailed Ascend data path](../figures/ascend_data_path_detail.svg)
+
+该图放大了当前已实现路径：流组织负责 GM、UB、重排和时间复用，局部 radix 单元位于中间的
+processing-unit 方框内，二者不是同一个优化层次。
 
 ## 框架对象不是七套独立算法
 

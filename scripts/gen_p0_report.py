@@ -421,6 +421,12 @@ def render():
           "（`segments` 五段 telescope 进 `device_chain`）。"
           "链与 E2E 均为 5-trial 中位数：")
         a("")
+        a("![Long FFT boundary fusion detail]"
+          "(../figures/boundary_fusion_detail.svg)")
+        a("")
+        a("这张局部图只说明边界组织的差异，不把“少一次发射”直接等同于"
+          "端到端加速；是否晋升仍由同协议的 paired event、正确性和波动门槛决定。")
+        a("")
         a("| 形状 | separate chain | fused chain | Δ chain | separate E2E "
           "| fused E2E | Δ E2E |")
         a("|---|---|---|---|---|---|---|")

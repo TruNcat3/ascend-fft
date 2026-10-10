@@ -109,6 +109,10 @@ msprof 列数据源：`results/evidence/long-fft-p0/msprof-task-time.json`（`su
 
 `AB_LONG_BOUNDARY_IMPL` 双路径：separate = 六次发射六段（twiddle 独立成段），fused = 五次发射五段（`kfft_lt_tr` 在段边界转置的读入 tile 内复乘 twiddle，`tw` 参数直接消费）。归档 `results/evidence/long-fft-device-boundary-fused/acceptance.json`：`boundary=device-fused`、`impl=fused`，每 trial 自报 `boundary_impl: fused` 且段数契约由 collect 逐 trial 校验（`segments` 五段 telescope 进 `device_chain`）。链与 E2E 均为 5-trial 中位数：
 
+![Long FFT boundary fusion detail](../figures/boundary_fusion_detail.svg)
+
+这张局部图只说明边界组织的差异，不把“少一次发射”直接等同于端到端加速；是否晋升仍由同协议的 paired event、正确性和波动门槛决定。
+
 | 形状 | separate chain | fused chain | Δ chain | separate E2E | fused E2E | Δ E2E |
 |---|---|---|---|---|---|---|
 | 8192x1 | 158.0 | 159.8 | +1.1% | 348.1 | 354.6 | +1.9% |

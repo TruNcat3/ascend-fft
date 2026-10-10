@@ -44,6 +44,11 @@ cuButterfly 不把计算核心本身作为主贡献，原因不是核心优化�
 所以“计算流优化”和“计算核心优化”不互斥：理想实现应在同一架构映射下选择更好的核心，
 也应在同一核心下比较不同的数据流；只有这样才能说明收益来自哪一层。
 
+![Method layers and contribution boundary](../figures/method_layers.svg)
+
+图中方法分析、局部核心、lowering 和证据是连续但可区分的层次；其中方法分析框架归属于
+cuButterfly，Ascend-FFT 负责其在 Ascend 平台上的具体 lowering、实现和验证。
+
 ## 1. Roofline 是上界，不是充分的优化策略
 
 长度为 N 的 radix-2 FFT 有 log2(N) 个阶段，每个阶段约有 N/2 个蝶形。增加算术强度、降低片外读写量，可以提高 Roofline 上界：如果每一级都读写 GM，中间流量随阶段数增长；若多个阶段的数据留在片上，GM 流量可以显著下降。
