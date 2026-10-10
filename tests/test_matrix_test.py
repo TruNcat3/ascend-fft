@@ -50,11 +50,14 @@ class MatrixGateTests(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                     code = matrix.main(arguments)
             summary = json.loads((destination.parent / "summary.json").read_text())
+            protocol = json.loads((destination.parent / "protocol.json").read_text())
             with (destination.parent / "matrix.csv").open() as handle:
                 row = next(csv.DictReader(handle))
             with (destination.parent / "trials.csv").open() as handle:
                 trials = list(csv.DictReader(handle))
             self.assertEqual(runner.call_count, len(records))
+            self.assertEqual(protocol["c2c_matrix"]["rounds"], rounds)
+            self.assertEqual(protocol["c2c_matrix"]["raw_trials"], "trials.csv")
             return code, summary, row, trials
 
     def test_all_trials_pass_and_worst_error_is_retained(self):

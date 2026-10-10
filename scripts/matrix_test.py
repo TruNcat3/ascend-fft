@@ -263,6 +263,21 @@ def main(argv=None):
                                           if math.isfinite(error)]},
                       handle, indent=2, allow_nan=False)
             handle.write("\n")
+        with open(os.path.join(os.path.dirname(a.out), "protocol.json"), "w", encoding="utf-8") as handle:
+            json.dump({"c2c_matrix": {
+                "operator": "fft", "transform": "c2c", "precision": "fp32",
+                "direction": "forward", "placement": "out-of-place",
+                "timing": "device-only synchronized execution",
+                "statistic": "minimum of per-trial means; per-trial minimum retained separately",
+                "reps": a.reps, "rounds": rounds,
+                "runner_order_seed": a.order_seed, "runner_orders": orders,
+                "runners": (["ascend-fft", "cann-native"]
+                            if not a.no_native else ["ascend-fft"]),
+                "shape_grid": {"n": ns, "batch": bs},
+                "correctness": "every trial PASS and maxRel <= 1e-4 against CPU reference",
+                "raw_trials": "trials.csv",
+            }}, handle, indent=2, allow_nan=False)
+            handle.write("\n")
     print(body)
     return 0 if n_ok == len(rows) else 1
 

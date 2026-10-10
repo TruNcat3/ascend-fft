@@ -9,7 +9,8 @@ scripts/repro.sh matrix
 ```
 
 第一条检查 CANN、Python、SoC 和工具路径；第二条完成编译与正确性门禁；第三条运行
-C2C 49 点矩阵。实验默认写入 `results/runs/<UTC>-<experiment>/`，不会直接覆盖发布文档。
+C2C 49 点矩阵，并在同一目录生成 `matrix.md`、`summary.json`、`trials.csv` 和
+`protocol.json`。实验默认写入 `results/runs/<UTC>-<experiment>/`，不会直接覆盖发布文档。
 
 ## 实验注册表
 
