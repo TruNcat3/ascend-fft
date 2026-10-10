@@ -32,7 +32,8 @@ def _segs(fracs, chain):
 
 def _run(chain, e2e, impl):
     fracs = SEP_SEGS if impl == "separate" else FUS_SEGS
-    return {"chain": chain, "e2e": e2e, "segments": _segs(fracs, chain),
+    return {"rc": 0, "pass": True, "boundary_impl": impl,
+            "chain": chain, "e2e": e2e, "segments": _segs(fracs, chain),
             "blocks": 48, "max_rel": 1e-7}
 
 
@@ -73,9 +74,11 @@ def _point(n, b, delta_pct=-10.0):
     stats = aff.pair_stats(pairs)
     return {"n": n, "b": b, "kernel_counts": dict(aff.KERNEL_COUNT),
             "ub_peak_bytes": aff.ub_peak_bytes(),
-            "separate_gm_rw_bytes": aff.gm_rw_bytes("separate", n, b),
-            "fused_gm_rw_bytes": aff.gm_rw_bytes("fused", n, b),
-            "active_aiv": {"separate": 48, "fused": 48},
+            "separate_modeled_payload_gm_rw_bytes":
+                aff.modeled_payload_gm_rw("separate", n, b),
+            "fused_modeled_payload_gm_rw_bytes":
+                aff.modeled_payload_gm_rw("fused", n, b),
+            "launch_blocks": {"separate": 48, "fused": 48},
             "pairs": pairs, "stats": stats,
             "verdict": aff.point_verdict(stats)}
 
@@ -109,11 +112,14 @@ class ConstantsTest(unittest.TestCase):
         # AB_FUSED_UB_BYTES = 4 * 128 * 32 * 8 = 131072 (bIn+bOut+bIdx+bTw)
         self.assertEqual(aff.ub_peak_bytes(), 131072)
 
-    def test_gm_rw_bytes_matches_descriptor_contract(self):
+    def test_modeled_payload_gm_rw_matches_descriptor_contract(self):
         # 8192x1 tensor = 65536 B; 6 launches separate / 5 fused
-        self.assertEqual(aff.gm_rw_bytes("separate", 8192, 1), 786432)
-        self.assertEqual(aff.gm_rw_bytes("fused", 8192, 1), 655360)
-        self.assertEqual(aff.gm_rw_bytes("fused", 65536, 47),
+        # (payload model only: excludes twiddle/index/coeff traffic)
+        self.assertEqual(aff.modeled_payload_gm_rw("separate", 8192, 1),
+                         786432)
+        self.assertEqual(aff.modeled_payload_gm_rw("fused", 8192, 1),
+                         655360)
+        self.assertEqual(aff.modeled_payload_gm_rw("fused", 65536, 47),
                          5 * 2 * 65536 * 47 * 8)
 
     def test_kernel_counts(self):
@@ -233,6 +239,47 @@ class RunProblemsTest(unittest.TestCase):
         got = aff.run_problems(s, "separate")
         self.assertTrue(any("rc=507035" in x for x in got))
 
+    def test_missing_pass_rejected(self):
+        s = self.sample()
+        s["pass"] = False
+        got = aff.run_problems(s, "separate")
+        self.assertTrue(any("PASS line missing" in x for x in got))
+
+    def test_wrong_impl_rejected(self):
+        s = self.sample()
+        s["boundary_impl"] = "fused"     # run claims the other impl
+        got = aff.run_problems(s, "separate")
+        self.assertTrue(any("boundary_impl" in x for x in got))
+
+    def test_missing_scopes_rejected(self):
+        s = self.sample()
+        s["scopes"] = None
+        got = aff.run_problems(s, "separate")
+        self.assertTrue(any("scopes missing" in x for x in got))
+
+
+class MakePairTest(unittest.TestCase):
+    def _samples(self):
+        segs_s = _segs(SEP_SEGS, 100.0)
+        segs_f = _segs(FUS_SEGS, 90.0)
+        base = {"rc": 0, "pass": True, "blocks": 48, "max_rel": 1e-7}
+        return {
+            "separate": dict(base, boundary_impl="separate", segments=segs_s,
+                             scopes={"device_chain": 100.0}, e2e_us=1000.0),
+            "fused": dict(base, boundary_impl="fused", segments=segs_f,
+                          scopes={"device_chain": 90.0}, e2e_us=900.0),
+        }
+
+    def test_pair_retains_attestation(self):
+        pair = aff.make_pair(0, ("separate", "fused"), self._samples())
+        self.assertEqual(pair["separate"]["rc"], 0)
+        self.assertIs(pair["separate"]["pass"], True)
+        self.assertEqual(pair["separate"]["boundary_impl"], "separate")
+        self.assertEqual(pair["fused"]["boundary_impl"], "fused")
+        self.assertEqual(pair["trial"], 0)
+        self.assertEqual(pair["order"], "separate-fused")
+        self.assertAlmostEqual(pair["delta_chain_pct"], -10.0)
+
 
 class VerifyAttributionTest(unittest.TestCase):
     def test_good_document_accepted(self):
@@ -294,11 +341,11 @@ class VerifyAttributionTest(unittest.TestCase):
         got = aff.verify_attribution(doc)
         self.assertTrue(any("grid" in x for x in got))
 
-    def test_wrong_gm_rw_rejected(self):
+    def test_wrong_modeled_payload_gm_rejected(self):
         doc = _doc()
-        doc["points"][2]["fused_gm_rw_bytes"] = 1
+        doc["points"][2]["fused_modeled_payload_gm_rw_bytes"] = 1
         got = aff.verify_attribution(doc)
-        self.assertTrue(any("gm_rw_bytes" in x for x in got))
+        self.assertTrue(any("modeled_payload_gm_rw_bytes" in x for x in got))
 
     def test_wrong_kernel_counts_rejected(self):
         doc = _doc()
@@ -336,6 +383,83 @@ class VerifyAttributionTest(unittest.TestCase):
         snapshot = copy.deepcopy(doc)
         aff.verify_attribution(doc)
         self.assertEqual(doc, snapshot)
+
+    # ---- R1.0 failure injection: every corrupt fixture must be rejected --
+
+    def test_pair_nonzero_rc_rejected(self):
+        doc = _doc()
+        doc["points"][0]["pairs"][2]["fused"]["rc"] = 1
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("fused: rc 1 != 0" in x for x in got))
+
+    def test_pair_missing_pass_rejected(self):
+        doc = _doc()
+        doc["points"][0]["pairs"][2]["fused"]["pass"] = False
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("pass False != True" in x for x in got))
+
+    def test_pair_wrong_boundary_impl_rejected(self):
+        doc = _doc()
+        doc["points"][0]["pairs"][2]["fused"]["boundary_impl"] = "separate"
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("boundary_impl" in x for x in got))
+
+    def test_duplicate_point_rejected(self):
+        doc = _doc()
+        doc["points"].append(copy.deepcopy(doc["points"][0]))
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("duplicate point" in x for x in got))
+        self.assertTrue(any("5 points != 4" in x for x in got))
+
+    def test_missing_point_rejected_even_with_matching_grid(self):
+        doc = _doc()
+        doc["points"] = doc["points"][:-1]           # grid not tampered
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("3 points != 4" in x for x in got))
+        self.assertTrue(any("missing from grid" in x for x in got))
+
+    def test_trial_index_mismatch_rejected(self):
+        doc = _doc()
+        doc["points"][0]["pairs"][3]["trial"] = 0    # duplicate index
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("trial 0 != index 3" in x for x in got))
+
+    def test_nan_chain_rejected(self):
+        doc = _doc()
+        doc["points"][1]["pairs"][1]["separate"]["chain"] = float("nan")
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("not finite" in x or "nan" in x for x in got))
+
+    def test_inf_e2e_rejected(self):
+        doc = _doc()
+        doc["points"][1]["pairs"][1]["fused"]["e2e"] = float("inf")
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("e2e" in x for x in got))
+
+    def test_negative_chain_rejected(self):
+        doc = _doc()
+        doc["points"][2]["pairs"][0]["fused"]["chain"] = -5.0
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("chain -5.0" in x for x in got))
+
+    def test_nan_segment_rejected(self):
+        doc = _doc()
+        doc["points"][2]["pairs"][0]["fused"]["segments"]["fft1"] = \
+            float("nan")
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("segment fft1" in x for x in got))
+
+    def test_nan_delta_rejected(self):
+        doc = _doc()
+        doc["points"][3]["pairs"][4]["delta_chain_pct"] = float("nan")
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("delta_chain_pct" in x for x in got))
+
+    def test_zero_e2e_rejected(self):
+        doc = _doc()
+        doc["points"][3]["pairs"][2]["separate"]["e2e"] = 0.0
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("e2e 0.0" in x for x in got))
 
 
 if __name__ == "__main__":

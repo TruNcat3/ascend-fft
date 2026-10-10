@@ -275,8 +275,16 @@ int main(int argc, char** argv){
         if (v >= 1) ovFoldD = (uint32_t)v;
     }
     if (const char* e = getenv("AB_PLANE_K")) {
-        int v = atoi(e);
-        if (v == 8 || v == 16 || v == 32) ovPlaneK = (uint32_t)v;
+        // R1.0：非法 K 显式拒绝，不再静默忽略（K=12/24 绝不能被当作
+        // supported；长度相对的违约由 resolve_row_fft/query_lowering 拦截）。
+        if (*e) {
+            int v = atoi(e);
+            if (v == 8 || v == 16 || v == 32) ovPlaneK = (uint32_t)v;
+            else {
+                printf("AB_PLANE_K must be one of 8|16|32, got %s\n", e);
+                return 2;
+            }
+        }
     }
     if(isLong){
         if(n>65536){
@@ -327,13 +335,16 @@ int main(int argc, char** argv){
                 // 计数全部来自 launch manifest（PR #2 阶段 2），kind 序列与
                 // 实际发射顺序一致（host=2×row_fft；device=6 内核链，
                 // AB_LONG_BOUNDARY_IMPL=fused 时 5 条、twiddle 并入边界转置）；
-                // gm_rw = manifest 各发射的 GM 读写字节和（PR-B 记账，无 H2D/D2H）。
-                printf("lowering: launches=%d gm_boundaries=%d gm_rw=%llu "
+                // modeled_payload_gm = manifest 各发射的建模 payload GM 读写
+                // 字节和（PR-B 记账：不含 twiddle/index/coeff 辅助事务，
+                // 非 profiler 实测；无 H2D/D2H；R1.0 改名）。
+                printf("lowering: launches=%d gm_boundaries=%d "
+                       "modeled_payload_gm=%llu "
                        "impl=%s resident=%s "
                        "on_chip=%d host_assisted=%d abstract=%d kinds=",
                        lowered.visible_launches,
                        lowered.materialized_gm_boundaries,
-                       (unsigned long long)lowered.gm_rw_bytes,
+                       (unsigned long long)lowered.modeled_payload_gm_rw_bytes,
                        fusedImpl ? "fused" : "separate",
                        butterfly::residence_name(lowered.resident_subgraph),
                        (int)lowered.whole_transform_on_chip,
@@ -445,6 +456,13 @@ int main(int argc, char** argv){
         //   8 参内核有效（遗留 v1/v2 不读第 8 参）。
         const butterfly::RowFftPlan rf =
             butterfly::resolve_row_fft(len, rows, ovFoldD, ovPlaneK);
+        if (!rf.legal) {
+            // R1.0：短路径也走此收口；descriptor 门禁已拦截长链，这里为
+            // 无门禁路径（短链）与未来调用方兜底 —— 显式失败，绝不静默改值。
+            printf("illegal row-FFT plan (len=%u rows=%u D=%u K=%u): %s\n",
+                   len, rows, ovFoldD, ovPlaneK, rf.reason);
+            std::exit(2);
+        }
         const uint32_t foldD  = rf.fold_d;
         const uint32_t planeK = rf.plane_k;
         const uint32_t D = foldD;

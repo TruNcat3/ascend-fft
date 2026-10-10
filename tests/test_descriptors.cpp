@@ -4,7 +4,8 @@
 //   U,<core>,<min_log>,<max_log>,<ub>,<scope>,<multi_role>
 //   CASE,<name>,<SUPPORTED|UNSUPPORTED>,<reason>
 //   STRUCT,<name>,launches,<n>/gm_boundaries,<n>/host_assisted,<0|1>/on_chip,<0|1>
-//          /abstract,<0|1>/ub_peak,<bytes>/gm_rw,<bytes>/kinds,<k1|k2|...>
+//          /abstract,<0|1>/ub_peak,<bytes>/modeled_payload_gm,<bytes>
+//          /kinds,<k1|k2|...>
 // Build: g++ -std=c++17 -Iinclude tests/test_descriptors.cpp -o build/test_descriptors
 #include "butterfly/descriptors.hpp"
 #include <cstdio>
@@ -18,11 +19,11 @@ static void emit_case(const char* name, const LoweringResult& r){
 
 static void emit_struct(const char* name, const LoweringResult& r){
   printf("STRUCT,%s,launches,%d,gm_boundaries,%d,host_assisted,%d,on_chip,%d,"
-         "abstract,%d,ub_peak,%zu,gm_rw,%llu,kinds,",
+         "abstract,%d,ub_peak,%zu,modeled_payload_gm,%llu,kinds,",
          name, r.visible_launches, r.materialized_gm_boundaries,
          (int)r.host_assisted, (int)r.whole_transform_on_chip,
          (int)r.abstract_feasible, r.plan_ub_bytes,
-         (unsigned long long)r.gm_rw_bytes);
+         (unsigned long long)r.modeled_payload_gm_rw_bytes);
   for(size_t i=0;i<r.launch_manifest.size();i++)
     printf("%s%s", i?"|":"", launch_kind_name(r.launch_manifest[i].kind));
   printf("\n");
@@ -50,6 +51,11 @@ int main(){
     emit_case("default_8192", query_lowering({8192, 1}, m, unit, hw));
     emit_struct("default_8192", query_lowering({8192, 1}, m, unit, hw));
     emit_case("default_65536_b3", query_lowering({65536, 3}, default_long_mapping(256, 256, hw), unit, hw));
+    // R1.0：合法 K override 必须被接受（两个 stage 长度都满足 K*8<=len）
+    { const auto m2 = default_long_mapping(256, 256, hw);
+      auto mo = m2; mo.row_fft_plane_k = 32;
+      emit_case("plane_k_32_len256_accepted",
+                query_lowering(TransformSpec{65536, 1}, mo, unit, hw)); }
     emit_case("batch_4096_independent", query_lowering({8192, 4096}, m, unit, hw));
     emit_struct("batch_4096_independent", query_lowering({8192, 4096}, m, unit, hw));
     // DeviceGM home: the addendum §3 chain is executable and reports 6 launches.
@@ -135,6 +141,16 @@ int main(){
       emit_case("stage_product_mismatch", query_lowering(s, m2, unit, hw)); }
     { auto bad = m; bad.boundary_layout = Layout::HalfSpectrumReal;
       emit_case("layout_real_on_c2c", query_lowering(s, bad, unit, hw)); }
+    // R1.0：非法 K 显式拒绝（kernel contract {8,16,32}，K | len，len/K >= 8）
+    { auto mo = m; mo.row_fft_plane_k = 12;
+      emit_case("plane_k_12_rejected",
+                query_lowering(s, mo, unit, hw)); }
+    { auto mo = m; mo.row_fft_plane_k = 24;
+      emit_case("plane_k_24_rejected",
+                query_lowering(s, mo, unit, hw)); }
+    { auto mo = m; mo.row_fft_plane_k = 32;              // 32*8=256 > len=64
+      emit_case("plane_k_32_len64_rejected",
+                query_lowering(s, mo, unit, hw)); }
     { auto small = unit; small.ub_bytes = 32768;
       const auto m2 = default_long_mapping(64, 2048, hw);        // ub_need 36864 > 32768
       emit_case("ub_overflow", query_lowering({131072, 1}, m2, small, hw)); }

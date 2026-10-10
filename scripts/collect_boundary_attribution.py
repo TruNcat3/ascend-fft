@@ -12,10 +12,19 @@ self-report; a run that fails any of this poisons its pair into `problems`.
 
 Archive: results/evidence/long-fft-boundary-attribution/attribution.json
 (+ outputs.txt transcripts).  Per point the archive reports the kernel
-counts (6/5), GM bytes (launches x 2 x n x batch x 8, the descriptor
-`launch_gm_rw_bytes` contract), per-impl segment medians, the UB peak
+counts (6/5), the modeled payload GM bytes (launches x 2 x n x batch x 8,
+the descriptor `modeled_payload_gm_rw_bytes` contract -- a payload MODEL
+that excludes twiddle/index/coefficient auxiliary transactions and is not
+a profiler measurement), per-impl segment medians, the UB peak
 (AB_FUSED_UB_BYTES, identical for both impls because bTw is statically
-reserved) and the active AIV count (grid blocks).  Gate from the plan:
+reserved) and the launch grid blocks (not measured active AIVs; that is a
+profiler question).  Every run is hard-accepted by run_problems()
+BEFORE it may enter a pair (R1.0: called unconditionally -- a non-zero
+rc, missing PASS/scopes/segments, a wrong boundary_impl or any contract
+violation rejects the run and poisons its pair; rejected runs never
+contribute timing samples).  Pairs retain per-run rc/pass/boundary_impl
+and verify_attribution independently re-derives every verdict from the
+stored raws (no trust in collector summaries).  Gate from the plan:
 
   point candidate  = >=4/5 pairs not slower AND median chain improvement >=5%
   fallback         = any point regressing >3% keeps the separate fallback
@@ -63,9 +72,12 @@ def ub_peak_bytes(path=UB_HEADER):
     return 4 * h * w * 8
 
 
-def gm_rw_bytes(impl, n, batch):
-    """Descriptor launch_gm_rw_bytes contract: every launch streams one
-    full complex tensor in and out of GM (2 * n * batch * 8)."""
+def modeled_payload_gm_rw(impl, n, batch):
+    """Descriptor modeled_payload_gm_rw_bytes contract (R1.0 rename):
+    every launch is modeled as streaming one full complex tensor in and
+    out of GM (2 * n * batch * 8).  Payload MODEL only -- excludes
+    twiddle/index/coefficient auxiliary GM transactions; not a profiler
+    measurement."""
     return KERNEL_COUNT[impl] * 2 * n * batch * 8
 
 
@@ -128,7 +140,12 @@ def make_pair(trial, order, samples):
     pair = {"trial": trial, "order": "-".join(order)}
     for impl in IMPLS:
         s = samples[impl]
+        # R1.0: retain the per-run attestation so the verifier can
+        # independently re-check it without trusting the collector.
         pair[impl] = {
+            "rc": s["rc"],
+            "pass": bool(s.get("pass")),
+            "boundary_impl": s.get("boundary_impl"),
             "chain": s["scopes"]["device_chain"],
             "e2e": s["e2e_us"],
             "segments": s["segments"],
@@ -232,67 +249,104 @@ def verify_attribution(doc, threshold=None):
     grid = doc.get("grid") or []
     if [tuple(g) for g in grid] != list(POINTS):
         problems.append(f"grid mismatch: {grid!r} != {list(POINTS)!r}")
+    # R1.0: strict structural audit -- exactly len(POINTS) unique points,
+    # no duplicates, no holes, no extra entries.
+    seen = set()
+    raw_points = doc.get("points", [])
+    if len(raw_points) != len(POINTS):
+        problems.append(f"{len(raw_points)} points != {len(POINTS)} "
+                        "(grid size)")
     verdicts = {}
-    for p in doc.get("points", []):
+    for p in raw_points:
         n, b = p.get("n"), p.get("b")
         where = f"point n={n} b={b}"
         if (n, b) not in POINTS:
             problems.append(f"{where}: not in the attribution grid")
             continue
+        if (n, b) in seen:
+            problems.append(f"{where}: duplicate point")
+            continue
+        seen.add((n, b))
         if p.get("kernel_counts") != KERNEL_COUNT:
             problems.append(f"{where}: kernel_counts "
                             f"{p.get('kernel_counts')!r} != {KERNEL_COUNT!r}")
         if p.get("ub_peak_bytes") != ub_peak_bytes():
             problems.append(f"{where}: ub_peak_bytes "
                             f"{p.get('ub_peak_bytes')!r} != {ub_peak_bytes()}")
-        aiv = p.get("active_aiv") or {}
+        lbs = p.get("launch_blocks") or {}
         for impl in IMPLS:
-            v = aiv.get(impl)
+            v = lbs.get(impl)
             if not isinstance(v, int) or v <= 0:
-                problems.append(f"{where}: active_aiv[{impl}] {v!r}")
-            if p.get(f"{impl}_gm_rw_bytes") != gm_rw_bytes(impl, n, b):
-                problems.append(f"{where}: {impl} gm_rw_bytes "
-                                f"{p.get(f'{impl}_gm_rw_bytes')!r} != "
-                                f"{gm_rw_bytes(impl, n, b)}")
+                problems.append(f"{where}: launch_blocks[{impl}] {v!r}")
+            got = p.get(f"{impl}_modeled_payload_gm_rw_bytes")
+            if got != modeled_payload_gm_rw(impl, n, b):
+                problems.append(f"{where}: {impl} "
+                                f"modeled_payload_gm_rw_bytes {got!r} != "
+                                f"{modeled_payload_gm_rw(impl, n, b)}")
         pairs = p.get("pairs") or []
         if len(pairs) != trials:
             problems.append(f"{where}: {len(pairs)} pairs != {trials}")
         for i, pair in enumerate(pairs):
             tag = f"{where} pair[{i}]"
+            if pair.get("trial") != i:
+                problems.append(f"{tag}: trial {pair.get('trial')!r} != "
+                                f"index {i}")
             order = str(pair.get("order", ""))
             if order != "-".join(order_for_trial(i)):
                 problems.append(f"{tag}: order {order!r} != trial-parity "
                                 "alternation")
             for impl in IMPLS:
                 run = pair.get(impl) or {}
+                rtag = f"{tag} {impl}"
+                # R1.0: independent per-run re-verification of the raw
+                # attestation -- rc, PASS, boundary_impl, then the
+                # scope/segment/time contract on the stored values.
+                if run.get("rc") != 0:
+                    problems.append(f"{rtag}: rc {run.get('rc')!r} != 0")
+                if run.get("pass") is not True:
+                    problems.append(f"{rtag}: pass {run.get('pass')!r} "
+                                    "!= True")
+                if run.get("boundary_impl") != impl:
+                    problems.append(f"{rtag}: boundary_impl "
+                                    f"{run.get('boundary_impl')!r} != "
+                                    f"{impl!r}")
                 seg = run.get("segments")
                 if not isinstance(seg, dict) or set(seg) != set(
                         scopes.SEGMENT_FIELDS if impl == "separate"
                         else scopes.FUSED_SEGMENT_FIELDS):
-                    problems.append(f"{tag} {impl}: segments "
+                    problems.append(f"{rtag}: segments "
                                     f"{sorted(seg) if isinstance(seg, dict) else seg!r} "
                                     f"!= {impl} contract")
-                elif not math.isclose(
-                        sum(seg.values()),
-                        run.get("chain", float("nan")),
-                        rel_tol=0.01, abs_tol=20.0):
-                    problems.append(f"{tag} {impl}: sum(segments) "
-                                    f"{sum(seg.values())} != chain "
-                                    f"{run.get('chain')}")
+                else:
+                    for k, sv in seg.items():
+                        if (not isinstance(sv, (int, float))
+                                or not math.isfinite(sv) or sv <= 0):
+                            problems.append(f"{rtag}: segment {k} {sv!r} "
+                                            "not finite positive")
+                    if not math.isclose(
+                            sum(seg.values()),
+                            run.get("chain", float("nan")),
+                            rel_tol=0.01, abs_tol=20.0):
+                        problems.append(f"{rtag}: sum(segments) "
+                                        f"{sum(seg.values())} != chain "
+                                        f"{run.get('chain')}")
                 mr = run.get("max_rel")
                 if mr is None or not math.isfinite(mr) or mr > thr:
-                    problems.append(f"{tag} {impl}: max_rel {mr!r}")
+                    problems.append(f"{rtag}: max_rel {mr!r}")
                 if not isinstance(run.get("blocks"), int) or run["blocks"] <= 0:
-                    problems.append(f"{tag} {impl}: blocks {run.get('blocks')!r}")
+                    problems.append(f"{rtag}: blocks {run.get('blocks')!r}")
                 chain = run.get("chain")
                 e2e = run.get("e2e")
                 for name, v in (("chain", chain), ("e2e", e2e)):
                     if not isinstance(v, (int, float)) or not math.isfinite(v) \
                             or v <= 0:
-                        problems.append(f"{tag} {impl}: {name} {v!r}")
+                        problems.append(f"{rtag}: {name} {v!r}")
             dc = pair.get("delta_chain_pct")
             de = pair.get("delta_e2e_pct")
-            if isinstance(dc, (int, float)) and isinstance(
+            for name, dv in (("delta_chain_pct", dc), ("delta_e2e_pct", de)):
+                if not isinstance(dv, (int, float)) or not math.isfinite(dv):
+                    problems.append(f"{tag}: {name} {dv!r} not finite")
+            if isinstance(dc, (int, float)) and math.isfinite(dc) and isinstance(
                     pair.get("separate", {}).get("chain"), (int, float)):
                 sep = pair["separate"]["chain"]
                 fus = pair["fused"]["chain"]
@@ -300,25 +354,34 @@ def verify_attribution(doc, threshold=None):
                                             rel_tol=1e-9, abs_tol=1e-9):
                     problems.append(f"{tag}: delta_chain_pct "
                                     f"{dc!r} != recomputed")
-            if isinstance(de, (int, float)) and isinstance(
+            if isinstance(de, (int, float)) and math.isfinite(de) and isinstance(
                     pair.get("separate", {}).get("e2e"), (int, float)):
                 sep = pair["separate"]["e2e"]
                 fus = pair["fused"]["e2e"]
                 if sep and not math.isclose(de, (fus - sep) / sep * 100.0,
                                             rel_tol=1e-9, abs_tol=1e-9):
                     problems.append(f"{tag}: delta_e2e_pct {de!r} != recomputed")
-        if pairs:
+        if pairs and len(pairs) == trials:
             stats = pair_stats(pairs)
             for k, v in stats.items():
+                if not math.isfinite(v):
+                    problems.append(f"{where}: stats {k} not finite")
                 a = (p.get("stats") or {}).get(k)
-                if a is None or not math.isclose(a, v, rel_tol=1e-9,
-                                                 abs_tol=1e-9):
+                if a is None or not math.isfinite(a) or not math.isclose(
+                        a, v, rel_tol=1e-9, abs_tol=1e-9):
                     problems.append(f"{where}: stats {k}={a!r} != {v!r}")
             verdict = point_verdict(stats, trials=trials)
             verdicts[f"{n}x{b}"] = verdict
             if p.get("verdict") != verdict:
                 problems.append(f"{where}: verdict {p.get('verdict')!r} != "
                                 f"{verdict!r}")
+        else:
+            problems.append(f"{where}: cannot verify stats/verdict "
+                            "without exactly trials_per_point clean pairs")
+    if seen != set(POINTS):
+        missing = sorted(set(POINTS) - seen)
+        if missing:
+            problems.append(f"points missing from grid: {missing!r}")
     if sorted(verdicts) == sorted(f"{n}x{b}" for n, b in POINTS):
         gate = evaluate_gate(verdicts)
         if doc.get("gate") != gate:
@@ -358,32 +421,40 @@ def collect(trials=TRIALS, allow_dirty=False):
         pairs, run_probs = [], []
         for i in range(trials):
             order = order_for_trial(i)
-            samples = {}
+            samples, clean = {}, True
             for impl in order:
                 sample, out = run_impl(n, b, impl)
                 transcripts.append(
                     f"===== n={n} b={b} pair={i} impl={impl} =====\n{out}")
-                if sample["rc"] == 0 and sample.get("scopes"):
-                    for x in run_problems(sample, impl):
-                        run_probs.append(f"pair[{i}] {x}")
+                # R1.0: unconditional hard acceptance.  Every violation
+                # (non-zero rc, missing PASS/scopes/segments, wrong
+                # boundary_impl, ...) is recorded AND poisons the pair --
+                # a failed run may never enter a pair's timing sample.
+                probs = run_problems(sample, impl)
+                for x in probs:
+                    run_probs.append(f"pair[{i}] {x}")
+                if probs:
+                    clean = False
                 samples[impl] = sample
-            if all(samples[m].get("scopes") and samples[m].get("e2e_us")
-                   for m in IMPLS):
+            if clean:
                 pairs.append(make_pair(i, order, samples))
             else:
-                run_probs.append(f"pair[{i}] incomplete "
-                                 "(missing scopes/e2e)")
+                run_probs.append(f"pair[{i}] rejected "
+                                 "(run contract failed; not timed)")
         if len(pairs) != trials:
             run_probs.append(f"only {len(pairs)}/{trials} pairs completed")
         point = {
             "n": n, "b": b,
             "kernel_counts": dict(KERNEL_COUNT),
             "ub_peak_bytes": ub,
-            "separate_gm_rw_bytes": gm_rw_bytes("separate", n, b),
-            "fused_gm_rw_bytes": gm_rw_bytes("fused", n, b),
-            "active_aiv": {
-                impl: (statistics.median(
-                    [p[impl]["blocks"] for p in pairs]) if pairs else None)
+            "separate_modeled_payload_gm_rw_bytes":
+                modeled_payload_gm_rw("separate", n, b),
+            "fused_modeled_payload_gm_rw_bytes":
+                modeled_payload_gm_rw("fused", n, b),
+            # launch grid blocks (not measured active AIVs -- R1.0 rename)
+            "launch_blocks": {
+                impl: (int(statistics.median(
+                    [p[impl]["blocks"] for p in pairs])) if pairs else None)
                 for impl in IMPLS},
             "pairs": pairs,
         }

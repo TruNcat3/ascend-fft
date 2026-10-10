@@ -218,9 +218,14 @@ struct KernelResource {
 // launch must resolve identical values (R0.1).  launch_rows is the row count
 // the launch actually issues (long chain: (n/len)*batch; short path: batch);
 // overrides come from ArchitectureMapping (filled from AB_FOLD_D/AB_PLANE_K).
+// R1.0: an override that violates the kernel contract is REJECTED explicitly
+// (legal=false + reason) -- never silently clamped to a derived value, so
+// K=12 can never be treated as supported.
 struct RowFftPlan {
   uint32_t fold_d;   // batch fold coefficient packed into arg byte 0
   uint32_t plane_k;  // plane factor packed into arg byte 1
+  bool legal = true; // false when an override violates the kernel contract
+  const char* reason = "";  // explicit when legal == false
 };
 inline RowFftPlan resolve_row_fft(uint32_t len, uint32_t launch_rows,
                                   uint32_t fold_d_override,
@@ -230,10 +235,17 @@ inline RowFftPlan resolve_row_fft(uint32_t len, uint32_t launch_rows,
                               : bfly::foldDFor(len, launch_rows, 48u);
   if(p.fold_d < 1u) p.fold_d = 1u;
   p.plane_k = plane_k_override ? plane_k_override : bfly::planeKFor(len);
-  // K 合法性（R0.1）：rows = n/K >= 8 是矢量算子 32B 对齐的硬约束
-  // （否则 AIV 抛 507035）。AB_PLANE_K 指定非法 K 时两处同时回落到规则值，
-  // descriptor 与 launch 依旧同源 —— 与 kernel 的 arg 打包保持一致。
-  if(p.plane_k < 8u || p.plane_k * 8u > len) p.plane_k = bfly::planeKFor(len);
+  // K 合法性（R0.1/R1.0）：kernel contract = K ∈ {8,16,32}、K 整除 len、
+  // rows = len/K >= 8（否则矢量算子 32B 对齐失效，AIV 抛 507035）。
+  // planeKFor 派生值恒满足；override 违约时显式拒绝，不再静默回落。
+  const bool kSet = (p.plane_k == 8u || p.plane_k == 16u || p.plane_k == 32u);
+  if(!kSet || (p.plane_k * 8u) > len || (len % p.plane_k) != 0u){
+    p.legal = false;
+    p.reason = "plane K violates the kernel contract {8,16,32} with "
+               "K | len and len/K >= 8";
+    return p;
+  }
+  p.legal = true;
   return p;
 }
 
@@ -265,13 +277,16 @@ inline KernelResource twiddle_resource(uint32_t len){
                         "half-row chunking over one stage length"};
 }
 
-// GM-byte accounting for one execute (PR-B): every lowered launch streams
-// one full complex tensor in and one full tensor out of global memory
-// (row FFT reads its input tensor and writes its output tensor; transpose
-// and in-place twiddle read + write the chain tensor).  H2D/D2H are host
-// transfers, not manifest launches, and are excluded.  The fused boundary
-// chain drops one launch's full read+write (2 * n * batch * 8 bytes).
-inline uint64_t launch_gm_rw_bytes(LaunchKind k, uint64_t tensor_bytes){
+// Modeled payload GM-byte accounting for one execute (PR-B, renamed R1.0):
+// every lowered launch MODELED as streaming one full complex tensor in and
+// one full tensor out of global memory (row FFT reads its input tensor and
+// writes its output tensor; transpose and in-place twiddle read + write the
+// chain tensor).  This is a payload MODEL, not a profiler measurement: it
+// excludes twiddle tables, index tensors, coefficients and any other
+// auxiliary GM transactions.  H2D/D2H are host transfers, not manifest
+// launches, and are excluded.  The fused boundary chain drops one launch's
+// full modeled read+write (2 * n * batch * 8 bytes).
+inline uint64_t modeled_payload_gm_rw(LaunchKind k, uint64_t tensor_bytes){
   switch(k){
     case LaunchKind::RowFFT:
     case LaunchKind::TransposeIn:
@@ -313,9 +328,11 @@ struct LoweringResult {
   int materialized_gm_boundaries = 0;       // stage edges that touch GM/host memory
                                             // (sum of boundary_edge flags)
   size_t plan_ub_bytes = 0;                 // serial plan UB peak over the manifest
-  uint64_t gm_rw_bytes = 0;                 // GM read+write bytes of one execute's
-                                            // manifest launches (kernel traffic only;
-                                            // H2D/D2H excluded, PR-B accounting)
+  uint64_t modeled_payload_gm_rw_bytes = 0;  // modeled payload GM read+write
+                                             // bytes of one execute's manifest
+                                             // launches (payload model only:
+                                             // no twiddle/index/coeff traffic,
+                                             // no H2D/D2H; PR-B accounting)
   Residence resident_subgraph = Residence::None;
   bool whole_transform_on_chip = false;
   bool host_assisted = false;               // boundary crosses host memory today
@@ -486,13 +503,15 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
   r.launch_manifest = std::move(man);
   r.visible_launches = (int)r.launch_manifest.size();
   {
-    // GM traffic of the chain, derived from the same manifest the runtime
-    // launches (PR-B): separate device chain 6*2T, fused 5*2T, T = n*batch*8.
+    // Modeled payload GM traffic of the chain, derived from the same
+    // manifest the runtime launches (PR-B): separate device chain 6*2T,
+    // fused 5*2T, T = n*batch*8.  Payload model only -- excludes
+    // twiddle/index/coefficient auxiliary transactions (R1.0 rename).
     const uint64_t tensor_bytes = 8ull * (uint64_t)spec.n * (uint64_t)spec.batch;
     uint64_t rw = 0;
     for(const auto& rec : r.launch_manifest)
-      rw += launch_gm_rw_bytes(rec.kind, tensor_bytes);
-    r.gm_rw_bytes = rw;
+      rw += modeled_payload_gm_rw(rec.kind, tensor_bytes);
+    r.modeled_payload_gm_rw_bytes = rw;
   }
 
   // Per-kernel UB fit, checked in launch order (transpose launches come
@@ -507,8 +526,19 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
       case LaunchKind::RowFFT: {
         // Same (n,rows,D,K) the launch resolves in prepPass: rows is the
         // launch's row count, i.e. (n/len)*batch for the two-segment chain.
+        // R1.0: an illegal (D,K) plan is rejected here with an explicit
+        // reason -- it must never reach a launch or the resource gate.
         const uint32_t len   = m.stage_lengths[rec.stage];
         const uint32_t rows  = (spec.n / len) * spec.batch;
+        const RowFftPlan rf  = resolve_row_fft(len, rows,
+                                               m.row_fft_fold_d,
+                                               m.row_fft_plane_k);
+        if(!rf.legal){
+          r.abstract_feasible = false;
+          r.supported = false;
+          r.reason = std::string("illegal row-FFT plan: ") + rf.reason;
+          return r;
+        }
         kr = row_fft_resource(len, rows,
                               m.row_fft_fold_d, m.row_fft_plane_k);
         break;
