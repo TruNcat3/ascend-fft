@@ -36,8 +36,9 @@
 分两套协议，逐点记录进各自 raw 行，不混算：
 
 - **C2C 矩阵 / 端到端**：每个点执行若干 warmup，然后进行 `rounds` 轮测量；每轮取 `reps`
-  次均值，最终采用 min-of-means。该规则用于降低共享服务器上的瞬态干扰，但不会替代对温度、
-  频率和系统负载的记录。
+  次均值，最终采用 min-of-means。C2C 的 native/self runner 使用记录在 summary 中的固定 seed
+  逐轮随机交错，避免始终先跑完某一实现造成单向温度、频率或负载漂移。该规则用于降低共享
+  服务器上的瞬态干扰，但不会替代对温度、频率和系统负载的记录。
 - **R2C/C2R 对比（P1-B 对称协议）**：自研与 torch 两侧同一口径——5 个独立 trial，
   每个 trial 先做一次丢弃的 warmup 执行，再做 `reps` 次计时样本；trial 值取该 trial 样本的
   **median**，逐 trial 校验（自研侧 `maxRel <= 1e-4` 且 PASS 才准入 timing，`maxAbs`/
@@ -51,6 +52,6 @@
 发布结果必须带 `manifest.json`，至少记录：Git 提交与 dirty 状态、UTC 起止时间、SoC/硬件 ID
 与 profile 哈希、CANN/Python 等软件版本、逐实验命令、协议（protocol）、原始产物哈希与派生产物
 哈希、变换语义、精度、shape 网格、warmup/reps/rounds、计时区间、基线、选择策略和正确性阈值。
-`publish_results.py --check` 会在任何产物哈希、图形输入或 manifest commit 漂移时失败。
+`publish_results.py --check` 会在任何产物哈希、图形输入、归档图像输出或 manifest commit 漂移时失败。
 
 当前发布快照的详细数值见[结果](results.md)，复现入口见[复现实验](reproducibility.md)。

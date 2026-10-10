@@ -105,12 +105,12 @@ for k in "${SEL[@]}"; do
   gather)
     step "gather —— Gather 索引与偏移单位（src/host/gather_probe.cpp）"
     need gather_probe probe || continue
-    G=$(./build/gather_probe 2>&1)
+    G=$(./build/gather_probe 2>&1); rc=$?
     echo "$G" | sed 's/^/  /'
-    if echo "$G" | grep -q "B(offset\*4)"; then
+    if [ "$rc" -eq 0 ] && printf '%s\n' "$G" | grep -Fq 'Gather byte-offset/base validation: PASS (0 mismatches)'; then
       PASS "Gather 索引可用，索引 offset 单位 = **字节**（B 行 == 期望值）"
     else
-      FAIL "gather_probe 输出异常"
+      FAIL "gather_probe 数据验证失败或旧二进制缺少验证结果（rc=$rc；重建 scripts/build.sh probe）"
     fi
     ;;
 
@@ -142,11 +142,16 @@ for k in "${SEL[@]}"; do
 
   simt)
     step "simt —— probe_simt 编译（预期失败：本 SoC 无 SIMT）"
-    O=$(./scripts/build.sh simt 2>&1); printf '%s\n' "$O" | tail -3 | sed 's/^/  /'
-    if printf '%s\n' "$O" | grep -q "编译通过"; then
+    O=$(./scripts/build.sh simt 2>&1); rc=$?
+    printf '%s\n' "$O" | tail -5 | sed 's/^/  /'
+    if [ "$rc" -ne 0 ]; then
+      FAIL "probe_simt 工具链/编译失败，不能据此判断硬件能力（rc=$rc）"
+    elif printf '%s\n' "$O" | grep -q "SIMT_PROBE_SUPPORTED"; then
       WARN "probe_simt 编译通过 —— docs/阶段0-1-发现与结果.md §1.1「SIMT 不可用」需复核"
-    else
+    elif printf '%s\n' "$O" | grep -q "SIMT_PROBE_UNSUPPORTED"; then
       PASS "probe_simt 编译失败（预期：本 SoC 无 SIMT，见 docs/阶段0-1 §1.1）"
+    else
+      FAIL "probe_simt 未返回明确能力结果"
     fi
     ;;
 

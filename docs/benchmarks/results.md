@@ -1,7 +1,10 @@
 # 当前实验结果
 
 > **发布快照**：Ascend910_9382（48 AIV），CANN 9.0.0，fp32，前向 C2C。
-> 所有主结论来自同一份 correctness-gated snapshot；完整协议见[测量方法](methodology.md)。
+> 下列数字来自历史发布快照；完整协议见[测量方法](methodology.md)。
+> **待重新验证**：仓库 review 发现旧误差指标可能漏判 NaN/全零参考错误，且快照 manifest
+> 记录 dirty 源状态和未知硬件身份。数字保留用于审计，不视为加固门禁下的最终性能结论。
+> 修复后需在昇腾设备重验正确性，并发布干净源码、完整硬件身份的新快照。
 
 ![Ascend-FFT performance overview](../figures/overview_performance.png)
 

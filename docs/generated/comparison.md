@@ -1,5 +1,7 @@
 # Published Benchmark Summary
 
+> **Historical evidence only:** provenance or correctness gates in this snapshot are incomplete; revalidation is required.
+
 Source commit: `0fa7fe8190997d2fabba30fd0736ef026e02aed7`. SoC: `unknown`.
 
 C2C device-only: **49 checked points**, geometric mean speedup **3.010x** against CANN native.

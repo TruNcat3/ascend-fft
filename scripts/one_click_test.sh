@@ -51,7 +51,7 @@ step "2/6 门禁 B：test_framework（选型闭环 + 实数边界 + 真实验收
 FW_FAIL=0
 for p in "64 4096" "1024 4096" "2048 192" "4096 1"; do
   set -- $p
-  s=$(./build/test_framework config/ascend910_93_profile.json \
+  s=$(./build/test_framework "$AB_PROFILE" \
       config/butterfly_space.json build/fft_radix2.o "$1" "$2" 2>&1)
   if echo "$s" | grep -q "^PASS$" && echo "$s" | grep -q "selected:" && \
      echo "$s" | grep -q "real boundary coverage: 4 passed, 0 skipped"; then

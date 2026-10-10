@@ -1,5 +1,6 @@
 #include "butterfly/plan.hpp"
 #include "butterfly/reference.hpp"
+#include "json_config.hpp"
 
 #include <acl/acl.h>
 
@@ -14,109 +15,79 @@
 
 namespace bfly {
 
-// ---------------------------------------------------------------- 极简 JSON 取值
-// 只为读取我们自己产出的扁平配置；键重复时取最后一个。
+// ---------------------------------------------------------------- Strict host configuration
 namespace {
-bool findValue(const std::string& text, const std::string& key, std::string* val) {
-    std::string pat = "\"" + key + "\"";
-    size_t pos = text.rfind(pat);
-    if (pos == std::string::npos) return false;
-    pos = text.find(':', pos + pat.size());
-    if (pos == std::string::npos) return false;
-    pos = text.find_first_not_of(" \t\r\n", pos + 1);
-    if (pos == std::string::npos) return false;
-    if (text[pos] == '"') {
-        size_t e = text.find('"', pos + 1);
-        if (e == std::string::npos) return false;
-        *val = text.substr(pos + 1, e - pos - 1);
-        return true;
-    }
-    size_t e = pos;
-    while (e < text.size() && (isdigit((unsigned char)text[e]) || text[e] == '-' || text[e] == '+' ||
-                               text[e] == '.' || text[e] == 'e' || text[e] == 'E'))
-        e++;
-    *val = text.substr(pos, e - pos);
-    return !val->empty();
-}
 std::string slurp(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
-    if (!f) return {};
+    if (!f) throw std::runtime_error("cannot read configuration: " + path);
     return std::string(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
 }
-int asInt(const std::string& text, const std::string& key, int dflt) {
-    std::string v;
-    return findValue(text, key, &v) ? atoi(v.c_str()) : dflt;
+int optionalInt(const config::Value& root, const char* key, int fallback) {
+    return root.object.count(key) ? root.at(key).integer() : fallback;
 }
-double asDbl(const std::string& text, const std::string& key, double dflt) {
-    std::string v;
-    return findValue(text, key, &v) ? atof(v.c_str()) : dflt;
+bool optionalBool(const config::Value& root, const char* key, bool fallback) {
+    if (!root.object.count(key)) return fallback;
+    const auto& v = root.at(key);
+    if (v.type != config::Value::Boolean) throw std::runtime_error(std::string(key) + " must be boolean");
+    return v.text == "true";
 }
-// 读 "key": [ v1, v2, ... ] —— 设计空间里的轴都是这种形式。
-// 返回其中的标量 token（字符串去引号）。找不到 / 空数组返回 false。
-bool findArray(const std::string& text, const std::string& key,
-               std::vector<std::string>* out) {
-    std::string pat = "\"" + key + "\"";
-    size_t pos = text.rfind(pat);
-    if (pos == std::string::npos) return false;
-    pos = text.find(':', pos + pat.size());
-    if (pos == std::string::npos) return false;
-    pos = text.find('[', pos);
-    if (pos == std::string::npos) return false;
+const std::vector<config::Value>& axis(const config::Value& root, const char* key) {
+    const auto& value = root.at(key);
+    if (value.type != config::Value::Array || value.array.empty())
+        throw std::runtime_error(std::string(key) + " must be a nonempty array");
+    return value.array;
+}
+void intAxis(const config::Value& root, const char* key, std::vector<int>* out, bool positive) {
     out->clear();
-    size_t i = pos + 1;
-    while (i < text.size() && text[i] != ']') {
-        i = text.find_first_not_of(" \t\r\n,", i);
-        if (i == std::string::npos || text[i] == ']') break;
-        if (text[i] == '"') {
-            size_t e = text.find('"', i + 1);
-            if (e == std::string::npos) return false;
-            out->push_back(text.substr(i + 1, e - i - 1));
-            i = e + 1;
-        } else {
-            size_t e = i;
-            while (e < text.size() && text[e] != ',' && text[e] != ']' &&
-                   !isspace((unsigned char)text[e]))
-                e++;
-            out->push_back(text.substr(i, e - i));
-            i = e;
-        }
-    }
-    return !out->empty();
-}
-void toArray(const std::string& text, const char* key, std::vector<int>* out) {
-    std::vector<std::string> toks;
-    if (!findArray(text, key, &toks)) return;
-    out->clear();
-    for (const auto& t : toks) {
-        if (t == "true")  { out->push_back(1); continue; }   // coefficient_residency 用布尔字面量
-        if (t == "false") { out->push_back(0); continue; }
-        out->push_back(atoi(t.c_str()));
+    for (const auto& v : axis(root, key)) {
+        int n = v.integer();
+        if (n < (positive ? 1 : 0)) throw std::runtime_error(std::string(key) + " contains an invalid value");
+        out->push_back(n);
     }
 }
-void toStringArray(const std::string& text, const char* key, std::vector<std::string>* out) {
-    std::vector<std::string> toks;
-    if (findArray(text, key, &toks)) *out = std::move(toks);
+void stringAxis(const config::Value& root, const char* key, std::vector<std::string>* out,
+                std::initializer_list<const char*> allowed) {
+    out->clear();
+    for (const auto& v : axis(root, key)) {
+        const auto text = v.string();
+        if (std::find(allowed.begin(), allowed.end(), text) == allowed.end())
+            throw std::runtime_error(std::string(key) + " contains an unknown option");
+        out->push_back(text);
+    }
+}
+bool canonicalLowering(const Candidate& c, const Hardware& hw) {
+    // kfft_fwd has fixed radix-2 DIT, UB exchange and internally selected folding.
+    return c.a.validate(hw, nullptr) && c.a.localExchange == "shared" &&
+        c.a.td == 1 && c.a.tb == 1 && c.a.ub == 1 && c.a.us == 1 && c.a.ts == 1 &&
+        c.p.radix == 2 && c.p.fusionLevel == 1 && c.p.coefficientResidency &&
+        c.p.bitReverseInput && c.l.contiguous &&
+        c.l.in == Layout::Interleaved && c.l.out == Layout::Interleaved &&
+        c.f.butterflyCount == 1 && c.f.stageCount == 1 && !c.f.dftMatrix;
 }
 }  // namespace
 
 // ================================================================== H 对象
 Hardware Hardware::load(const std::string& profilePath) {
     Hardware hw;
-    std::string t = slurp(profilePath);
-    std::string v;
-    if (findValue(t, "soc", &v)) hw.soc = v;
-    if (findValue(t, "cann_version", &v)) hw.cannVersion = v;
-    hw.aicoreNum = asInt(t, "aicore_num", 24);
-    hw.vectorCoreNum = asInt(t, "vector_core_num", 48);
-    hw.ubBytesPerCore = asInt(t, "ub_bytes_per_core", 196608);
-    hw.vecLaneFp32 = asInt(t, "vec_lane_fp32", 128);
-    hw.l2Bytes = asInt(t, "l2_bytes", 0);
+    const auto root = config::Parser(slurp(profilePath)).parse();
+    if (root.at("schema_version").integer() != 1) throw std::runtime_error("unsupported hardware schema_version");
+    hw.soc = root.at("soc").string();
+    hw.cannVersion = root.at("cann_version").string();
+    hw.aicoreNum = root.at("aicore_num").integer();
+    hw.vectorCoreNum = root.at("vector_core_num").integer();
+    hw.ubBytesPerCore = root.at("ub_bytes_per_core").integer();
+    hw.vecLaneFp32 = root.at("vec_lane_fp32").integer();
+    hw.l2Bytes = optionalInt(root, "l2_bytes", 0);
     // Phase 0.3 实测事实（与 profile 的 simt/subblock 保持一致）
-    hw.simt = asInt(t, "simt", 0) != 0;
-    hw.subBlockNum = asInt(t, "sub_block_num", 1);
-    hw.ubOffsetAlignFloats = asInt(t, "ub_offset_align_floats", 8);
-    hw.minBlockOutputBytes = asInt(t, "min_block_output_bytes", 64);
-    hw.matrixUnitUsable = asInt(t, "matrix_unit_usable", 0) != 0;
+    hw.simt = optionalBool(root, "simt", false);
+    hw.subBlockNum = optionalInt(root, "sub_block_num", 1);
+    hw.ubOffsetAlignFloats = optionalInt(root, "ub_offset_align_floats", 8);
+    hw.minBlockOutputBytes = optionalInt(root, "min_block_output_bytes", 64);
+    hw.matrixUnitUsable = optionalBool(root, "matrix_unit_usable", false);
+    if (hw.aicoreNum <= 0 || hw.vectorCoreNum <= 0 || hw.ubBytesPerCore <= 0 ||
+        hw.vecLaneFp32 <= 0 || hw.l2Bytes < 0 || hw.subBlockNum <= 0 ||
+        hw.ubOffsetAlignFloats <= 0 || hw.minBlockOutputBytes <= 0)
+        throw std::runtime_error("hardware configuration contains nonpositive resources");
     return hw;
 }
 
@@ -364,15 +335,26 @@ Metric estimate(const Hardware& hw, const Mapping& a, const StagePlan& p,
 DesignSpace DesignSpace::load(const std::string& path) {
     DesignSpace sp;
     sp.raw = slurp(path);
-    toArray(sp.raw, "ud_core", &sp.udCores);
-    toArray(sp.raw, "radix", &sp.radices);
-    toArray(sp.raw, "fusion_level", &sp.fusionStages);
-    toArray(sp.raw, "ts", &sp.tsValues);
-    toArray(sp.raw, "coefficient_residency", &sp.coeffResidency);
-    toStringArray(sp.raw, "local_exchange", &sp.localExchanges);
-    toStringArray(sp.raw, "in", &sp.layoutsIn);
-    toStringArray(sp.raw, "out", &sp.layoutsOut);
-    sp.applyDefaults();
+    const auto root = config::Parser(sp.raw).parse();
+    if (root.at("schema_version").integer() != 1) throw std::runtime_error("unsupported design-space schema_version");
+    const auto& mapping = root.at("A");
+    const auto& stages = root.at("P");
+    const auto& layouts = root.at("L");
+    intAxis(mapping, "ud_core", &sp.udCores, true);
+    intAxis(stages, "radix", &sp.radices, true);
+    intAxis(stages, "fusion_level", &sp.fusionStages, true);
+    intAxis(mapping, "ts", &sp.tsValues, false);
+    for (int n : sp.radices) if (n != 2 && n != 4 && n != 8) throw std::runtime_error("radix must be 2, 4 or 8");
+    for (int n : sp.fusionStages) if (n > 24) throw std::runtime_error("fusion_level exceeds supported range");
+    for (int n : sp.tsValues) if (n > 1) throw std::runtime_error("ts must be 0 or 1");
+    sp.coeffResidency.clear();
+    for (const auto& v : axis(stages, "coefficient_residency")) {
+        if (v.type != config::Value::Boolean) throw std::runtime_error("coefficient_residency must contain booleans");
+        sp.coeffResidency.push_back(v.text == "true" ? 1 : 0);
+    }
+    stringAxis(mapping, "local_exchange", &sp.localExchanges, {"shared", "register", "shuffle"});
+    stringAxis(layouts, "in", &sp.layoutsIn, {"interleaved", "planar"});
+    stringAxis(layouts, "out", &sp.layoutsOut, {"interleaved", "planar"});
     return sp;
 }
 
@@ -497,6 +479,9 @@ std::vector<Candidate> enumerate(const DesignSpace& sp, const Hardware& hw,
                          "R=%d exceeds usable butterfly width min(K=%u, n/K=%u)=%u",
                          R, planeW, planarW, widthCap);
                 c.reason = b;
+            } else if (batch == 0) {
+                c.state = State::Infeasible;
+                c.reason = "batch must be positive";
             } else if ((uint64_t)batch * 2ull * (uint64_t)n > 0xFFFFFFFFull) {
                 // 内核 goff = b*2u*n 是 uint32（fft_radix2.cpp:97），b 可达 batch-1
                 c.state = State::Infeasible;
@@ -513,6 +498,10 @@ std::vector<Candidate> enumerate(const DesignSpace& sp, const Hardware& hw,
                            "output (planar layout would need an extra transpose pass)";
             } else {
                 c.state = State::Unverified;
+            }
+            if (c.state != State::Infeasible && !canonicalLowering(c, hw)) {
+                c.state = State::Infeasible;
+                c.reason = "no lowering for this candidate: kfft_fwd requires canonical radix-2 DIT, shared UB exchange and fixed mapping/fusion";
             }
             c.q = estimate(hw, c.a, c.p, n, batch);
             out.push_back(std::move(c));
@@ -533,6 +522,7 @@ std::vector<const Candidate*> rank(const std::vector<Candidate>& cs) {
 
 // ================================================================== Plan
 struct Plan::Impl {
+    Hardware hardware;
     aclrtFuncHandle fn = nullptr;
     aclrtBinHandle bin = nullptr;
     // r2c/c2r 链（fft_real.o，argBytes=40）：三内核同签名 (out,in,ex0,ex1,n,batch)
@@ -607,12 +597,35 @@ static uint32_t readArgSize(const std::string& path) {
 // 旋转因子/位反转索引：每次 (n, D) 变化时重新生成并上传
 int Plan::prepare(uint32_t n, uint32_t batch) { return prepareSign(n, batch, -1); }
 
+bool Plan::validShape(uint32_t n, uint32_t batch, bool realInput,
+                      bool checkOffset) const {
+    if (!impl_ || batch == 0 || n == 0 || (n & (n - 1u))) return false;
+    const uint32_t innerN = realInput ? n / 2u : n;
+    if (innerN < 64 || innerN > 4096 ||
+        (innerN / planeKFor(innerN)) % 8u != 0) return false;
+    if (realInput) {
+        // Mirror fft_real.cpp's aligned r2c_post buffers, including its fixed chunk.
+        const size_t q1 = ((n / 4u + 1u) + 7u) & ~7u;
+        const size_t q2 = (n / 4u + 7u) & ~7u;
+        const size_t postBytes = 4ull * n + 20ull * q1 + 12ull * q2 + 90112ull;
+        if (postBytes > (size_t)impl_->hardware.ubBytesPerCore) return false;
+    }
+    if (!canonicalLowering(cand_, impl_->hardware) ||
+        !cand_.p.fits(innerN, impl_->hardware)) return false;
+    return !checkOffset || (uint64_t)batch * 2ull * n <= 0xFFFFFFFFull;
+}
+
 int Plan::prepareSign(uint32_t n, uint32_t batch, int sign) {
+    // prepare's default batch is a folding sentinel, not an execution shape.
+    if (!validShape(n, batch, false, false)) return -8;
     // 折叠系数同时由 n、batch、launch 核数决定（foldDFor 的并发约束），故一并做缓存键。
     const uint32_t nblk = (cand_.a.udCore > 0) ? (uint32_t)cand_.a.udCore : 48u;
     const uint32_t D = bfly::foldDFor(n, batch, nblk);
     if (impl_->prepared && impl_->preparedN == n && impl_->preparedD == D &&
         impl_->preparedSign == sign) return 0;
+    // Invalidate before freeing any table: failed rebuilds must never hit an old key.
+    impl_->prepared = false;
+    impl_->preparedN = impl_->preparedD = 0;
     Generator g;
     g.n = n;
     std::vector<float> twr, twi;
@@ -717,6 +730,7 @@ static void buildRealArgs(std::vector<unsigned char>& ab, size_t argBytes,
 }
 
 int Plan::run(const float* in, float* out, uint32_t n, uint32_t batch) {
+    if (!in || !out || !validShape(n, batch)) return -8;
     if (!impl_ || !impl_->fn) return -1;
     if (prepare(n, batch)) return -2;
     // 内核 fft_radix2.cpp:97 `uint32_t goff = (uint32_t)b * 2u * n`，b 最大 batch-1。
@@ -746,6 +760,7 @@ int Plan::run(const float* in, float* out, uint32_t n, uint32_t batch) {
 // r2c：kfft_fwd(n/2)（实输入 n float/行零拷贝复用为交错复数）-> kfft_r2c_post。
 // 链与 src/host/fft_check.cpp（AB_DIR=r2c）同口径；输出为稠密半谱（行首 n+2 float）。
 int Plan::runR2C(const float* in, float* out, uint32_t n, uint32_t batch) {
+    if (!in || !out || !validShape(n, batch, true)) return -8;
     if (!impl_ || !impl_->fn || !impl_->fnR2cPost) return -1;   // fft_real.o 未加载
     // UB 预算同 fft_check 的 launch 守卫：内层 fwd 在 n/2<=4096、post 本身 <=192KB
     if (n < 128 || n > 8192 || (n & 1u)) return -8;
@@ -755,6 +770,8 @@ int Plan::runR2C(const float* in, float* out, uint32_t n, uint32_t batch) {
     if (prepareSign(innerN, batch, -1)) return -2;
     // W_n^k 表按全长度 n 键控
     if (!impl_->preparedReal || impl_->preparedPwN != n) {
+        impl_->preparedReal = false;
+        impl_->preparedPwN = 0;
         std::vector<float> pwr, pwi;
         uint32_t pPad = 0;
         genR2CTwiddles(n, pwr, pwi, pPad);
@@ -800,6 +817,7 @@ int Plan::runR2C(const float* in, float* out, uint32_t n, uint32_t batch) {
 // c2r：kfft_c2r_prep（半谱镜像 -> 满谱）-> kfft_fwd(n, 旋转因子取反 + xflip) ->
 // kfft_c2r_post（偶 bin 提取 * 1/n）。输出含 1/n，口径同 numpy.fft.irfft。
 int Plan::runC2R(const float* in, float* out, uint32_t n, uint32_t batch) {
+    if (!in || !out || !validShape(n, batch)) return -8;
     if (!impl_ || !impl_->fn || !impl_->fnPrep || !impl_->fnC2rPost) return -1;
     if (n < 64 || n > 4096 || (n & 1u)) return -8;          // UB 预算同 fft_check 守卫
     if ((uint64_t)batch * 2ull * (uint64_t)n > 0xFFFFFFFFull) return -8;
@@ -842,6 +860,7 @@ int Plan::runC2R(const float* in, float* out, uint32_t n, uint32_t batch) {
 
 int Plan::measure(uint32_t n, uint32_t batch, Metric* m) {
     if (!m) return -1;
+    if (!validShape(n, batch)) return -8;
     const size_t nFloats = (size_t)n * 2 * batch;
     std::vector<float> in(nFloats), o1(nFloats), o2(nFloats);
     for (size_t i = 0; i < nFloats; i++) in[i] = (float)((i * 2654435761u) % 1000) / 1000.f - 0.5f;
@@ -898,7 +917,7 @@ int Plan::measure(uint32_t n, uint32_t batch, Metric* m) {
         maxRel = std::max(maxRel, maxRelScaled(got, ref.data(), 2 * n));
     }
     m->maxRelErr = maxRel;
-    if (maxRel > 1e-4) {
+    if (!std::isfinite(maxRel) || maxRel > 1e-4) {
         m->measuredOk = false;
         cand_.q = *m;
         cand_.state = State::Unverified;
@@ -927,8 +946,18 @@ Context::~Context() {
 
 int Context::init(const std::string& profilePath, const std::string& spacePath,
                   const std::string& kernelPath) {
-    hw_ = Hardware::load(profilePath);
-    sp_ = DesignSpace::load(spacePath);
+    if (impl_->initialized) return -9;
+    Hardware hardware;
+    DesignSpace space;
+    try {
+        hardware = Hardware::load(profilePath);
+        space = DesignSpace::load(spacePath);
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "Context::init configuration error: %s\n", error.what());
+        return -4;
+    }
+    hw_ = std::move(hardware);
+    sp_ = std::move(space);
     kernelPath_ = kernelPath;
     if (aclInit(nullptr) != ACL_SUCCESS) return -1;
     if (aclrtSetDevice(0) != ACL_SUCCESS) return -2;
@@ -943,9 +972,11 @@ std::vector<Candidate> Context::enumerate(uint32_t n, uint32_t batch) const {
 
 std::unique_ptr<Plan> Context::makePlan(const Candidate& c) {
     // 本移植版只实现了 R=2 的 kfft_fwd；其它 R 的 η 是结构估算，没有 kernel 可载入。
-    if (DesignSpace::pointSize(c.p.radix, c.p.fusionLevel) != 2) return nullptr;
+    if (!impl_->initialized || c.state == State::Infeasible || !canonicalLowering(c, hw_))
+        return nullptr;
     auto p = std::unique_ptr<Plan>(new Plan(c));
     p->impl_.reset(new Plan::Impl());
+    p->impl_->hardware = hw_;
     p->impl_->argBytes = readArgSize(kernelPath_);
     p->ctxStream_ = impl_->stream;
     if (aclrtBinaryLoadFromFile(kernelPath_.c_str(), nullptr, &p->impl_->bin) != ACL_SUCCESS)

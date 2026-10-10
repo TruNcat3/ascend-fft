@@ -38,15 +38,26 @@ class MatrixGateTests(unittest.TestCase):
                          "--no-eta", "--out", str(destination)]
             if not native:
                 arguments.append("--no-native")
+            else:
+                native_records, self_records = records[:rounds], records[rounds:]
+                interleaved = []
+                for trial, order in enumerate(matrix.runner_orders(rounds, True, 0)):
+                    for runner_name in order:
+                        interleaved.append(native_records[trial] if runner_name == "native"
+                                           else self_records[trial])
+                records = interleaved
             with patch.object(matrix, "sh", side_effect=records) as runner:
                 with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                     code = matrix.main(arguments)
             summary = json.loads((destination.parent / "summary.json").read_text())
+            protocol = json.loads((destination.parent / "protocol.json").read_text())
             with (destination.parent / "matrix.csv").open() as handle:
                 row = next(csv.DictReader(handle))
             with (destination.parent / "trials.csv").open() as handle:
                 trials = list(csv.DictReader(handle))
             self.assertEqual(runner.call_count, len(records))
+            self.assertEqual(protocol["c2c_matrix"]["rounds"], rounds)
+            self.assertEqual(protocol["c2c_matrix"]["raw_trials"], "trials.csv")
             return code, summary, row, trials
 
     def test_all_trials_pass_and_worst_error_is_retained(self):
@@ -59,6 +70,7 @@ class MatrixGateTests(unittest.TestCase):
         self.assertEqual(summary["native_max_rel"][0]["max_rel"], 8e-6)
         self.assertEqual(summary["failed_trials"], 0)
         self.assertEqual(summary["total_trials"], 4)
+        self.assertEqual(len(summary["runner_orders"]), 2)
         self.assertEqual(len(trials), 4)
 
     def test_later_self_pass_cannot_hide_failure(self):

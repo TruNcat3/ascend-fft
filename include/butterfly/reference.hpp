@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace bfly {
 
@@ -19,21 +20,24 @@ void refR2CF32(const float* in, float* out, uint32_t n);
 // == numpy.fft.irfft 的 n 点口径。镜像规则与 fft_check/内核 prep 一致。
 void refC2RF32(const float* in, float* out, uint32_t n);
 
-// 全局 scale 归一的相对误差：max |got-ref| / max |ref|（按 float 分量取模，len = 2n）。
+// 混合绝对/相对误差：max |got-ref| / max(1, max |ref|)，按 float 分量取模。
+// 非有限输入返回 infinity；全零或小幅参考结果使用绝对误差，不可直接视为通过。
 // 三处验收必须用同一个口径，否则三套测试报的不是同一个指标：
 //   - src/framework/butterfly.cpp  Plan::measure
 //   - tests/test_framework.cpp
 //   - src/host/fft_check.cpp（旧版用复数模 max|y[j]| 作分母，已并到此处）
 // 实现放头文件做 inline，因为 fft_check 是单文件链接、不带 src/framework/reference.cpp。
 inline double maxRelScaled(const float* got, const float* ref, size_t len) {
-    double scale = 0, maxRel = 0;
-    for (size_t i = 0; i < len; i++) scale = std::max(scale, std::fabs((double)ref[i]));
-    if (scale <= 0) return 0;
+    if (len && (!got || !ref)) return std::numeric_limits<double>::infinity();
+    double scale = 0, maxError = 0;
     for (size_t i = 0; i < len; i++) {
-        double e = std::fabs((double)got[i] - (double)ref[i]);
-        maxRel = std::max(maxRel, e / scale);
+        if (!std::isfinite(got[i]) || !std::isfinite(ref[i]))
+            return std::numeric_limits<double>::infinity();
+        scale = std::max(scale, std::fabs((double)ref[i]));
+        maxError = std::max(maxError, std::fabs((double)got[i] - (double)ref[i]));
     }
-    return maxRel;
+    // Below unit scale, the shared 1e-4 gate is an absolute tolerance.
+    return maxError / std::max(1.0, scale);
 }
 
 // 确定性输入图案（与 tests/test_framework.cpp / fft_check 一致）

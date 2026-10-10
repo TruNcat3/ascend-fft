@@ -28,6 +28,7 @@ export AB_ROOT="${AB_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export AB_BUILD="${AB_BUILD:-$AB_ROOT/build}"
 export AB_WORK="${AB_WORK:-$AB_ROOT/.tmp}"
 export AB_SOC="${AB_SOC:-Ascend910_9382}"
+export AB_PROFILE="${AB_PROFILE:-$AB_ROOT/config/ascend910_93_profile.json}"
 mkdir -p "$AB_BUILD" "$AB_WORK"
 
 # ---- CANN 工具包 ---------------------------------------------------------
