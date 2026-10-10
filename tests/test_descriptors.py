@@ -315,17 +315,23 @@ class DescriptorLegalityTests(unittest.TestCase):
     def test_lt_kernel_entries_cover_the_legal_ub_fitting_set(self):
         # R2-A single source: every (H,W) that is stripe-legal at the default
         # K=512 AND fits the fused UB budget has a compiled entry, and no
-        # other entry exists (the host would fail the symbol lookup).  The
-        # kernel expands src/ascendc/fft_long_lt_tr.inc once per
-        # (AB_LT_TR_SUFFIX, AB_LT_TR_H, AB_LT_TR_W) triple.
+        # other K=512 rebuild entry exists (the host would fail the symbol
+        # lookup).  R2-B/R5 pipeline entries (_k256ri_nb/_k256ri_pp at the
+        # default tile, _t64x32_k256ri_pp2 at the R5 half tile) carry their
+        # own K/resident and are checked separately below.
         import re
         src = (ROOT / "src" / "ascendc" / "fft_long.cpp").read_text()
-        entries = set()
+        all_entries = set()
         for m in re.finditer(
                 r"#define AB_LT_TR_SUFFIX\s*(\S*)\s*\n"
                 r"#define AB_LT_TR_H (\d+)\s*\n"
-                r"#define AB_LT_TR_W (\d+)", src):
-            entries.add((int(m.group(2)), int(m.group(3))))
+                r"#define AB_LT_TR_W (\d+)\s*\n"
+                r"#define AB_LT_TR_K (\S+)\s*\n"
+                r"#define AB_LT_TR_RESIDENT (\d+)", src):
+            all_entries.add((m.group(1), int(m.group(2)), int(m.group(3)),
+                             m.group(4), int(m.group(5))))
+        entries = {(h, w) for suf, h, w, k, r in all_entries
+                   if k == "AB_FUSE_STRIPE_K" and r == 0}
 
         def legal(h, w, k=512):
             if h not in (64, 128, 256) or w not in (16, 32, 64):
@@ -339,8 +345,17 @@ class DescriptorLegalityTests(unittest.TestCase):
         expect = {(h, w) for h in (64, 128, 256) for w in (16, 32, 64)
                   if legal(h, w)}
         self.assertEqual(entries, expect,
-                         "compiled kfft_lt_tr entries must match the legal "
-                         "UB-fitting candidate set at K=512")
+                         "compiled kfft_lt_tr K=512 rebuild entries must "
+                         "match the legal UB-fitting candidate set")
+        # R2-B/R5 pipeline entries: resident index, K=256 only.
+        pipes = {(suf, h, w, k, r) for suf, h, w, k, r in all_entries
+                 if suf.startswith(("_k256ri_", "_t64x32_k256ri_"))}
+        self.assertEqual(pipes, {
+            ("_k256ri_nb", 128, 32, "256", 1),
+            ("_k256ri_pp", 128, 32, "256", 1),
+            ("_t64x32_k256ri_pp2", 64, 32, "256", 1),
+        }, "pipeline experiment entries must be exactly nb/pp at 128x32 "
+           "and the pp2 prototype at 64x32, all K=256 resident")
         # Round 2: stripe-K variants exist for the DEFAULT tile only.
         k_entries = set()
         for m in re.finditer(
@@ -355,10 +370,12 @@ class DescriptorLegalityTests(unittest.TestCase):
                      if suf.startswith("_k") and r == 0}
         self.assertEqual(rebuild_k, {(128, 32, 256), (128, 32, 128)},
                          "stripe-K variants must exist for the default 128x32 tile")
-        # Round 3: exactly one resident entry, default tile at K=256.
+        # Round 3: resident entries = default tile at K=256 (k256_ri, the
+        # nb/pp pipeline entries) plus the R5 pp2 prototype at 64x32.
         resident = {(h, w, k) for suf, h, w, k, r in k_entries if r == 1}
-        self.assertEqual(resident, {(128, 32, 256)},
-                         "resident-index entry must be the default tile at K=256")
+        self.assertEqual(resident, {(128, 32, 256), (64, 32, 256)},
+                         "resident entries must be the 128x32 K=256 family "
+                         "and the 64x32 K=256 pp2 prototype")
 
 
 if __name__ == "__main__":
