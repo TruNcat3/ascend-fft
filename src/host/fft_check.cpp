@@ -595,23 +595,47 @@ int main(int argc, char** argv){
     if(devBoundary){
         const char* lpath = getenv("AB_LONG_O")?getenv("AB_LONG_O"):"build/fft_long.o";
         CK(aclrtBinaryLoadFromFile(lpath, nullptr, &lb));
-        // R2-A：AB_LT_TILE=HxW 选择编译期候选入口 kfft_lt_tr_t{H}x{W}
-        // （合法性与 descriptor 门禁同源 ab_stripe_legal）；缺省走默认 128x32
-        // 入口，行为与 PR-B 一致。非法 tile 直接 rc=2，绝不静默回落。
+        // R2-A：AB_LT_TILE=HxW 选择编译期候选入口 kfft_lt_tr_t{H}x{W}；
+        // AB_LT_STRIPE_K=K 选择条带长度入口 kfft_lt_tr_k{K}（仅默认 tile
+        // 编译了 K 变体）。合法性与 descriptor 门禁同源 ab_stripe_legal；
+        // 缺省走默认 128x32/K=512 入口。非法组合直接 rc=2，绝不静默回落。
         std::string trName = "kfft_lt_tr";
         const char* tileEnv = getenv("AB_LT_TILE");
+        const char* kEnv = getenv("AB_LT_STRIPE_K");
+        unsigned th = AB_LT_H, tw = AB_LT_W, sk = AB_FUSE_STRIPE_K;
         if(tileEnv && *tileEnv){
-            unsigned th=0, tw=0; char junk=0;
-            if(sscanf(tileEnv, "%ux%u%c", &th, &tw, &junk) != 2 ||
-               !ab_stripe_legal(th, tw, AB_FUSE_STRIPE_K)){
-                printf("illegal AB_LT_TILE=%s: need H in {64,128,256} "
-                       "W in {16,32,64} with 32B align, K=%u <= H*W and "
-                       "10K <= 2HW\n", tileEnv, (unsigned)AB_FUSE_STRIPE_K);
+            char junk=0;
+            if(sscanf(tileEnv, "%ux%u%c", &th, &tw, &junk) != 2){
+                printf("illegal AB_LT_TILE=%s: need HxW (e.g. 64x32)\n", tileEnv);
                 return 2;
             }
             char buf[32];
             snprintf(buf, sizeof(buf), "_t%ux%u", th, tw);
             trName += buf;
+        }
+        if(kEnv && *kEnv){
+            char junk=0;
+            if(sscanf(kEnv, "%u%c", &sk, &junk) != 1 || sk==0){
+                printf("illegal AB_LT_STRIPE_K=%s: need a positive integer\n", kEnv);
+                return 2;
+            }
+            if(!(sk==AB_FUSE_STRIPE_K)){
+                char buf[32];
+                snprintf(buf, sizeof(buf), "_k%u", sk);
+                trName += buf;
+            }
+            if((tileEnv && *tileEnv) && sk != AB_FUSE_STRIPE_K){
+                printf("AB_LT_TILE+AB_LT_STRIPE_K combination %s/%s has no "
+                       "compiled entry (K variants exist for the default "
+                       "128x32 tile only)\n", tileEnv, kEnv);
+                return 2;
+            }
+        }
+        if(!ab_stripe_legal(th, tw, sk)){
+            printf("illegal tile/stripe: H=%u W=%u K=%u (candidates "
+                   "H={64,128,256} W={16,32,64} K={128,256,512}, 32B align, "
+                   "K <= H*W, 10K <= 2HW)\n", th, tw, sk);
+            return 2;
         }
         CK(aclrtBinaryGetFunction(lb, trName.c_str(), &fLtTr));
         CK(aclrtBinaryGetFunction(lb, "kfft_lt_tw", &fLtTw));

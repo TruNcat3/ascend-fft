@@ -708,7 +708,7 @@ def env_tags(mode):
     tags.append(f"AB_LONG_BOUNDARY_IMPL={IMPL_BY_MODE[mode]}")
     # R2-A experiment overrides (ambient passthrough): record them so an
     # archive never claims the default tile/blocks when a sweep set them.
-    for k in ("AB_LT_TILE", "AB_LT_BLOCKS"):
+    for k in ("AB_LT_TILE", "AB_LT_BLOCKS", "AB_LT_STRIPE_K"):
         v = os.environ.get(k)
         if v:
             tags.append(f"{k}={v}")

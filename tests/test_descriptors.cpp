@@ -91,6 +91,22 @@ int main(){
           emit_struct((cname + "_struct").c_str(), r);
       }
       unsetenv("AB_LT_TILE");
+      // R2-A Round 2: AB_LT_STRIPE_K candidates on the default tile.
+      { setenv("AB_LT_STRIPE_K", "256", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_stripe_k_256_supported", r);
+        unsetenv("AB_LT_STRIPE_K"); }
+      { setenv("AB_LT_STRIPE_K", "12", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_stripe_k_12_rejected", r);
+        unsetenv("AB_LT_STRIPE_K"); }
+      // Joint legality: a tile that is illegal at K=512 becomes legal at a
+      // smaller K (carve 10K<=2HW); the descriptor accepts it, the host
+      // rejects the uncompiled combo explicitly.
+      { setenv("AB_LT_TILE", "64x32", 1); setenv("AB_LT_STRIPE_K", "256", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_tile_64x32_k256_supported", r);
+        unsetenv("AB_LT_TILE"); unsetenv("AB_LT_STRIPE_K"); }
       { auto r = query_lowering({8192, 1}, fdev, unit, hw);
         emit_struct("fused_after_unset", r); }  // env must not leak
     }

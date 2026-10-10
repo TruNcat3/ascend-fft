@@ -4,7 +4,7 @@
 // 体与 PR-B 行为逐行一致，仅分块常量参数化；TPipe 必须留在 __global__ 入口。
 static_assert((AB_LT_TR_W & 3u) == 0u,
               "tile W must keep 32B row-slice alignment");
-static_assert(10ull * AB_FUSE_STRIPE_K <= 2ull * AB_LT_TR_H * AB_LT_TR_W,
+static_assert(10ull * AB_LT_TR_K <= 2ull * AB_LT_TR_H * AB_LT_TR_W,
               "stripe machinery must fit the bOut lifetime carve");
 
 extern "C" __global__ __aicore__ __vector__ void
@@ -33,7 +33,7 @@ extern "C" __global__ __aicore__ __vector__ void
     // 融合条带机件（tw!=nullptr 才建；bOut 里切出生命周期，float/uint32 等宽）：
     //   planarA [0,2K) 数据平面 | planarW [2K,4K) tw 平面 | prod [4K,6K) 乘积
     //   idxRe/idxIm 各 K、idxX 2K 个 uint32 收在 [6K,10K)（10K*4B <= 2HW*4B）
-    const uint32_t K = AB_FUSE_STRIPE_K;
+    const uint32_t K = AB_LT_TR_K;
     LocalTensor<float> planA = tOut;
     LocalTensor<float> planW = tOut[2u * K];
     LocalTensor<float> prod  = tOut[4u * K];

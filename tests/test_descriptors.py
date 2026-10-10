@@ -65,6 +65,10 @@ EXPECTED_CASES = {
     "lt_tile_64x16_rejected": (False, "illegal transpose tile"),
     "lt_tile_garbage_rejected": (False, "illegal transpose tile"),
     "lt_tile_128x64_rejected": (False, "UB overflow"),
+    # R2-A Round 2 stripe K candidates (AB_LT_STRIPE_K)
+    "lt_stripe_k_256_supported": (True, None),
+    "lt_stripe_k_12_rejected": (False, "illegal transpose stripe"),
+    "lt_tile_64x32_k256_supported": (True, None),
     "block_resident_needs_multi_role": (False, "multi-role unit"),
     "onchip_without_block_residence": (False, "on-chip boundary"),
     "gm_guard_overflow": (False, "40 GiB guard"),
@@ -319,6 +323,20 @@ class DescriptorLegalityTests(unittest.TestCase):
         self.assertEqual(entries, expect,
                          "compiled kfft_lt_tr entries must match the legal "
                          "UB-fitting candidate set at K=512")
+        # Round 2: stripe-K variants exist for the DEFAULT tile only.
+        k_entries = set()
+        for m in re.finditer(
+                r"#define AB_LT_TR_SUFFIX\s*(\S+)\s*\n"
+                r"#define AB_LT_TR_H (\d+)\s*\n"
+                r"#define AB_LT_TR_W (\d+)\s*\n"
+                r"#define AB_LT_TR_K (\d+)", src):
+            k_entries.add((int(m.group(1).lstrip("_k")) if m.group(1).startswith("_k")
+                           else None, int(m.group(2)), int(m.group(3)),
+                           int(m.group(4))))
+        self.assertEqual(
+            {(h, w, k) for _, h, w, k in k_entries if _ is not None},
+            {(128, 32, 256), (128, 32, 128)},
+            "stripe-K variants must exist for the default 128x32 tile")
 
 
 if __name__ == "__main__":

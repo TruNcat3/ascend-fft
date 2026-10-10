@@ -262,15 +262,27 @@ inline KernelResource row_fft_resource(uint32_t len, uint32_t launch_rows,
 }
 // R2-A: transpose tile shape candidates.  AB_LT_TILE=HxW selects a compiled
 // kfft_lt_tr entry; legality is the single-source ab_stripe_legal shared
-// with the kernel static_asserts and the host entry selector.  An illegal
-// tile is rejected loudly -- never silently reshaped.
+// with the kernel static_asserts and the host entry selector, checked
+// JOINTLY with the stripe K (an illegal K or tile is rejected loudly --
+// never silently reshaped).
 struct LtTilePlan {
   uint32_t h = AB_LT_H;
   uint32_t w = AB_LT_W;
   bool legal = true;
   std::string reason;
 };
-inline LtTilePlan resolve_lt_tile(const char* env = nullptr) {
+// Parse AB_LT_STRIPE_K: 0 = illegal (not one of the candidates).
+inline uint32_t parse_lt_stripe_k(const char* env = nullptr) {
+  const char* s = env ? env : getenv("AB_LT_STRIPE_K");
+  if (!s || !*s) return AB_FUSE_STRIPE_K;
+  unsigned sk = 0;
+  char junk = 0;
+  if (sscanf(s, "%u%c", &sk, &junk) != 1) return 0;
+  static const unsigned ks[] = AB_FUSE_K_CANDIDATES;
+  return ab_lt_in_set(sk, ks, 3) ? (uint32_t)sk : 0u;
+}
+inline LtTilePlan resolve_lt_tile(uint32_t k = AB_FUSE_STRIPE_K,
+                                  const char* env = nullptr) {
   LtTilePlan p;
   const char* s = env ? env : getenv("AB_LT_TILE");
   if (!s || !*s) return p;
@@ -282,12 +294,12 @@ inline LtTilePlan resolve_lt_tile(const char* env = nullptr) {
                std::string(s) + "'";
     return p;
   }
-  if (!ab_stripe_legal(th, tw, AB_FUSE_STRIPE_K)) {
+  if (!ab_stripe_legal(th, tw, k)) {
     p.legal = false;
     p.reason = "AB_LT_TILE H=" + std::to_string(th) + " W=" +
                std::to_string(tw) +
                " violates the R2-A candidate/alignment/10K<=2HW constraints"
-               " at stripe K=" + std::to_string(AB_FUSE_STRIPE_K);
+               " at stripe K=" + std::to_string(k);
     return p;
   }
   p.h = (uint32_t)th;
@@ -295,13 +307,15 @@ inline LtTilePlan resolve_lt_tile(const char* env = nullptr) {
   return p;
 }
 inline KernelResource transpose_resource(uint32_t h = AB_LT_H,
-                                         uint32_t w = AB_LT_W){
+                                         uint32_t w = AB_LT_W,
+                                         uint32_t k = AB_FUSE_STRIPE_K){
   // kfft_lt_tr is one .o entry with the fused tw path statically included
   // (bTw in InitBuffer), so EVERY launch of it is gated at the four-tile
   // peak AB_FUSED_UB_BYTES_HWK(H,W,K) (PR-B; R2-A makes the peak follow
   // the selected tile instead of a fixed 128 KiB).
+  (void)k;  // rebuild-mode carve shares bOut: K does not move the peak
   return KernelResource{"kfft_lt_tr", CoreKind::AIVVectorCore,
-                        (size_t)AB_FUSED_UB_BYTES_HWK(h, w, AB_FUSE_STRIPE_K),
+                        (size_t)AB_FUSED_UB_BYTES_HWK(h, w, k),
                         SyncScope::AIVIntraCore,
                         "fused-capable HxW tile (bIn+bOut+bIdx+bTw), "
                         "peak = 4*H*W*8 (R2-A: follows AB_LT_TILE)"};
@@ -550,10 +564,19 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
     r.modeled_payload_gm_rw_bytes = rw;
   }
 
-  // R2-A: an illegal AB_LT_TILE is a loud rejection (same contract as an
-  // illegal row-FFT plan) -- the gate must never launch an uncompiled or
-  // over-budget tile shape.
-  const LtTilePlan ltp = resolve_lt_tile();
+  // R2-A: an illegal AB_LT_TILE / AB_LT_STRIPE_K is a loud rejection (same
+  // contract as an illegal row-FFT plan) -- the gate must never launch an
+  // uncompiled or over-budget tile shape.  K parses first; the tile carve
+  // is checked jointly at that K.
+  const uint32_t ltsk = parse_lt_stripe_k();
+  if (ltsk == 0) {
+    r.abstract_feasible = false;
+    r.supported = false;
+    r.reason = "illegal transpose stripe: AB_LT_STRIPE_K must be one of "
+               "128|256|512";
+    return r;
+  }
+  const LtTilePlan ltp = resolve_lt_tile(ltsk);
   if (!ltp.legal) {
     r.abstract_feasible = false;
     r.supported = false;
@@ -595,7 +618,7 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
       case LaunchKind::TransposeIn:
       case LaunchKind::TransposeBoundary:
       case LaunchKind::TransposeOut:
-        kr = transpose_resource(ltp.h, ltp.w); break;
+        kr = transpose_resource(ltp.h, ltp.w, ltsk); break;
     }
     if(kr.ub_bytes > ub_have){
       r.abstract_feasible = false;
