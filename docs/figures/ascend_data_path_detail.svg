@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#465466"/>
+    </marker>
+    <style>
+      .title { font: 700 22px Arial, sans-serif; fill: #1f2937; }
+      .label { font: 700 16px Arial, sans-serif; fill: #1f2937; }
+      .body { font: 14px Arial, sans-serif; fill: #334155; }
+      .small { font: 13px Arial, sans-serif; fill: #475569; }
+      .gm { fill: #e8f2ff; stroke: #3478c9; stroke-width: 2; }
+      .ub { fill: #fff1df; stroke: #d9822b; stroke-width: 2; }
+      .core { fill: #e8f6ee; stroke: #31805a; stroke-width: 2; }
+      .reuse { fill: #f1eaff; stroke: #7856b8; stroke-width: 2; }
+      .arrow { stroke: #465466; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1200" height="430" fill="#ffffff"/>
+  <text x="600" y="36" text-anchor="middle" class="title">Ascend C2C data path: flow organization around a replaceable core</text>
+  <rect x="38" y="122" width="165" height="122" rx="8" class="gm"/>
+  <text x="120" y="155" text-anchor="middle" class="label">GM input</text>
+  <text x="54" y="185" class="body">interleaved complex</text><text x="54" y="208" class="body">[batch][2N]</text><text x="54" y="231" class="small">MTE DataCopy</text>
+  <line x1="203" y1="183" x2="248" y2="183" class="arrow"/>
+  <rect x="248" y="95" width="185" height="176" rx="8" class="ub"/>
+  <text x="340" y="128" text-anchor="middle" class="label">UB staging</text>
+  <text x="268" y="160" class="body">Gather + de-interleave</text><text x="268" y="183" class="body">K-plane alignment</text><text x="268" y="206" class="body">twiddle / index tiles</text><text x="268" y="239" class="small">32B alignment</text><text x="268" y="258" class="small">private per AIV</text>
+  <line x1="433" y1="183" x2="478" y2="183" class="arrow"/>
+  <rect x="478" y="95" width="210" height="176" rx="8" class="core"/>
+  <text x="583" y="128" text-anchor="middle" class="label">Local processing unit</text>
+  <text x="498" y="160" class="body">radix-2 stages</text><text x="498" y="183" class="body">local radix-4 fusion</text><text x="498" y="206" class="body">vector complex multiply</text><text x="498" y="239" class="small">core choice P</text><text x="498" y="258" class="small">flow choice A stays external</text>
+  <line x1="688" y1="183" x2="733" y2="183" class="arrow"/>
+  <rect x="733" y="95" width="190" height="176" rx="8" class="reuse"/>
+  <text x="828" y="128" text-anchor="middle" class="label">Temporal reuse</text>
+  <text x="753" y="160" class="body">planar stages in UB</text><text x="753" y="183" class="body">D folded batches</text><text x="753" y="206" class="body">repeat / tail control</text><text x="753" y="239" class="small">Ud / Td mapping</text><text x="753" y="258" class="small">no per-stage GM write</text>
+  <line x1="923" y1="183" x2="968" y2="183" class="arrow"/>
+  <rect x="968" y="122" width="165" height="122" rx="8" class="gm"/>
+  <text x="1050" y="155" text-anchor="middle" class="label">GM output</text>
+  <text x="984" y="185" class="body">Gather / interleave</text><text x="984" y="208" class="body">DataCopy</text><text x="984" y="231" class="small">natural order</text>
+  <text x="585" y="337" text-anchor="middle" class="small">Architecture flow A controls reuse and movement; processing unit P is replaceable inside the local box.</text>
+  <text x="600" y="398" text-anchor="middle" class="small">Current production path: one transform stays within one AIV; batch parallelism distributes independent transforms across AIVs.</text>
+</svg>

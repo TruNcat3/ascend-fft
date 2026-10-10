@@ -100,6 +100,11 @@ C2C device-only 为 49/49 点胜出；end-to-end 为 46/49 点胜出。R2C/C2R �
 3. 成本模型按结构计数预排序，而不是按实现名称拟合；
 4. 候选 `prepare -> measure -> rank`，实测结果回填并生成最终 Plan。
 
+![Method layers from cuButterfly to Ascend execution](docs/figures/method_layers.svg)
+
+这张图只强调方法来源、可替换核心、Ascend lowering 和证据之间的边界；具体的二维设计空间
+和硬件选择过程见[架构映射](docs/design/architecture.md)。
+
 完整推导见[设计动机](docs/design/motivation.md)与[架构映射](docs/design/architecture.md)。
 
 ## 快速开始

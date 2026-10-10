@@ -6,6 +6,11 @@
 
 `estimate()` 根据长度、batch、核数、K-plane、折叠和融合路径，统计矢量算子发射数 `#op` 与元素访问数 `#elem`。概念成本为：
 
+![Profile to executable plan](../figures/profile_to_plan.svg)
+
+模型只对通过硬件和 lowering 合约的 `A × P` 候选排序；profile 用于校准和解释，最终 Plan 仍
+必须通过正确性与实测门禁。
+
 ```text
 eta_us = launch_us
        + iters × (op_ns × #op + elem_ns × #elem) / 1000

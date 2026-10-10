@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#465466"/>
+    </marker>
+    <style>
+      .title { font: 700 22px Arial, sans-serif; fill: #1f2937; }
+      .axis { font: 700 18px Arial, sans-serif; fill: #1f2937; }
+      .cell { font: 15px Arial, sans-serif; fill: #334155; }
+      .small { font: 14px Arial, sans-serif; fill: #475569; }
+      .a { fill: #e8f2ff; stroke: #3478c9; stroke-width: 2; }
+      .p { fill: #fff1df; stroke: #d9822b; stroke-width: 2; }
+      .l { fill: #f1eaff; stroke: #7856b8; stroke-width: 2; }
+      .valid { fill: #e8f6ee; stroke: #31805a; stroke-width: 2; }
+      .reject { fill: #f7f7f7; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 5 4; }
+      .arrow { stroke: #465466; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1100" height="600" fill="#ffffff"/>
+  <text x="550" y="36" text-anchor="middle" class="title">Orthogonal design space: flow organization x processing unit</text>
+  <text x="520" y="76" text-anchor="middle" class="axis">Processing unit P</text>
+  <text x="32" y="285" transform="rotate(-90 32 285)" text-anchor="middle" class="axis">Flow organization A</text>
+  <rect x="180" y="100" width="205" height="62" rx="7" class="p"/><text x="282" y="137" text-anchor="middle" class="cell">radix-2</text>
+  <rect x="400" y="100" width="205" height="62" rx="7" class="p"/><text x="502" y="137" text-anchor="middle" class="cell">radix-4</text>
+  <rect x="620" y="100" width="205" height="62" rx="7" class="p"/><text x="722" y="137" text-anchor="middle" class="cell">vector / Cube</text>
+  <rect x="840" y="100" width="205" height="62" rx="7" class="p"/><text x="942" y="137" text-anchor="middle" class="cell">specialized FFT</text>
+  <rect x="65" y="190" width="95" height="82" rx="7" class="a"/><text x="112" y="224" text-anchor="middle" class="cell">materialized</text><text x="112" y="247" text-anchor="middle" class="cell">stages</text>
+  <rect x="180" y="190" width="205" height="82" rx="7" class="valid"/><text x="282" y="224" text-anchor="middle" class="cell">candidate</text><text x="282" y="248" text-anchor="middle" class="cell">lower + measure</text>
+  <rect x="400" y="190" width="205" height="82" rx="7" class="reject"/><text x="502" y="224" text-anchor="middle" class="cell">possible</text><text x="502" y="248" text-anchor="middle" class="small">contract required</text>
+  <rect x="620" y="190" width="205" height="82" rx="7" class="reject"/><text x="722" y="224" text-anchor="middle" class="cell">possible</text><text x="722" y="248" text-anchor="middle" class="small">contract required</text>
+  <rect x="840" y="190" width="205" height="82" rx="7" class="reject"/><text x="942" y="224" text-anchor="middle" class="cell">possible</text><text x="942" y="248" text-anchor="middle" class="small">contract required</text>
+  <rect x="65" y="300" width="95" height="82" rx="7" class="a"/><text x="112" y="334" text-anchor="middle" class="cell">resident</text><text x="112" y="357" text-anchor="middle" class="cell">subgraph</text>
+  <rect x="180" y="300" width="205" height="82" rx="7" class="valid"/><text x="282" y="334" text-anchor="middle" class="cell">candidate</text><text x="282" y="358" text-anchor="middle" class="cell">if lowered</text>
+  <rect x="400" y="300" width="205" height="82" rx="7" class="reject"/><text x="502" y="334" text-anchor="middle" class="cell">abstract only</text><text x="502" y="358" text-anchor="middle" class="small">not production yet</text>
+  <rect x="620" y="300" width="205" height="82" rx="7" class="reject"/><text x="722" y="334" text-anchor="middle" class="cell">abstract only</text><text x="722" y="358" text-anchor="middle" class="small">not production yet</text>
+  <rect x="840" y="300" width="205" height="82" rx="7" class="reject"/><text x="942" y="334" text-anchor="middle" class="cell">abstract only</text><text x="942" y="358" text-anchor="middle" class="small">not production yet</text>
+  <line x1="112" y1="410" x2="112" y2="472" class="arrow"/>
+  <rect x="180" y="430" width="865" height="72" rx="8" class="l"/>
+  <text x="612" y="459" text-anchor="middle" class="cell">Hardware H + lowering contract: UB, alignment, GM, instruction envelope, ownership and sync</text>
+  <text x="612" y="483" text-anchor="middle" class="small">Only legal intersections enter the model and measured selection; all others abstain.</text>
+  <text x="550" y="555" text-anchor="middle" class="small">Flow and core are conceptually independent, but their physical resource costs are coupled.</text>
+</svg>

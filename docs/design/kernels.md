@@ -33,6 +33,11 @@ cuButterfly 的主贡献放在第二部分，是因为第一部分通常已有�
       -- correctness 后实测回填
 ```
 
+![Detailed Ascend data path and local processing unit](../figures/ascend_data_path_detail.svg)
+
+这里的 processing unit 只是流框架中的局部算术位置；替换它不会自动改变阶段交接、数据复用或
+GM 边界，反之亦然。
+
 ## 为什么同时使用 plane 与 planar
 
 小配对距离的蝶形直接映射到 UB 时，会产生不满足 32 B 对齐的访问。K-plane 布局把这些配对转换成对齐矢量访问；完成局部阶段后再 Gather 到 planar 布局，后续阶段可以利用较大的连续配对距离。
