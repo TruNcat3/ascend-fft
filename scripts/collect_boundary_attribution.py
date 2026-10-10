@@ -211,21 +211,55 @@ def evaluate_gate(verdicts):
 
 
 # ---------- archive gate (pure; unit-tested) ------------------------------
+def _snap_problem(snap, where):
+    if not isinstance(snap, dict) or not isinstance(snap.get("utc"), str):
+        return [f"{where}: env_monitor snapshot missing utc"]
+    probs = []
+    if "npu_smi" not in snap:
+        probs.append(f"{where}: env_monitor snapshot missing npu_smi")
+    if "loadavg" not in snap:
+        probs.append(f"{where}: env_monitor snapshot missing loadavg")
+    return probs
+
+
+def parse_points(spec):
+    """'8192x1,65536x47' -> ((8192,1),(65536,47)); validates membership."""
+    points = []
+    for tok in spec.split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        n_s, b_s = tok.lower().split("x")
+        point = (int(n_s), int(b_s))
+        if point not in POINTS:
+            raise ValueError(f"point {tok!r} not in the attribution grid "
+                             f"{POINTS!r}")
+        if point in points:
+            raise ValueError(f"duplicate point {tok!r}")
+        points.append(point)
+    if not points:
+        raise ValueError("empty point selection")
+    return tuple(points)
+
+
 def verify_attribution(doc, threshold=None):
     """Re-run the whole contract on a stored attribution.json.
 
     Returns [] only for a fully attested archive: stats and verdicts must
     recompute identically from the raw pairs, every run must carry the
-    impl-matched segments + boundary_impl + correctness, and the
-    structural constants (kernel counts, GM bytes, UB peak, grid) must
-    match the descriptor contract.
+    impl-matched segments + rc/pass/boundary_impl + correctness, the
+    structural constants (kernel counts, modeled payload GM bytes, UB
+    peak, launch blocks, env_monitor snapshots) must match the descriptor
+    contract, and the point set must be a complete grid.  The main gate
+    archive must cover the full 4-point POINTS grid; a `session` archive
+    (R1.1 cross-session reproducibility run) may declare a unique subset.
     """
     if isinstance(doc, (str, Path)):
         doc = json.loads(Path(doc).read_text(encoding="utf-8"))
     need = ("generated_utc", "manifest", "binary", "boundary", "impls",
             "grid", "trials_per_point", "reps", "threshold",
-            "kernel_counts", "ub_peak_bytes", "points", "gate",
-            "problems", "incomplete", "status")
+            "kernel_counts", "ub_peak_bytes", "env_monitor", "points",
+            "gate", "problems", "incomplete", "status")
     missing = [k for k in need if k not in doc]
     if missing:
         return [f"missing top-level key {k!r}" for k in missing]
@@ -234,6 +268,11 @@ def verify_attribution(doc, threshold=None):
         problems.append(f"boundary {doc['boundary']!r} != 'device'")
     if tuple(doc["impls"]) != IMPLS:
         problems.append(f"impls {doc['impls']!r} != {list(IMPLS)!r}")
+    for where, snap in (("env_monitor.before",
+                         (doc.get("env_monitor") or {}).get("before")),
+                        ("env_monitor.after",
+                         (doc.get("env_monitor") or {}).get("after"))):
+        problems += _snap_problem(snap, where)
     thr = doc.get("threshold", THRESHOLD) if threshold is None else threshold
     trials = doc["trials_per_point"]
     if trials < 5:
@@ -247,26 +286,39 @@ def verify_attribution(doc, threshold=None):
     if kc != KERNEL_COUNT:
         problems.append(f"kernel_counts {kc!r} != {KERNEL_COUNT!r}")
     grid = doc.get("grid") or []
-    if [tuple(g) for g in grid] != list(POINTS):
-        problems.append(f"grid mismatch: {grid!r} != {list(POINTS)!r}")
-    # R1.0: strict structural audit -- exactly len(POINTS) unique points,
-    # no duplicates, no holes, no extra entries.
+    session = bool(doc.get("session"))
+    if session:
+        if (not grid or len(set(map(tuple, grid))) != len(grid)
+                or any(tuple(g) not in POINTS for g in grid)):
+            problems.append(f"session grid {grid!r} is not a unique "
+                            f"subset of {list(POINTS)!r}")
+        expected = [tuple(g) for g in grid]
+    else:
+        expected = list(POINTS)
+        if [tuple(g) for g in grid] != expected:
+            problems.append(f"grid mismatch: {grid!r} != {expected!r}")
+    # R1.0: strict structural audit -- exactly len(expected) unique
+    # points, no duplicates, no holes, no extra entries.
     seen = set()
     raw_points = doc.get("points", [])
-    if len(raw_points) != len(POINTS):
-        problems.append(f"{len(raw_points)} points != {len(POINTS)} "
+    if len(raw_points) != len(expected):
+        problems.append(f"{len(raw_points)} points != {len(expected)} "
                         "(grid size)")
     verdicts = {}
     for p in raw_points:
         n, b = p.get("n"), p.get("b")
         where = f"point n={n} b={b}"
-        if (n, b) not in POINTS:
+        if (n, b) not in expected:
             problems.append(f"{where}: not in the attribution grid")
             continue
         if (n, b) in seen:
             problems.append(f"{where}: duplicate point")
             continue
         seen.add((n, b))
+        pem = p.get("env_monitor") or {}
+        for w in ("before", "after"):
+            problems += _snap_problem(pem.get(w),
+                                      f"{where} env_monitor.{w}")
         if p.get("kernel_counts") != KERNEL_COUNT:
             problems.append(f"{where}: kernel_counts "
                             f"{p.get('kernel_counts')!r} != {KERNEL_COUNT!r}")
@@ -378,11 +430,11 @@ def verify_attribution(doc, threshold=None):
         else:
             problems.append(f"{where}: cannot verify stats/verdict "
                             "without exactly trials_per_point clean pairs")
-    if seen != set(POINTS):
-        missing = sorted(set(POINTS) - seen)
+    if seen != set(expected):
+        missing = sorted(set(expected) - seen)
         if missing:
             problems.append(f"points missing from grid: {missing!r}")
-    if sorted(verdicts) == sorted(f"{n}x{b}" for n, b in POINTS):
+    if sorted(verdicts) == sorted(f"{n}x{b}" for n, b in expected):
         gate = evaluate_gate(verdicts)
         if doc.get("gate") != gate:
             problems.append(f"gate {doc.get('gate')!r} != recomputed {gate!r}")
@@ -407,17 +459,20 @@ def verify_attribution(doc, threshold=None):
 
 
 # ---------- collection ----------------------------------------------------
-def collect(trials=TRIALS, allow_dirty=False):
+def collect(trials=TRIALS, allow_dirty=False, points=None):
     binary = ROOT / "build" / "fft_check"
     if not binary.is_file():
         return None, ["build/fft_check missing; run scripts/build.sh check"]
     if trials < 5:
         return None, ["trials must be >= 5 (plan floor)"]
+    selected = tuple(points) if points else POINTS
     manifest = coll.build_manifest("device", allow_dirty)
     ub = ub_peak_bytes()
     problems, transcripts = [], []
-    points = []
-    for n, b in POINTS:
+    points_out = []
+    env_before_doc = coll.env_monitor_snapshot()
+    for n, b in selected:
+        env_before = coll.env_monitor_snapshot()
         pairs, run_probs = [], []
         for i in range(trials):
             order = order_for_trial(i)
@@ -462,11 +517,13 @@ def collect(trials=TRIALS, allow_dirty=False):
             stats = pair_stats(pairs)
             point["stats"] = stats
             point["verdict"] = point_verdict(stats, trials=trials)
+        point["env_monitor"] = {"before": env_before,
+                                "after": coll.env_monitor_snapshot()}
         problems += [f"point n={n} b={b}: {x}" for x in run_probs]
-        points.append(point)
+        points_out.append(point)
     verdicts = {f"{p['n']}x{p['b']}": p["verdict"]
-                for p in points if "verdict" in p}
-    gate = (evaluate_gate(verdicts) if len(verdicts) == len(POINTS)
+                for p in points_out if "verdict" in p}
+    gate = (evaluate_gate(verdicts) if len(verdicts) == len(selected)
             else {"error": "incomplete verdicts"})
     problems += [f"gate: {x}" for x in
                  ([] if "error" not in gate else [gate.pop("error")])]
@@ -478,19 +535,29 @@ def collect(trials=TRIALS, allow_dirty=False):
         "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
         "boundary": "device",
         "impls": list(IMPLS),
-        "grid": [list(p) for p in POINTS],
+        "grid": [list(p) for p in selected],
         "trials_per_point": trials,
         "reps": REPS,
         "threshold": THRESHOLD,
         "kernel_counts": dict(KERNEL_COUNT),
         "ub_peak_bytes": ub,
-        "points": points,
+        "env_monitor": {"before": env_before_doc,
+                        "after": coll.env_monitor_snapshot()},
+        "points": points_out,
         "gate": gate,
         "problems": problems,
         "incomplete": incomplete,
         "status": ("fail" if problems else
                    "incomplete" if incomplete else "pass"),
     }
+    if selected != POINTS:
+        # R1.1: a subset run is an auxiliary cross-session record, not
+        # the plan-gate archive; verify_attribution checks it against
+        # its declared unique subset grid.
+        document["session"] = (
+            "cross-session reproducibility subset "
+            + "/".join(f"{n}x{b}" for n, b in selected)
+            + " (PR-B review R1.1)")
     return (document, transcripts), problems
 
 
@@ -498,6 +565,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--trials", type=int, default=TRIALS,
                     help="paired trials per point (>=5, plan floor)")
+    ap.add_argument("--points", metavar="NxB[,NxB...]",
+                    help="subset of the attribution grid (default: all "
+                         "4 points); a subset run is archived as an "
+                         "independent cross-session record (R1.1)")
+    ap.add_argument("--out-dir", metavar="DIR",
+                    help="output directory (default: "
+                         "results/evidence/long-fft-boundary-attribution)")
     ap.add_argument("--allow-dirty", action="store_true",
                     help="record a patch digest instead of refusing on a "
                          "dirty tree")
@@ -526,17 +600,27 @@ def main(argv=None):
               file=sys.stderr)
         return 2
 
+    selected = None
+    if args.points:
+        try:
+            selected = parse_points(args.points)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+
     result, problems = collect(trials=args.trials,
-                               allow_dirty=args.allow_dirty)
+                               allow_dirty=args.allow_dirty,
+                               points=selected)
     if result is None:
         for p in problems:
             print(p, file=sys.stderr)
         return 2
     document, transcripts = result
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / "outputs.txt").write_text("\n".join(transcripts),
+    out_dir = Path(args.out_dir) if args.out_dir else OUT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "outputs.txt").write_text("\n".join(transcripts),
                                          encoding="utf-8")
-    (OUT_DIR / "attribution.json").write_text(
+    (out_dir / "attribution.json").write_text(
         json.dumps(document, indent=1, ensure_ascii=False) + "\n",
         encoding="utf-8")
     for p in document["points"]:
@@ -551,7 +635,7 @@ def main(argv=None):
     print(f"gate: candidates={document['gate'].get('candidates')} "
           f"fallback_separate={document['gate'].get('fallback_separate')} "
           f"promoted={document['gate'].get('promoted')} -> "
-          f"{document['status']} -> {OUT_DIR}")
+          f"{document['status']} -> {out_dir}")
     if problems:
         for p in problems:
             print(f"  problem: {p}", file=sys.stderr)

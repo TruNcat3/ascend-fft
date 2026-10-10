@@ -69,6 +69,14 @@ def _manifest():
             "allow_dirty": False}
 
 
+def _snap():
+    return {"utc": "2026-10-10T00:00:00+00:00",
+            "loadavg": {"1m": 0.1, "5m": 0.1, "15m": 0.1},
+            "uptime_s": 1.0,
+            "npu_smi": {"npus": [], "chips": [],
+                        "frequency": "unavailable"}}
+
+
 def _point(n, b, delta_pct=-10.0):
     pairs = _pairs(delta_pct)
     stats = aff.pair_stats(pairs)
@@ -80,31 +88,38 @@ def _point(n, b, delta_pct=-10.0):
                 aff.modeled_payload_gm_rw("fused", n, b),
             "launch_blocks": {"separate": 48, "fused": 48},
             "pairs": pairs, "stats": stats,
+            "env_monitor": {"before": _snap(), "after": _snap()},
             "verdict": aff.point_verdict(stats)}
 
 
-def _doc(delta_pct=-10.0):
-    points = [_point(n, b, delta_pct) for n, b in aff.POINTS]
+def _doc(delta_pct=-10.0, selected=None):
+    selected = tuple(selected or aff.POINTS)
+    points = [_point(n, b, delta_pct) for n, b in selected]
     verdicts = {f"{p['n']}x{p['b']}": p["verdict"] for p in points}
-    return {
+    doc = {
         "generated_utc": "2026-10-09T00:00:00+00:00",
         "manifest": _manifest(),
         "command": "python3 scripts/collect_boundary_attribution.py",
         "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
         "boundary": "device",
         "impls": list(aff.IMPLS),
-        "grid": [list(p) for p in aff.POINTS],
+        "grid": [list(p) for p in selected],
         "trials_per_point": 5,
         "reps": aff.REPS,
         "threshold": aff.THRESHOLD,
         "kernel_counts": dict(aff.KERNEL_COUNT),
         "ub_peak_bytes": aff.ub_peak_bytes(),
+        "env_monitor": {"before": _snap(), "after": _snap()},
         "points": points,
         "gate": aff.evaluate_gate(verdicts),
         "problems": [],
         "incomplete": [],
         "status": "pass",
     }
+    if selected != aff.POINTS:
+        doc["session"] = ("cross-session reproducibility subset "
+                          "(PR-B review R1.1)")
+    return doc
 
 
 class ConstantsTest(unittest.TestCase):
@@ -460,6 +475,49 @@ class VerifyAttributionTest(unittest.TestCase):
         doc["points"][3]["pairs"][2]["separate"]["e2e"] = 0.0
         got = aff.verify_attribution(doc)
         self.assertTrue(any("e2e 0.0" in x for x in got))
+
+    def test_missing_env_monitor_rejected(self):
+        doc = _doc()
+        doc.pop("env_monitor")
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("missing top-level key 'env_monitor'" in x
+                            for x in got))
+
+    def test_point_missing_env_monitor_rejected(self):
+        doc = _doc()
+        doc["points"][1].pop("env_monitor")
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("env_monitor.before" in x for x in got))
+
+    def test_session_subset_document_accepted(self):
+        doc = _doc(selected=((65536, 47),))
+        self.assertIn("session", doc)
+        self.assertEqual(aff.verify_attribution(doc), [])
+
+    def test_session_grid_outside_points_rejected(self):
+        doc = _doc(selected=((65536, 47),))
+        doc["grid"] = [[32768, 47], [9999, 9]]
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("session grid" in x for x in got))
+
+    def test_main_archive_must_cover_full_grid(self):
+        doc = _doc(selected=((8192, 1), (16384, 47)))
+        doc.pop("session")           # pretend it is the gate archive
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("grid mismatch" in x for x in got))
+        self.assertTrue(any("2 points != 4" in x for x in got))
+
+
+class ParsePointsTest(unittest.TestCase):
+    def test_parses_and_validates(self):
+        self.assertEqual(aff.parse_points("8192x1,65536x47"),
+                         ((8192, 1), (65536, 47)))
+        with self.assertRaises(ValueError):
+            aff.parse_points("9999x9")
+        with self.assertRaises(ValueError):
+            aff.parse_points("8192x1,8192x1")
+        with self.assertRaises(ValueError):
+            aff.parse_points("")
 
 
 if __name__ == "__main__":
