@@ -45,15 +45,15 @@ cuButterfly 不把计算核心本身作为主贡献，原因不是核心优化�
 也应在同一核心下比较不同的数据流；只有这样才能说明收益来自哪一层。
 
 <figure class="doc-diagram">
-  <a href="../figures/method_layers.svg">
-    <img src="../figures/method_layers.svg" loading="lazy"
+  <a href="../../figures/method_layers.svg">
+    <img src="../../figures/method_layers.svg" loading="lazy"
          alt="从 FFT 依赖图、四因素映射、Ascend lowering 到实测 Plan 的分层方法总览">
   </a>
   <figcaption>
     图中方法分析、局部核心、lowering 和证据连续但可区分。方法分析框架归属于 cuButterfly；
     Ascend-FFT 负责平台 lowering、实现和验证。
-    <span class="doc-diagram__links"><a href="../figures/method_layers.svg">SVG</a> ·
-    <a href="../figures/method_layers.pdf">PDF</a></span>
+    <span class="doc-diagram__links"><a href="../../figures/method_layers.svg">SVG</a> ·
+    <a href="../../figures/method_layers.pdf">PDF</a></span>
   </figcaption>
 </figure>
 
@@ -97,15 +97,15 @@ a = (Us, Ts, Ud, Td, layout, residence, pipeline, processing_unit)
 这些是方法层的概念，不是对当前 C++ 字段数值的重新定义。硬件资源决定哪些组合可行；依赖和布局决定交接是否局部；缓冲容量决定能否驻留；流水与负载量决定是否值得重叠。分块大小和计算核心都可变，不应把某个 K 或 radix 当作范式本身。
 
 <figure class="doc-diagram">
-  <a href="../figures/fft_space_time_example.svg">
-    <img src="../figures/fft_space_time_example.svg" loading="lazy"
+  <a href="../../figures/fft_space_time_example.svg">
+    <img src="../../figures/fft_space_time_example.svg" loading="lazy"
          alt="以八点 FFT 为例，分别说明数据空间 Ud、数据时间 Td、阶段空间 Us 和阶段时间 Ts 如何映射同一依赖图">
   </a>
   <figcaption>
     八点 FFT 只是帮助阅读参数含义的最小实例，不是固定设计点。当前生产路径已经实现数据空间/时间映射
     和单 AIV 的 UB 驻留阶段时间复用；跨 AIV 的阶段角色流水仍需真实传输与同步 lowering。
-    <span class="doc-diagram__links"><a href="../figures/fft_space_time_example.svg">SVG</a> ·
-    <a href="../figures/fft_space_time_example.pdf">PDF</a></span>
+    <span class="doc-diagram__links"><a href="../../figures/fft_space_time_example.svg">SVG</a> ·
+    <a href="../../figures/fft_space_time_example.pdf">PDF</a></span>
   </figcaption>
 </figure>
 

@@ -37,6 +37,8 @@ jobs:
             python scripts/publish_results.py --check --snapshot ascend910_9382-cann9.0.0-v2
           fi
       - run: mkdocs build --strict
+      - name: Check deployed asset links
+        run: python scripts/check_docs_assets.py site --site-prefix /ascend-fft/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -53,15 +53,15 @@ Ascend lowering：AIV 矢量指令 / 私有 UB / MTE 搬运
 流编排中的新候选进行比较。
 
 <figure class="doc-diagram">
-  <a href="../figures/flow_core_space.svg">
-    <img src="../figures/flow_core_space.svg" loading="lazy"
+  <a href="../../figures/flow_core_space.svg">
+    <img src="../../figures/flow_core_space.svg" loading="lazy"
          alt="Ascend FFT 流组织与 radix、Cube 和专用核心的 capability 矩阵，区分生产、探针、未 lowering 和未来候选">
   </a>
   <figcaption>
     `A × P` 交点必须经过 lowering contract。图中特别把向量指令、布局和所有权列为 lowering 属性，
     不再把 vector 与 radix 错画成同一级算术核心。
-    <span class="doc-diagram__links"><a href="../figures/flow_core_space.svg">SVG</a> ·
-    <a href="../figures/flow_core_space.pdf">PDF</a></span>
+    <span class="doc-diagram__links"><a href="../../figures/flow_core_space.svg">SVG</a> ·
+    <a href="../../figures/flow_core_space.pdf">PDF</a></span>
   </figcaption>
 </figure>
 
@@ -85,15 +85,15 @@ GM 交错复数输入
 整个 c2c transform 的中间值在单个 AIV 的 UB 中，不是每一级都写回 GM。多个 AIV 分配独立 batch；单个 AIV 按组循环处理其余批次。满足 repeat、步长和并发约束时，D 个 batch 可共同形成矢量指令工作组。D 的作用是减少重复发射，而不是证明 MTE 与全部计算已经流水重叠。
 
 <figure class="doc-diagram">
-  <a href="../figures/ascend_data_path_detail.svg">
-    <img src="../figures/ascend_data_path_detail.svg" loading="lazy"
+  <a href="../../figures/ascend_data_path_detail.svg">
+    <img src="../../figures/ascend_data_path_detail.svg" loading="lazy"
          alt="当前 Ascend FFT 在单 AIV 私有 UB 中连续执行阶段，与每阶段写回 GM 的反例对照；Td 包围完整变换服务，Ts 包围阶段循环">
   </a>
   <figcaption>
     当前实现不是“核心计算结束后再做时间复用”：`Ts` 包围 UB 内的依赖阶段循环，`Td` 包围完整
     transform 服务，局部 radix 只是循环内部的可替换位置。右侧逐级写回仅为说明代价的反例。
-    <span class="doc-diagram__links"><a href="../figures/ascend_data_path_detail.svg">SVG</a> ·
-    <a href="../figures/ascend_data_path_detail.pdf">PDF</a></span>
+    <span class="doc-diagram__links"><a href="../../figures/ascend_data_path_detail.svg">SVG</a> ·
+    <a href="../../figures/ascend_data_path_detail.pdf">PDF</a></span>
   </figcaption>
 </figure>
 

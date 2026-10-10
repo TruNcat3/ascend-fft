@@ -40,15 +40,15 @@ cuButterfly 的主贡献放在第二部分，是因为第一部分通常已有�
 K 增大并不总能减少成本：平面级指令数、后续组数、行切片和批折叠条件都会变化。当前 K 候选为 8/16/32，通过共享的 [fft_k.hpp](https://github.com/TruNcat3/ascend-fft/blob/master/include/butterfly/fft_k.hpp) 规则选择；host 索引、kernel 和模型必须使用同一规则。这个集合是当前实现 envelope，不是方法规定的固定尺寸。
 
 <figure class="doc-diagram">
-  <a href="../figures/kplane_layout_example.svg">
-    <img src="../figures/kplane_layout_example.svg" loading="lazy"
+  <a href="../../figures/kplane_layout_example.svg">
+    <img src="../../figures/kplane_layout_example.svg" loading="lazy"
          alt="交错复数输入通过 Gather 转为对齐的 K-plane 局部组，经过可替换 radix 核心后再转成 planar 布局继续后续阶段">
   </a>
   <figcaption>
     图中使用 `K=4` 仅为排列示例；生产候选仍是当前合法集合。布局与 Gather 属于计算流，radix 属于
     局部核心，二者共同影响性能但需要分别归因。
-    <span class="doc-diagram__links"><a href="../figures/kplane_layout_example.svg">SVG</a> ·
-    <a href="../figures/kplane_layout_example.pdf">PDF</a></span>
+    <span class="doc-diagram__links"><a href="../../figures/kplane_layout_example.svg">SVG</a> ·
+    <a href="../../figures/kplane_layout_example.pdf">PDF</a></span>
   </figcaption>
 </figure>
 
