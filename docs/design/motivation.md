@@ -44,10 +44,18 @@ cuButterfly 不把计算核心本身作为主贡献，原因不是核心优化�
 所以“计算流优化”和“计算核心优化”不互斥：理想实现应在同一架构映射下选择更好的核心，
 也应在同一核心下比较不同的数据流；只有这样才能说明收益来自哪一层。
 
-![Method layers and contribution boundary](../figures/method_layers.svg)
-
-图中方法分析、局部核心、lowering 和证据是连续但可区分的层次；其中方法分析框架归属于
-cuButterfly，Ascend-FFT 负责其在 Ascend 平台上的具体 lowering、实现和验证。
+<figure class="doc-diagram">
+  <a href="../figures/method_layers.svg">
+    <img src="../figures/method_layers.svg" loading="lazy"
+         alt="从 FFT 依赖图、四因素映射、Ascend lowering 到实测 Plan 的分层方法总览">
+  </a>
+  <figcaption>
+    图中方法分析、局部核心、lowering 和证据连续但可区分。方法分析框架归属于 cuButterfly；
+    Ascend-FFT 负责平台 lowering、实现和验证。
+    <span class="doc-diagram__links"><a href="../figures/method_layers.svg">SVG</a> ·
+    <a href="../figures/method_layers.pdf">PDF</a></span>
+  </figcaption>
+</figure>
 
 ## 1. Roofline 是上界，不是充分的优化策略
 
@@ -87,6 +95,19 @@ a = (Us, Ts, Ud, Td, layout, residence, pipeline, processing_unit)
 | 数据 | Ud：同时处理的独立数据片/批 | Td：同一资源遍历的数据片/批 |
 
 这些是方法层的概念，不是对当前 C++ 字段数值的重新定义。硬件资源决定哪些组合可行；依赖和布局决定交接是否局部；缓冲容量决定能否驻留；流水与负载量决定是否值得重叠。分块大小和计算核心都可变，不应把某个 K 或 radix 当作范式本身。
+
+<figure class="doc-diagram">
+  <a href="../figures/fft_space_time_example.svg">
+    <img src="../figures/fft_space_time_example.svg" loading="lazy"
+         alt="以八点 FFT 为例，分别说明数据空间 Ud、数据时间 Td、阶段空间 Us 和阶段时间 Ts 如何映射同一依赖图">
+  </a>
+  <figcaption>
+    八点 FFT 只是帮助阅读参数含义的最小实例，不是固定设计点。当前生产路径已经实现数据空间/时间映射
+    和单 AIV 的 UB 驻留阶段时间复用；跨 AIV 的阶段角色流水仍需真实传输与同步 lowering。
+    <span class="doc-diagram__links"><a href="../figures/fft_space_time_example.svg">SVG</a> ·
+    <a href="../figures/fft_space_time_example.pdf">PDF</a></span>
+  </figcaption>
+</figure>
 
 这个分析适用于具有分层蝶形依赖的计算，但不意味着所有算子的数值语义、重排和核心成本相同，也不意味着任何硬件上混合流水必然优于成熟库。相关工作已有多种融合、分块和流水技术；本仓库的主张是把这些选择放入统一、可约束和可测量的映射空间，而不是宣称此前没有任何相关分析。
 

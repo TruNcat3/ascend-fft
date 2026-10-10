@@ -1,41 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430">
-  <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#465466"/>
-    </marker>
-    <style>
-      .title { font: 700 22px Arial, sans-serif; fill: #1f2937; }
-      .label { font: 700 16px Arial, sans-serif; fill: #1f2937; }
-      .body { font: 14px Arial, sans-serif; fill: #334155; }
-      .small { font: 13px Arial, sans-serif; fill: #475569; }
-      .gm { fill: #e8f2ff; stroke: #3478c9; stroke-width: 2; }
-      .ub { fill: #fff1df; stroke: #d9822b; stroke-width: 2; }
-      .core { fill: #e8f6ee; stroke: #31805a; stroke-width: 2; }
-      .reuse { fill: #f1eaff; stroke: #7856b8; stroke-width: 2; }
-      .arrow { stroke: #465466; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
-    </style>
-  </defs>
-  <rect width="1200" height="430" fill="#ffffff"/>
-  <text x="600" y="36" text-anchor="middle" class="title">Ascend C2C data path: flow organization around a replaceable core</text>
-  <rect x="38" y="122" width="165" height="122" rx="8" class="gm"/>
-  <text x="120" y="155" text-anchor="middle" class="label">GM input</text>
-  <text x="54" y="185" class="body">interleaved complex</text><text x="54" y="208" class="body">[batch][2N]</text><text x="54" y="231" class="small">MTE DataCopy</text>
-  <line x1="203" y1="183" x2="248" y2="183" class="arrow"/>
-  <rect x="248" y="95" width="185" height="176" rx="8" class="ub"/>
-  <text x="340" y="128" text-anchor="middle" class="label">UB staging</text>
-  <text x="268" y="160" class="body">Gather + de-interleave</text><text x="268" y="183" class="body">K-plane alignment</text><text x="268" y="206" class="body">twiddle / index tiles</text><text x="268" y="239" class="small">32B alignment</text><text x="268" y="258" class="small">private per AIV</text>
-  <line x1="433" y1="183" x2="478" y2="183" class="arrow"/>
-  <rect x="478" y="95" width="210" height="176" rx="8" class="core"/>
-  <text x="583" y="128" text-anchor="middle" class="label">Local processing unit</text>
-  <text x="498" y="160" class="body">radix-2 stages</text><text x="498" y="183" class="body">local radix-4 fusion</text><text x="498" y="206" class="body">vector complex multiply</text><text x="498" y="239" class="small">core choice P</text><text x="498" y="258" class="small">flow choice A stays external</text>
-  <line x1="688" y1="183" x2="733" y2="183" class="arrow"/>
-  <rect x="733" y="95" width="190" height="176" rx="8" class="reuse"/>
-  <text x="828" y="128" text-anchor="middle" class="label">Temporal reuse</text>
-  <text x="753" y="160" class="body">planar stages in UB</text><text x="753" y="183" class="body">D folded batches</text><text x="753" y="206" class="body">repeat / tail control</text><text x="753" y="239" class="small">Ud / Td mapping</text><text x="753" y="258" class="small">no per-stage GM write</text>
-  <line x1="923" y1="183" x2="968" y2="183" class="arrow"/>
-  <rect x="968" y="122" width="165" height="122" rx="8" class="gm"/>
-  <text x="1050" y="155" text-anchor="middle" class="label">GM output</text>
-  <text x="984" y="185" class="body">Gather / interleave</text><text x="984" y="208" class="body">DataCopy</text><text x="984" y="231" class="small">natural order</text>
-  <text x="585" y="337" text-anchor="middle" class="small">Architecture flow A controls reuse and movement; processing unit P is replaceable inside the local box.</text>
-  <text x="600" y="398" text-anchor="middle" class="small">Current production path: one transform stays within one AIV; batch parallelism distributes independent transforms across AIVs.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Current Ascend FFT resident data path versus per-stage materialization</title>
+  <desc id="desc">The production path loads a transform into a private AIV unified buffer, iterates dependent stages around a replaceable arithmetic slot, and writes once. Independent transforms are distributed across AIVs and traversed over data time. A contrasting path writes every stage to global memory.</desc>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0L0 6L9 3z" fill="#425466"/></marker><style>.t{font:700 27px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.h{font:700 17px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.b{font:14px Inter,Segoe UI,Arial,sans-serif;fill:#334155}.s{font:12px Inter,Segoe UI,Arial,sans-serif;fill:#52606d}.e{stroke:#425466;stroke-width:2;fill:none;marker-end:url(#a)}.box{stroke-width:2}.tag{font:700 12px Inter,Segoe UI,Arial,sans-serif}</style></defs>
+  <rect width="1200" height="700" rx="16" fill="#f8fafc"/><text x="48" y="48" class="t">Where time reuse actually lives in the Ascend implementation</text><text x="48" y="77" class="b">Td wraps complete transform service; Ts wraps the dependent stage loop. The processing unit is a slot inside that loop.</text>
+  <rect x="45" y="108" width="735" height="500" rx="12" fill="#edf7ed" stroke="#3b7d44" class="box"/><text x="67" y="143" class="h">Current production path: one transform remains in one AIV's private UB</text>
+  <rect x="68" y="177" width="115" height="58" rx="8" fill="#fff" stroke="#2374ab"/><text x="92" y="202" class="h">GM input</text><text x="84" y="222" class="s">interleaved complex</text><path d="M183 206H225" class="e"/><text x="190" y="194" class="s">MTE</text>
+  <rect x="232" y="164" width="510" height="346" rx="12" fill="#fff" stroke="#3b7d44" class="box"/><text x="254" y="195" class="h">AIV k · private UB</text>
+  <rect x="258" y="220" width="134" height="72" rx="8" fill="#eaf3fb" stroke="#2374ab"/><text x="277" y="247" class="b">load + Gather</text><text x="274" y="269" class="s">bit-reverse · K-plane</text><path d="M392 256H424" class="e"/>
+  <rect x="431" y="212" width="280" height="202" rx="10" fill="#fff4df" stroke="#c58b22" class="box"/><text x="451" y="242" class="h">Ts: dependent stage loop</text>
+  <rect x="454" y="261" width="234" height="54" rx="7" fill="#fff" stroke="#d6a13c"/><text x="475" y="284" class="b">layout-aware partner exchange</text><text x="475" y="304" class="s">Gather / planar grouping</text><path d="M571 315V336" class="e"/>
+  <rect x="454" y="343" width="234" height="50" rx="7" fill="#f2ecf8" stroke="#7750a3"/><text x="473" y="365" class="h">processing-unit slot</text><text x="492" y="384" class="s">radix-2 / local radix-4</text><path d="M688 367C724 367 724 274 696 274" class="e"/><text x="704" y="326" class="s">next stage</text>
+  <path d="M571 414V440" class="e"/><rect x="431" y="447" width="280" height="42" rx="7" fill="#eaf3fb" stroke="#2374ab"/><text x="476" y="473" class="b">output Gather to interleaved layout</text>
+  <rect x="68" y="272" width="115" height="58" rx="8" fill="#fff" stroke="#2374ab"/><text x="89" y="297" class="h">GM output</text><text x="91" y="317" class="s">one final store</text><path d="M232 472C193 472 205 301 183 301" class="e"/>
+  <rect x="258" y="526" width="453" height="55" rx="27" fill="#dff3e5"/><text x="280" y="550" class="h">Td: same AIV repeats this service for bₖ, bₖ₊AIV, ...</text><text x="280" y="571" class="s">Ud: other AIVs process independent transforms in parallel; no inter-transform barrier</text>
+  <rect x="810" y="108" width="345" height="500" rx="12" fill="#fbe8e8" stroke="#b34a4a" class="box"/><text x="832" y="143" class="h">Contrast: materialize every stage</text><text x="832" y="166" class="b">illustrative anti-pattern, not current short path</text>
+  <rect x="840" y="202" width="110" height="48" rx="7" fill="#fff" stroke="#b34a4a"/><text x="869" y="231" class="b">GM read</text><path d="M950 226H982" class="e"/><rect x="989" y="202" width="130" height="48" rx="7" fill="#fff" stroke="#c58b22"/><text x="1018" y="231" class="b">stage s0</text><path d="M1054 250V279" class="e"/>
+  <rect x="989" y="286" width="130" height="48" rx="7" fill="#fff" stroke="#b34a4a"/><text x="1012" y="315" class="b">GM write/read</text><path d="M1054 334V363" class="e"/><rect x="989" y="370" width="130" height="48" rx="7" fill="#fff" stroke="#c58b22"/><text x="1018" y="399" class="b">stage s1</text><path d="M1054 418V447" class="e"/><rect x="989" y="454" width="130" height="48" rx="7" fill="#fff" stroke="#b34a4a"/><text x="1012" y="483" class="b">GM write/read</text><path d="M1054 502V531" class="e"/><rect x="989" y="538" width="130" height="48" rx="7" fill="#fff" stroke="#c58b22"/><text x="1018" y="567" class="b">stage s2</text>
+  <rect x="832" y="370" width="132" height="109" rx="8" fill="#fff" stroke="#b34a4a"/><text x="849" y="398" class="h">Repeated cost</text><text x="849" y="423" class="b">global traffic</text><text x="849" y="446" class="b">launch / handoff</text><text x="849" y="469" class="b">layout materialization</text>
+  <rect x="45" y="630" width="1110" height="42" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="64" y="656" class="b">Current short FFT realizes UB-resident stage-time reuse and data-space/time mapping; it does not yet claim cross-AIV resident stage-role overlap.</text>
 </svg>

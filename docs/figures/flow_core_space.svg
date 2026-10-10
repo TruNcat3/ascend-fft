@@ -1,42 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600">
-  <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#465466"/>
-    </marker>
-    <style>
-      .title { font: 700 22px Arial, sans-serif; fill: #1f2937; }
-      .axis { font: 700 18px Arial, sans-serif; fill: #1f2937; }
-      .cell { font: 15px Arial, sans-serif; fill: #334155; }
-      .small { font: 14px Arial, sans-serif; fill: #475569; }
-      .a { fill: #e8f2ff; stroke: #3478c9; stroke-width: 2; }
-      .p { fill: #fff1df; stroke: #d9822b; stroke-width: 2; }
-      .l { fill: #f1eaff; stroke: #7856b8; stroke-width: 2; }
-      .valid { fill: #e8f6ee; stroke: #31805a; stroke-width: 2; }
-      .reject { fill: #f7f7f7; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 5 4; }
-      .arrow { stroke: #465466; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
-    </style>
-  </defs>
-  <rect width="1100" height="600" fill="#ffffff"/>
-  <text x="550" y="36" text-anchor="middle" class="title">Orthogonal design space: flow organization x processing unit</text>
-  <text x="520" y="76" text-anchor="middle" class="axis">Processing unit P</text>
-  <text x="32" y="285" transform="rotate(-90 32 285)" text-anchor="middle" class="axis">Flow organization A</text>
-  <rect x="180" y="100" width="205" height="62" rx="7" class="p"/><text x="282" y="137" text-anchor="middle" class="cell">radix-2</text>
-  <rect x="400" y="100" width="205" height="62" rx="7" class="p"/><text x="502" y="137" text-anchor="middle" class="cell">radix-4</text>
-  <rect x="620" y="100" width="205" height="62" rx="7" class="p"/><text x="722" y="137" text-anchor="middle" class="cell">vector / Cube</text>
-  <rect x="840" y="100" width="205" height="62" rx="7" class="p"/><text x="942" y="137" text-anchor="middle" class="cell">specialized FFT</text>
-  <rect x="65" y="190" width="95" height="82" rx="7" class="a"/><text x="112" y="224" text-anchor="middle" class="cell">materialized</text><text x="112" y="247" text-anchor="middle" class="cell">stages</text>
-  <rect x="180" y="190" width="205" height="82" rx="7" class="valid"/><text x="282" y="224" text-anchor="middle" class="cell">candidate</text><text x="282" y="248" text-anchor="middle" class="cell">lower + measure</text>
-  <rect x="400" y="190" width="205" height="82" rx="7" class="reject"/><text x="502" y="224" text-anchor="middle" class="cell">possible</text><text x="502" y="248" text-anchor="middle" class="small">contract required</text>
-  <rect x="620" y="190" width="205" height="82" rx="7" class="reject"/><text x="722" y="224" text-anchor="middle" class="cell">possible</text><text x="722" y="248" text-anchor="middle" class="small">contract required</text>
-  <rect x="840" y="190" width="205" height="82" rx="7" class="reject"/><text x="942" y="224" text-anchor="middle" class="cell">possible</text><text x="942" y="248" text-anchor="middle" class="small">contract required</text>
-  <rect x="65" y="300" width="95" height="82" rx="7" class="a"/><text x="112" y="334" text-anchor="middle" class="cell">resident</text><text x="112" y="357" text-anchor="middle" class="cell">subgraph</text>
-  <rect x="180" y="300" width="205" height="82" rx="7" class="valid"/><text x="282" y="334" text-anchor="middle" class="cell">candidate</text><text x="282" y="358" text-anchor="middle" class="cell">if lowered</text>
-  <rect x="400" y="300" width="205" height="82" rx="7" class="reject"/><text x="502" y="334" text-anchor="middle" class="cell">abstract only</text><text x="502" y="358" text-anchor="middle" class="small">not production yet</text>
-  <rect x="620" y="300" width="205" height="82" rx="7" class="reject"/><text x="722" y="334" text-anchor="middle" class="cell">abstract only</text><text x="722" y="358" text-anchor="middle" class="small">not production yet</text>
-  <rect x="840" y="300" width="205" height="82" rx="7" class="reject"/><text x="942" y="334" text-anchor="middle" class="cell">abstract only</text><text x="942" y="358" text-anchor="middle" class="small">not production yet</text>
-  <line x1="112" y1="410" x2="112" y2="472" class="arrow"/>
-  <rect x="180" y="430" width="865" height="72" rx="8" class="l"/>
-  <text x="612" y="459" text-anchor="middle" class="cell">Hardware H + lowering contract: UB, alignment, GM, instruction envelope, ownership and sync</text>
-  <text x="612" y="483" text-anchor="middle" class="small">Only legal intersections enter the model and measured selection; all others abstain.</text>
-  <text x="550" y="555" text-anchor="middle" class="small">Flow and core are conceptually independent, but their physical resource costs are coupled.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="690" viewBox="0 0 1200 690" role="img" aria-labelledby="title desc">
+  <title id="title">Flow organization and processing-unit capability space</title>
+  <desc id="desc">A capability matrix separates production Ascend FFT flow organizations from processing units and proposed lowerings. Vector instructions and layouts are shown as lowering properties, not arithmetic cores.</desc>
+  <defs><style>.t{font:700 27px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.h{font:700 17px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.b{font:14px Inter,Segoe UI,Arial,sans-serif;fill:#334155}.s{font:12px Inter,Segoe UI,Arial,sans-serif;fill:#52606d}.ok{fill:#dff3e5;stroke:#4c9560;stroke-width:2}.probe{fill:#fff0cf;stroke:#c58b22;stroke-width:2}.future{fill:#eef1f5;stroke:#8895a7;stroke-width:1.5;stroke-dasharray:5 4}.tag{font:700 12px Inter,Segoe UI,Arial,sans-serif}</style></defs>
+  <rect width="1200" height="690" rx="16" fill="#f8fafc"/><text x="48" y="48" class="t">Architecture A × processing unit P × lowering contract</text><text x="48" y="76" class="b">A capability map, not a claim that every conceptual intersection has a production kernel.</text>
+  <rect x="45" y="108" width="1110" height="410" rx="12" fill="#fff" stroke="#cbd5e1"/><rect x="45" y="108" width="300" height="410" rx="12" fill="#eef5fb" stroke="#cbd5e1"/>
+  <text x="65" y="143" class="h">Flow organization A</text><text x="365" y="143" class="h">radix-2</text><text x="555" y="143" class="h">local radix-4</text><text x="755" y="143" class="h">AIC / Cube DFT</text><text x="957" y="143" class="h">specialized FFT core</text>
+  <line x1="345" y1="108" x2="345" y2="518" stroke="#cbd5e1"/><line x1="535" y1="108" x2="535" y2="518" stroke="#cbd5e1"/><line x1="735" y1="108" x2="735" y2="518" stroke="#cbd5e1"/><line x1="935" y1="108" x2="935" y2="518" stroke="#cbd5e1"/><line x1="45" y1="164" x2="1155" y2="164" stroke="#cbd5e1"/><line x1="45" y1="276" x2="1155" y2="276" stroke="#cbd5e1"/><line x1="45" y1="388" x2="1155" y2="388" stroke="#cbd5e1"/>
+  <text x="65" y="199" class="h">single-AIV, UB-resident FFT</text><text x="65" y="222" class="b">Ts stage reuse + Ud/Td batch mapping</text><text x="65" y="244" class="s">current production short path</text>
+  <rect x="370" y="183" width="140" height="70" rx="8" class="ok"/><text x="397" y="212" class="h">PRODUCTION</text><text x="394" y="235" class="s">planar stages</text><rect x="560" y="183" width="150" height="70" rx="8" class="ok"/><text x="590" y="212" class="h">PRODUCTION</text><text x="577" y="235" class="s">local stage fusion</text><rect x="760" y="183" width="150" height="70" rx="8" class="probe"/><text x="811" y="212" class="h">PROBE</text><text x="777" y="235" class="s">not an FFT backend</text><rect x="960" y="183" width="170" height="70" rx="8" class="future"/><text x="1008" y="212" class="h">FUTURE</text><text x="979" y="235" class="s">requires callable core</text>
+  <text x="65" y="311" class="h">segmented long FFT</text><text x="65" y="334" class="b">device/host boundary + consumer layout</text><text x="65" y="356" class="s">current experimental path</text>
+  <rect x="370" y="295" width="140" height="70" rx="8" class="ok"/><text x="397" y="324" class="h">EXECUTABLE</text><text x="393" y="347" class="s">segment core</text><rect x="560" y="295" width="150" height="70" rx="8" class="ok"/><text x="589" y="324" class="h">EXECUTABLE</text><text x="580" y="347" class="s">local fusion</text><rect x="760" y="295" width="150" height="70" rx="8" class="future"/><text x="787" y="324" class="h">NOT LOWERED</text><text x="785" y="347" class="s">data path missing</text><rect x="960" y="295" width="170" height="70" rx="8" class="future"/><text x="1010" y="324" class="h">FUTURE</text><text x="976" y="347" class="s">same flow contract</text>
+  <text x="65" y="423" class="h">cross-AIV resident stage roles</text><text x="65" y="446" class="b">producer/consumer overlap + handoff</text><text x="65" y="468" class="s">method-space target, not production</text>
+  <rect x="370" y="407" width="140" height="70" rx="8" class="future"/><text x="388" y="436" class="h">NOT LOWERED</text><text x="389" y="459" class="s">needs real transport</text><rect x="560" y="407" width="150" height="70" rx="8" class="future"/><text x="579" y="436" class="h">NOT LOWERED</text><text x="579" y="459" class="s">same dependency</text><rect x="760" y="407" width="150" height="70" rx="8" class="future"/><text x="787" y="436" class="h">NOT LOWERED</text><text x="788" y="459" class="s">AIC/AIV handoff</text><rect x="960" y="407" width="170" height="70" rx="8" class="future"/><text x="1010" y="436" class="h">FUTURE</text><text x="987" y="459" class="s">candidate only</text>
+  <rect x="45" y="546" width="1110" height="98" rx="12" fill="#fff4df" stroke="#c58b22"/><text x="65" y="578" class="h">Lowering properties are evaluated for every intersection</text><text x="65" y="604" class="b">AIV/AIC ownership · vector instruction shape · K-plane/planar layout · 32 B alignment · UB/workspace</text><rect x="916" y="558" width="214" height="42" rx="21" fill="#fbe8e8"/><text x="947" y="584" class="tag" fill="#8a3030">illegal points never enter ranking</text><text x="65" y="627" class="s">MTE boundary · synchronization. “Vector” is a lowering mechanism, not a peer radix; whole-transform libraries remain external baselines.</text>
 </svg>

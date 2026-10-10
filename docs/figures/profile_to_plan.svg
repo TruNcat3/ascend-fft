@@ -1,39 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330">
-  <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#465466"/>
-    </marker>
-    <style>
-      .title { font: 700 22px Arial, sans-serif; fill: #1f2937; }
-      .label { font: 700 16px Arial, sans-serif; fill: #1f2937; }
-      .body { font: 14px Arial, sans-serif; fill: #334155; }
-      .box { fill: #e8f2ff; stroke: #3478c9; stroke-width: 2; }
-      .filter { fill: #f1eaff; stroke: #7856b8; stroke-width: 2; }
-      .measure { fill: #fff1df; stroke: #d9822b; stroke-width: 2; }
-      .plan { fill: #e8f6ee; stroke: #31805a; stroke-width: 2; }
-      .arrow { stroke: #465466; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
-    </style>
-  </defs>
-  <rect width="1200" height="330" fill="#ffffff"/>
-  <text x="600" y="36" text-anchor="middle" class="title">Hardware-aware selection: profile to executable plan</text>
-  <rect x="28" y="105" width="160" height="112" rx="8" class="box"/>
-  <text x="108" y="136" text-anchor="middle" class="label">Hardware profile</text>
-  <text x="44" y="166" class="body">AIV / UB / GM</text><text x="44" y="188" class="body">alignment / MTE</text><text x="44" y="210" class="body">driver + CANN</text>
-  <line x1="188" y1="161" x2="230" y2="161" class="arrow"/>
-  <rect x="230" y="105" width="170" height="112" rx="8" class="filter"/>
-  <text x="315" y="136" text-anchor="middle" class="label">Legal filter</text>
-  <text x="246" y="166" class="body">UB / sync / layout</text><text x="246" y="188" class="body">capability + lowering</text><text x="246" y="210" class="body">reject invalid pairs</text>
-  <line x1="400" y1="161" x2="442" y2="161" class="arrow"/>
-  <rect x="442" y="105" width="178" height="112" rx="8" class="box"/>
-  <text x="531" y="136" text-anchor="middle" class="label">A x P candidates</text>
-  <text x="458" y="166" class="body">flow mapping A</text><text x="458" y="188" class="body">processing unit P</text><text x="458" y="210" class="body">shape / batch</text>
-  <line x1="620" y1="161" x2="662" y2="161" class="arrow"/>
-  <rect x="662" y="105" width="170" height="112" rx="8" class="measure"/>
-  <text x="747" y="136" text-anchor="middle" class="label">Model + measure</text>
-  <text x="678" y="166" class="body">traffic / ops / sync</text><text x="678" y="188" class="body">correctness gate</text><text x="678" y="210" class="body">held-out profile</text>
-  <line x1="832" y1="161" x2="874" y2="161" class="arrow"/>
-  <rect x="874" y="105" width="160" height="112" rx="8" class="plan"/>
-  <text x="954" y="136" text-anchor="middle" class="label">Executable Plan</text>
-  <text x="890" y="166" class="body">selected A/P</text><text x="890" y="188" class="body">buffers + launch</text><text x="890" y="210" class="body">fallback retained</text>
-  <text x="600" y="276" text-anchor="middle" class="body">The model ranks only legal candidates; profiling explains a result but does not replace timing.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+  <title id="title">Profile-guided candidate selection example</title>
+  <desc id="desc">A semantic workload and hardware profile generate architecture and processing-unit candidates. Candidates with unified-buffer overflow or illegal alignment are rejected before modeling. Correct feasible candidates are measured, and a plan is cached with provenance.</desc>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0L0 6L9 3z" fill="#425466"/></marker><style>.t{font:700 27px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.h{font:700 17px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.b{font:14px Inter,Segoe UI,Arial,sans-serif;fill:#334155}.s{font:12px Inter,Segoe UI,Arial,sans-serif;fill:#52606d}.e{stroke:#425466;stroke-width:2;fill:none;marker-end:url(#a)}.bad{fill:#fbe8e8;stroke:#b34a4a;stroke-width:2}.good{fill:#dff3e5;stroke:#4c9560;stroke-width:2}.tag{font:700 12px Inter,Segoe UI,Arial,sans-serif}</style></defs>
+  <rect width="1200" height="660" rx="16" fill="#f8fafc"/><text x="48" y="48" class="t">From hardware facts to a measured, reusable Plan</text><text x="48" y="76" class="b">Illustrative control flow; it does not prescribe one universal K, D or radix.</text>
+  <rect x="45" y="111" width="220" height="132" rx="12" fill="#eaf3fb" stroke="#2374ab" stroke-width="2"/><text x="65" y="143" class="h">Semantic request</text><text x="65" y="170" class="b">FFT · precision · N · batch</text><text x="65" y="194" class="b">direction · placement · layout</text><text x="65" y="220" class="s">same semantics for every candidate</text>
+  <rect x="45" y="270" width="220" height="159" rx="12" fill="#fff4df" stroke="#c58b22" stroke-width="2"/><text x="65" y="302" class="h">Hardware profile H</text><text x="65" y="329" class="b">AIV/AIC count · UB capacity</text><text x="65" y="353" class="b">alignment · repeat fields</text><text x="65" y="377" class="b">measured launch/op/element rates</text><text x="65" y="405" class="s">rebuild after hardware/toolchain change</text>
+  <path d="M265 177H318" class="e"/><path d="M265 350H294C307 350 307 213 318 213" class="e"/>
+  <rect x="325" y="111" width="250" height="318" rx="12" fill="#edf7ed" stroke="#3b7d44" stroke-width="2"/><text x="345" y="143" class="h">Enumerate A × P</text><text x="345" y="169" class="b">mapping + layout + core + boundary</text>
+  <rect x="347" y="195" width="206" height="60" rx="8" fill="#fff" stroke="#77a981"/><text x="363" y="219" class="b">C₁ · K=32 · D=4 · radix-4</text><text x="363" y="241" class="s">large live state</text><rect x="347" y="271" width="206" height="60" rx="8" fill="#fff" stroke="#77a981"/><text x="363" y="295" class="b">C₂ · direct small-stride access</text><text x="363" y="317" class="s">no K-plane gather</text><rect x="347" y="347" width="206" height="60" rx="8" fill="#fff" stroke="#77a981"/><text x="363" y="371" class="b">C₃ · K=16 · legal fold</text><text x="363" y="393" class="s">radix-2 + local radix-4</text>
+  <path d="M575 225H624" class="e"/><path d="M575 301H624" class="e"/><path d="M575 377H624" class="e"/>
+  <rect x="631" y="111" width="250" height="318" rx="12" fill="#fff" stroke="#cbd5e1" stroke-width="2"/><text x="651" y="143" class="h">Legality gate</text>
+  <rect x="653" y="190" width="206" height="70" rx="8" class="bad"/><text x="671" y="216" class="h">REJECT C₁</text><text x="671" y="239" class="b">UB/workspace exceeds profile</text><rect x="653" y="274" width="206" height="70" rx="8" class="bad"/><text x="671" y="300" class="h">REJECT C₂</text><text x="671" y="323" class="b">32 B access contract violated</text><rect x="653" y="358" width="206" height="50" rx="8" class="good"/><text x="671" y="389" class="h">KEEP C₃</text><text x="773" y="389" class="s">feasible</text>
+  <path d="M881 383H926" class="e"/><rect x="933" y="111" width="222" height="318" rx="12" fill="#f2ecf8" stroke="#7750a3" stroke-width="2"/><text x="953" y="143" class="h">Rank, verify, measure</text>
+  <rect x="955" y="183" width="178" height="54" rx="8" fill="#fff" stroke="#9a78bd"/><text x="977" y="207" class="b">structural cost model</text><text x="992" y="226" class="s">shortlist only</text><path d="M1044 237V261" class="e"/><rect x="955" y="268" width="178" height="54" rx="8" fill="#fff" stroke="#9a78bd"/><text x="985" y="292" class="b">correctness gate</text><text x="993" y="311" class="s">error + semantics</text><path d="M1044 322V346" class="e"/><rect x="955" y="353" width="178" height="54" rx="8" fill="#e8f0fb" stroke="#2374ab"/><text x="977" y="377" class="b">same-protocol timing</text><text x="999" y="396" class="s">event / E2E</text>
+  <path d="M1044 429V470" class="e"/><rect x="823" y="478" width="332" height="108" rx="12" fill="#e8f0fb" stroke="#2374ab" stroke-width="2"/><text x="843" y="510" class="h">Cached executable Plan</text><text x="843" y="537" class="b">mapping + core + indices + coefficients</text><text x="843" y="561" class="b">hardware/toolchain/profile provenance</text>
+  <rect x="45" y="478" width="720" height="108" rx="12" fill="#fff" stroke="#cbd5e1"/><text x="65" y="510" class="h">Why the order matters</text><text x="65" y="537" class="b">Capability filtering prevents an unsupported combination from being “predicted fast.”</text><text x="65" y="561" class="b">The model reduces measurements; it does not replace correctness or observed timing.</text>
+  <path d="M989 586C989 630 448 630 448 430" stroke="#7750a3" stroke-width="2" fill="none" stroke-dasharray="6 5" marker-end="url(#a)"/><text x="610" y="625" class="tag" fill="#68418e">new evidence recalibrates the hardware profile and future rankings</text>
 </svg>
