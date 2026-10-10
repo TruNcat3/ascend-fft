@@ -1,0 +1,2278 @@
+{
+ "generated_utc": "2026-10-10T03:11:04.969260+00:00",
+ "manifest": {
+  "git_sha": "dfc24bd94a95631d5a2eb47d3073184fe88ebc94",
+  "git_dirty": false,
+  "binary": "build/fft_check",
+  "binary_sha256": "90f82de0ff8e4162e1fae4ed6219969b46bdc3d19f7bea435dc6e5768525559b",
+  "kernel_objects": {
+   "fft_radix2.o": "d7c20c72bccaa70f64b547061d9e5e8d77d0ef57b9fc10b08a74ed8e3fcb1d50",
+   "fft_long.o": "e939983a2d7d018e4c4c4d735b020360093d515fa082d764c0b41cc3a95c71af",
+   "fft_real.o": "5fc46ac998ef12c6458b70a76ab1077c7621431d38d59cbf34d3c993849c4100"
+  },
+  "config_sha256": {
+   "ascend910_93_profile.json": "42768522dcdd2d3088dfe5ffbaf7d73a5c1041a8199b4f6c5a1fef27a4ee006f",
+   "butterfly_space.json": "1c6c60fabfc006dbc122158bf2ce7fbe07301c6203fb7db20cab8fd1d9bdb1a4",
+   "long_fft_experiments.json": "a19fbb8fe4de30d4edeb4eb333f2560b13b91fc9a25edbd4e27712eb8f315caf",
+   "test_matrix.json": "d15dfddfaf3ffd1461faebd79a735ba6e2af57954861b128f777b306041e2f2c"
+  },
+  "build": {
+   "script": "bash scripts/build.sh",
+   "recipe": "scripts/env.sh: ab_ccec (ccec -c --cce-aicore-only --npu-soc=$AB_SOC --asc-aicore-lang -O2 -std=c++17 -Iinclude + AB_INC) / ab_cxx (g++ -O2 -std=c++17 -I$AB_CANN/include -Iinclude -lascendcl)"
+  },
+  "soc": "Ascend910_9382",
+  "cann_version": "9.0.0",
+  "driver_version": "26.1.1",
+  "driver_source": "/usr/local/Ascend/driver/version.info",
+  "python": "3.11.15",
+  "env": {},
+  "boundary": "device-fused",
+  "allow_dirty": false
+ },
+ "commands": [
+  {
+   "kind": "aba_seq",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "3"
+   ],
+   "env": [
+    "AB_INPUT_SEQ=impulse,random-seeded,impulse",
+    "AB_E2E=1",
+    "AB_BOUNDARY=device",
+    "AB_LONG_BOUNDARY_IMPL=fused"
+   ],
+   "reps": 3,
+   "note": "first shape"
+  },
+  {
+   "kind": "trial",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "5"
+   ],
+   "env": [
+    "AB_E2E=5",
+    "AB_BOUNDARY=device",
+    "AB_LONG_BOUNDARY_IMPL=fused"
+   ],
+   "reps": 5,
+   "note": "repeated per shape"
+  },
+  {
+   "kind": "e2e",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "3"
+   ],
+   "env": [
+    "AB_E2E=3",
+    "AB_BOUNDARY=device",
+    "AB_LONG_BOUNDARY_IMPL=fused"
+   ],
+   "reps": 3
+  }
+ ],
+ "command": "python3 scripts/collect_long_fft_evidence.py --boundary device-fused",
+ "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
+ "boundary": "device-fused",
+ "impl": "fused",
+ "threshold": 0.0001,
+ "grid": {
+  "ns": [
+   8192,
+   16384,
+   32768,
+   65536
+  ],
+  "bs": [
+   1,
+   3,
+   47
+  ]
+ },
+ "trials_per_shape": 5,
+ "points": [
+  {
+   "n": 8192,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 5.116e-08,
+   "max_abs": 0.0002456,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.503e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 323.9,
+      "e2e_min_us": 301.3,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 674.1,
+       "first_use": 1512.4,
+       "e2e_mean": 309.4,
+       "e2e_min": 303.1,
+       "h2d": 48.4,
+       "device_chain": 162.5,
+       "d2h": 52.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.2,
+       "fft1": 8.9,
+       "transpose_boundary": 55.8,
+       "fft2": 7.1,
+       "transpose_out": 44.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 313.1,
+      "e2e_min_us": 305.8,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 675.2,
+       "first_use": 843.4,
+       "e2e_mean": 305.4,
+       "e2e_min": 300.4,
+       "h2d": 47.7,
+       "device_chain": 162.2,
+       "d2h": 52.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 45.5,
+       "fft1": 9.0,
+       "transpose_boundary": 56.0,
+       "fft2": 7.3,
+       "transpose_out": 44.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 306.9,
+      "e2e_min_us": 298.4,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 678.3,
+       "first_use": 794.4,
+       "e2e_mean": 331.0,
+       "e2e_min": 319.9,
+       "h2d": 45.6,
+       "device_chain": 162.4,
+       "d2h": 57.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.0,
+       "fft1": 8.9,
+       "transpose_boundary": 55.8,
+       "fft2": 7.1,
+       "transpose_out": 44.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 405.8,
+      "e2e_min_us": 362.2,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 712.2,
+       "first_use": 856.6,
+       "e2e_mean": 368.0,
+       "e2e_min": 363.5,
+       "h2d": 61.8,
+       "device_chain": 175.7,
+       "d2h": 69.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 58.8,
+       "fft1": 8.9,
+       "transpose_boundary": 56.1,
+       "fft2": 7.1,
+       "transpose_out": 44.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 373.7,
+      "e2e_min_us": 361.8,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 666.6,
+       "first_use": 836.2,
+       "e2e_mean": 348.5,
+       "e2e_min": 342.8,
+       "h2d": 55.7,
+       "device_chain": 164.7,
+       "d2h": 59.0,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.3,
+       "fft1": 8.9,
+       "transpose_boundary": 56.2,
+       "fft2": 7.5,
+       "transpose_out": 44.9
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 323.9,
+     "min": 306.9,
+     "mean": 344.68,
+     "cv": 0.11187097828543777,
+     "samples": [
+      323.9,
+      313.1,
+      306.9,
+      405.8,
+      373.7
+     ]
+    }
+   }
+  },
+  {
+   "n": 8192,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 1.158e-07,
+   "max_abs": 0.0004779,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.676e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 405.5,
+      "e2e_min_us": 396.3,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 754.4,
+       "first_use": 1941.4,
+       "e2e_mean": 399.3,
+       "e2e_min": 392.7,
+       "h2d": 73.7,
+       "device_chain": 177.6,
+       "d2h": 90.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 60.7,
+       "fft1": 9.3,
+       "transpose_boundary": 55.9,
+       "fft2": 7.2,
+       "transpose_out": 44.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 343.5,
+      "e2e_min_us": 324.5,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 772.9,
+       "first_use": 915.9,
+       "e2e_mean": 335.7,
+       "e2e_min": 319.4,
+       "h2d": 55.9,
+       "device_chain": 162.4,
+       "d2h": 61.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.2,
+       "fft1": 9.3,
+       "transpose_boundary": 55.7,
+       "fft2": 6.6,
+       "transpose_out": 44.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 422.3,
+      "e2e_min_us": 398.1,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 883.4,
+       "first_use": 1062.9,
+       "e2e_mean": 399.9,
+       "e2e_min": 389.1,
+       "h2d": 75.3,
+       "device_chain": 168.6,
+       "d2h": 89.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 52.2,
+       "fft1": 9.3,
+       "transpose_boundary": 55.9,
+       "fft2": 6.6,
+       "transpose_out": 44.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 347.1,
+      "e2e_min_us": 326.6,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 701.7,
+       "first_use": 863.4,
+       "e2e_mean": 348.2,
+       "e2e_min": 339.8,
+       "h2d": 54.7,
+       "device_chain": 172.1,
+       "d2h": 60.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 55.8,
+       "fft1": 9.3,
+       "transpose_boundary": 55.8,
+       "fft2": 6.6,
+       "transpose_out": 44.6
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 400.1,
+      "e2e_min_us": 393.3,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 854.7,
+       "first_use": 1032.4,
+       "e2e_mean": 399.4,
+       "e2e_min": 392.1,
+       "h2d": 76.0,
+       "device_chain": 171.9,
+       "d2h": 83.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.3,
+       "fft1": 9.3,
+       "transpose_boundary": 56.3,
+       "fft2": 7.1,
+       "transpose_out": 45.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 400.1,
+     "min": 343.5,
+     "mean": 383.7,
+     "cv": 0.08396471840900621,
+     "samples": [
+      405.5,
+      343.5,
+      422.3,
+      347.1,
+      400.1
+     ]
+    }
+   }
+  },
+  {
+   "n": 8192,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 1.989e-07,
+   "max_abs": 0.000743,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 2.384e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.954e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 2.384e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 2431.8,
+      "e2e_min_us": 2396.4,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7337.5,
+       "first_use": 3030.0,
+       "e2e_mean": 2396.9,
+       "e2e_min": 2366.1,
+       "h2d": 956.9,
+       "device_chain": 294.0,
+       "d2h": 949.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 52.5,
+       "fft1": 74.2,
+       "transpose_boundary": 69.7,
+       "fft2": 47.2,
+       "transpose_out": 50.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2446.0,
+      "e2e_min_us": 2392.6,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7444.1,
+       "first_use": 3013.9,
+       "e2e_mean": 2442.3,
+       "e2e_min": 2389.3,
+       "h2d": 963.3,
+       "device_chain": 295.2,
+       "d2h": 1024.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.0,
+       "fft1": 74.7,
+       "transpose_boundary": 69.7,
+       "fft2": 47.6,
+       "transpose_out": 50.2
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2481.6,
+      "e2e_min_us": 2379.9,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7607.7,
+       "first_use": 3191.3,
+       "e2e_mean": 2490.0,
+       "e2e_min": 2472.0,
+       "h2d": 978.0,
+       "device_chain": 293.7,
+       "d2h": 994.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 52.6,
+       "fft1": 74.1,
+       "transpose_boundary": 69.8,
+       "fft2": 46.9,
+       "transpose_out": 50.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2464.9,
+      "e2e_min_us": 2330.2,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7431.8,
+       "first_use": 8231.1,
+       "e2e_mean": 2451.9,
+       "e2e_min": 2411.2,
+       "h2d": 1073.3,
+       "device_chain": 296.2,
+       "d2h": 953.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.7,
+       "fft1": 74.8,
+       "transpose_boundary": 70.0,
+       "fft2": 47.2,
+       "transpose_out": 50.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2431.7,
+      "e2e_min_us": 2402.6,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 13755.5,
+       "first_use": 3029.0,
+       "e2e_mean": 2369.0,
+       "e2e_min": 2267.2,
+       "h2d": 948.5,
+       "device_chain": 294.1,
+       "d2h": 943.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 52.6,
+       "fft1": 74.1,
+       "transpose_boundary": 70.0,
+       "fft2": 46.9,
+       "transpose_out": 50.6
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 2446.0,
+     "min": 2431.7,
+     "mean": 2451.2,
+     "cv": 0.007943248405688668,
+     "samples": [
+      2431.8,
+      2446.0,
+      2481.6,
+      2464.9,
+      2431.7
+     ]
+    }
+   }
+  },
+  {
+   "n": 16384,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.001571,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.871e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 335.1,
+      "e2e_min_us": 315.4,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 867.8,
+       "first_use": 849.0,
+       "e2e_mean": 315.9,
+       "e2e_min": 309.5,
+       "h2d": 48.5,
+       "device_chain": 163.0,
+       "d2h": 54.0,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.5,
+       "fft1": 7.9,
+       "transpose_boundary": 56.0,
+       "fft2": 8.1,
+       "transpose_out": 44.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 339.1,
+      "e2e_min_us": 329.6,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 894.4,
+       "first_use": 890.4,
+       "e2e_mean": 336.8,
+       "e2e_min": 322.1,
+       "h2d": 55.5,
+       "device_chain": 165.0,
+       "d2h": 59.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 48.4,
+       "fft1": 7.9,
+       "transpose_boundary": 55.7,
+       "fft2": 8.1,
+       "transpose_out": 44.9
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 327.3,
+      "e2e_min_us": 322.3,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 892.4,
+       "first_use": 829.4,
+       "e2e_mean": 332.4,
+       "e2e_min": 327.6,
+       "h2d": 54.6,
+       "device_chain": 170.0,
+       "d2h": 58.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.5,
+       "fft1": 7.9,
+       "transpose_boundary": 55.8,
+       "fft2": 8.2,
+       "transpose_out": 44.6
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 327.7,
+      "e2e_min_us": 314.2,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 841.3,
+       "first_use": 828.0,
+       "e2e_mean": 324.7,
+       "e2e_min": 309.3,
+       "h2d": 49.9,
+       "device_chain": 162.8,
+       "d2h": 55.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.4,
+       "fft1": 7.9,
+       "transpose_boundary": 56.0,
+       "fft2": 8.1,
+       "transpose_out": 44.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 378.6,
+      "e2e_min_us": 368.3,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 965.6,
+       "first_use": 965.1,
+       "e2e_mean": 370.5,
+       "e2e_min": 363.1,
+       "h2d": 67.2,
+       "device_chain": 171.4,
+       "d2h": 71.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.9,
+       "fft1": 8.0,
+       "transpose_boundary": 56.2,
+       "fft2": 8.2,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 335.1,
+     "min": 327.3,
+     "mean": 341.56000000000006,
+     "cv": 0.05578395185402213,
+     "samples": [
+      335.1,
+      339.1,
+      327.3,
+      327.7,
+      378.6
+     ]
+    }
+   }
+  },
+  {
+   "n": 16384,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.001571,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.871e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 392.8,
+      "e2e_min_us": 381.8,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1168.4,
+       "first_use": 922.1,
+       "e2e_mean": 378.5,
+       "e2e_min": 372.1,
+       "h2d": 78.7,
+       "device_chain": 166.9,
+       "d2h": 82.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.5,
+       "fft1": 10.0,
+       "transpose_boundary": 56.1,
+       "fft2": 9.1,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 397.6,
+      "e2e_min_us": 390.6,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1173.8,
+       "first_use": 3721.6,
+       "e2e_mean": 383.7,
+       "e2e_min": 371.2,
+       "h2d": 78.7,
+       "device_chain": 166.8,
+       "d2h": 86.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.2,
+       "fft1": 9.3,
+       "transpose_boundary": 56.3,
+       "fft2": 9.1,
+       "transpose_out": 44.9
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 386.2,
+      "e2e_min_us": 377.9,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1180.1,
+       "first_use": 903.6,
+       "e2e_mean": 632.7,
+       "e2e_min": 463.5,
+       "h2d": 106.0,
+       "device_chain": 165.3,
+       "d2h": 117.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.0,
+       "fft1": 9.4,
+       "transpose_boundary": 56.0,
+       "fft2": 9.2,
+       "transpose_out": 44.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 402.8,
+      "e2e_min_us": 387.5,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1135.5,
+       "first_use": 917.6,
+       "e2e_mean": 381.9,
+       "e2e_min": 364.8,
+       "h2d": 77.4,
+       "device_chain": 165.8,
+       "d2h": 76.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.6,
+       "fft1": 9.4,
+       "transpose_boundary": 56.0,
+       "fft2": 9.1,
+       "transpose_out": 44.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 390.2,
+      "e2e_min_us": 374.1,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1168.2,
+       "first_use": 926.0,
+       "e2e_mean": 383.7,
+       "e2e_min": 370.4,
+       "h2d": 76.1,
+       "device_chain": 172.8,
+       "d2h": 77.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 52.6,
+       "fft1": 9.4,
+       "transpose_boundary": 56.4,
+       "fft2": 9.4,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 392.8,
+     "min": 386.2,
+     "mean": 393.91999999999996,
+     "cv": 0.014675050246162448,
+     "samples": [
+      392.8,
+      397.6,
+      386.2,
+      402.8,
+      390.2
+     ]
+    }
+   }
+  },
+  {
+   "n": 16384,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.002052,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.961e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 4455.0,
+      "e2e_min_us": 4392.5,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 12979.3,
+       "first_use": 4887.1,
+       "e2e_mean": 4391.2,
+       "e2e_min": 4281.2,
+       "h2d": 1813.9,
+       "device_chain": 382.3,
+       "d2h": 2035.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.9,
+       "fft1": 89.8,
+       "transpose_boundary": 96.4,
+       "fft2": 89.9,
+       "transpose_out": 51.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 4006.0,
+      "e2e_min_us": 3846.5,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 12327.1,
+       "first_use": 4837.1,
+       "e2e_mean": 3941.4,
+       "e2e_min": 3792.2,
+       "h2d": 1552.2,
+       "device_chain": 382.5,
+       "d2h": 1704.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.7,
+       "fft1": 89.5,
+       "transpose_boundary": 96.3,
+       "fft2": 90.5,
+       "transpose_out": 51.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2544.5,
+      "e2e_min_us": 2403.3,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 14565.3,
+       "first_use": 3320.0,
+       "e2e_mean": 2533.1,
+       "e2e_min": 2443.9,
+       "h2d": 932.6,
+       "device_chain": 381.8,
+       "d2h": 1011.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.4,
+       "fft1": 89.9,
+       "transpose_boundary": 96.3,
+       "fft2": 89.9,
+       "transpose_out": 51.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 4588.1,
+      "e2e_min_us": 4475.6,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 12453.1,
+       "first_use": 5026.8,
+       "e2e_mean": 4507.1,
+       "e2e_min": 4408.5,
+       "h2d": 1913.8,
+       "device_chain": 382.3,
+       "d2h": 1897.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.8,
+       "fft1": 89.5,
+       "transpose_boundary": 96.3,
+       "fft2": 90.3,
+       "transpose_out": 51.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 4647.8,
+      "e2e_min_us": 4484.4,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 14950.9,
+       "first_use": 5308.0,
+       "e2e_mean": 4545.6,
+       "e2e_min": 4459.5,
+       "h2d": 1909.7,
+       "device_chain": 383.1,
+       "d2h": 1913.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 55.1,
+       "fft1": 89.8,
+       "transpose_boundary": 96.6,
+       "fft2": 89.8,
+       "transpose_out": 51.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 4455.0,
+     "min": 2544.5,
+     "mean": 4048.28,
+     "cv": 0.19385500022695465,
+     "samples": [
+      4455.0,
+      4006.0,
+      2544.5,
+      4588.1,
+      4647.8
+     ]
+    }
+   }
+  },
+  {
+   "n": 32768,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 3.646e-08,
+   "max_abs": 0.00103,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.488e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 442.6,
+      "e2e_min_us": 429.0,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1350.2,
+       "first_use": 1119.1,
+       "e2e_mean": 432.1,
+       "e2e_min": 416.9,
+       "h2d": 89.4,
+       "device_chain": 174.6,
+       "d2h": 100.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 55.1,
+       "fft1": 9.3,
+       "transpose_boundary": 56.1,
+       "fft2": 9.2,
+       "transpose_out": 45.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 377.8,
+      "e2e_min_us": 351.8,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1278.5,
+       "first_use": 925.8,
+       "e2e_mean": 598.4,
+       "e2e_min": 470.1,
+       "h2d": 100.6,
+       "device_chain": 176.5,
+       "d2h": 120.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 56.1,
+       "fft1": 9.7,
+       "transpose_boundary": 56.3,
+       "fft2": 9.2,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 370.6,
+      "e2e_min_us": 351.1,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1266.0,
+       "first_use": 885.0,
+       "e2e_mean": 363.2,
+       "e2e_min": 349.5,
+       "h2d": 67.4,
+       "device_chain": 172.0,
+       "d2h": 66.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 52.8,
+       "fft1": 9.3,
+       "transpose_boundary": 55.8,
+       "fft2": 9.2,
+       "transpose_out": 45.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 378.4,
+      "e2e_min_us": 365.0,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1245.6,
+       "first_use": 907.2,
+       "e2e_mean": 359.4,
+       "e2e_min": 346.6,
+       "h2d": 66.7,
+       "device_chain": 166.7,
+       "d2h": 67.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.6,
+       "fft1": 9.9,
+       "transpose_boundary": 56.1,
+       "fft2": 9.2,
+       "transpose_out": 44.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 376.7,
+      "e2e_min_us": 367.8,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1257.1,
+       "first_use": 905.1,
+       "e2e_mean": 365.0,
+       "e2e_min": 360.0,
+       "h2d": 69.0,
+       "device_chain": 176.3,
+       "d2h": 69.0,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 55.2,
+       "fft1": 10.1,
+       "transpose_boundary": 56.4,
+       "fft2": 9.5,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 377.8,
+     "min": 370.6,
+     "mean": 389.21999999999997,
+     "cv": 0.06894349506699857,
+     "samples": [
+      442.6,
+      377.8,
+      370.6,
+      378.4,
+      376.7
+     ]
+    }
+   }
+  },
+  {
+   "n": 32768,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 9.733e-08,
+   "max_abs": 0.001199,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 2.041e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 447.7,
+      "e2e_min_us": 424.3,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2370.3,
+       "first_use": 1034.8,
+       "e2e_mean": 433.5,
+       "e2e_min": 420.8,
+       "h2d": 89.2,
+       "device_chain": 174.4,
+       "d2h": 100.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.5,
+       "fft1": 14.5,
+       "transpose_boundary": 56.1,
+       "fft2": 12.1,
+       "transpose_out": 45.2
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 458.4,
+      "e2e_min_us": 427.0,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2344.4,
+       "first_use": 1016.2,
+       "e2e_mean": 433.4,
+       "e2e_min": 423.9,
+       "h2d": 96.1,
+       "device_chain": 175.0,
+       "d2h": 111.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.9,
+       "fft1": 14.5,
+       "transpose_boundary": 56.3,
+       "fft2": 12.3,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 442.5,
+      "e2e_min_us": 434.1,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2364.5,
+       "first_use": 1015.0,
+       "e2e_mean": 432.9,
+       "e2e_min": 424.3,
+       "h2d": 100.3,
+       "device_chain": 173.8,
+       "d2h": 108.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.4,
+       "fft1": 14.5,
+       "transpose_boundary": 56.0,
+       "fft2": 11.6,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 554.3,
+      "e2e_min_us": 533.0,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2733.1,
+       "first_use": 6774.1,
+       "e2e_mean": 536.8,
+       "e2e_min": 529.1,
+       "h2d": 126.4,
+       "device_chain": 174.9,
+       "d2h": 163.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.8,
+       "fft1": 14.5,
+       "transpose_boundary": 56.2,
+       "fft2": 12.3,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 477.2,
+      "e2e_min_us": 442.4,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2921.3,
+       "first_use": 1235.8,
+       "e2e_mean": 446.7,
+       "e2e_min": 439.3,
+       "h2d": 106.7,
+       "device_chain": 175.6,
+       "d2h": 111.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.9,
+       "fft1": 14.6,
+       "transpose_boundary": 56.4,
+       "fft2": 12.5,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 458.4,
+     "min": 442.5,
+     "mean": 476.02,
+     "cv": 0.08592680999578556,
+     "samples": [
+      447.7,
+      458.4,
+      442.5,
+      554.3,
+      477.2
+     ]
+    }
+   }
+  },
+  {
+   "n": 32768,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 1.307e-07,
+   "max_abs": 0.002699,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 2.214e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 8045.8,
+      "e2e_min_us": 7385.2,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 24846.1,
+       "first_use": 8848.5,
+       "e2e_mean": 8136.1,
+       "e2e_min": 7200.8,
+       "h2d": 3200.6,
+       "device_chain": 664.3,
+       "d2h": 3145.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 94.2,
+       "fft1": 177.7,
+       "transpose_boundary": 172.5,
+       "fft2": 129.4,
+       "transpose_out": 90.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 7929.5,
+      "e2e_min_us": 7368.4,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 23384.6,
+       "first_use": 9380.9,
+       "e2e_mean": 7826.0,
+       "e2e_min": 6865.7,
+       "h2d": 3172.9,
+       "device_chain": 655.0,
+       "d2h": 2986.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 83.9,
+       "fft1": 177.7,
+       "transpose_boundary": 173.8,
+       "fft2": 129.5,
+       "transpose_out": 90.2
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 7126.4,
+      "e2e_min_us": 6673.2,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 23813.6,
+       "first_use": 8364.0,
+       "e2e_mean": 7106.8,
+       "e2e_min": 6740.4,
+       "h2d": 2817.4,
+       "device_chain": 662.8,
+       "d2h": 2763.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 92.0,
+       "fft1": 177.8,
+       "transpose_boundary": 172.9,
+       "fft2": 129.1,
+       "transpose_out": 91.2
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 8000.0,
+      "e2e_min_us": 7117.9,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 25353.1,
+       "first_use": 8279.9,
+       "e2e_mean": 7954.6,
+       "e2e_min": 7330.5,
+       "h2d": 3161.9,
+       "device_chain": 655.1,
+       "d2h": 3234.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 84.3,
+       "fft1": 177.8,
+       "transpose_boundary": 173.6,
+       "fft2": 129.5,
+       "transpose_out": 90.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 7959.4,
+      "e2e_min_us": 7007.8,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 23349.3,
+       "first_use": 8688.2,
+       "e2e_mean": 8025.1,
+       "e2e_min": 7119.8,
+       "h2d": 3100.0,
+       "device_chain": 657.6,
+       "d2h": 3057.9,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 83.9,
+       "fft1": 178.0,
+       "transpose_boundary": 175.2,
+       "fft2": 129.9,
+       "transpose_out": 90.6
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 7959.4,
+     "min": 7126.4,
+     "mean": 7812.219999999999,
+     "cv": 0.04417870488738128,
+     "samples": [
+      8045.8,
+      7929.5,
+      7126.4,
+      8000.0,
+      7959.4
+     ]
+    }
+   }
+  },
+  {
+   "n": 65536,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 8.04e-08,
+   "max_abs": 0.002446,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.271e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 441.1,
+      "e2e_min_us": 431.4,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2888.2,
+       "first_use": 1097.1,
+       "e2e_mean": 525.2,
+       "e2e_min": 418.7,
+       "h2d": 92.5,
+       "device_chain": 179.2,
+       "d2h": 104.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.9,
+       "fft1": 11.4,
+       "transpose_boundary": 56.7,
+       "fft2": 11.9,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 443.0,
+      "e2e_min_us": 420.7,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2743.6,
+       "first_use": 988.9,
+       "e2e_mean": 428.8,
+       "e2e_min": 421.4,
+       "h2d": 87.3,
+       "device_chain": 172.6,
+       "d2h": 95.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.1,
+       "fft1": 11.4,
+       "transpose_boundary": 56.8,
+       "fft2": 12.0,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 527.0,
+      "e2e_min_us": 453.3,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 3228.4,
+       "first_use": 1091.2,
+       "e2e_mean": 541.7,
+       "e2e_min": 520.1,
+       "h2d": 127.6,
+       "device_chain": 185.7,
+       "d2h": 135.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 60.7,
+       "fft1": 11.8,
+       "transpose_boundary": 56.5,
+       "fft2": 11.5,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 403.6,
+      "e2e_min_us": 391.4,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7392.1,
+       "first_use": 956.8,
+       "e2e_mean": 599.0,
+       "e2e_min": 385.9,
+       "h2d": 77.4,
+       "device_chain": 178.5,
+       "d2h": 89.0,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.1,
+       "fft1": 11.4,
+       "transpose_boundary": 56.7,
+       "fft2": 12.1,
+       "transpose_out": 45.2
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 517.3,
+      "e2e_min_us": 503.8,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2970.2,
+       "first_use": 1186.5,
+       "e2e_mean": 494.2,
+       "e2e_min": 481.3,
+       "h2d": 108.0,
+       "device_chain": 185.9,
+       "d2h": 134.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 60.1,
+       "fft1": 11.5,
+       "transpose_boundary": 56.8,
+       "fft2": 12.2,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 443.0,
+     "min": 403.6,
+     "mean": 466.4,
+     "cv": 0.10235454724691283,
+     "samples": [
+      441.1,
+      443.0,
+      527.0,
+      403.6,
+      517.3
+     ]
+    }
+   }
+  },
+  {
+   "n": 65536,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 8.04e-08,
+   "max_abs": 0.002615,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.929e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 596.2,
+      "e2e_min_us": 568.2,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 10927.9,
+       "first_use": 1244.0,
+       "e2e_mean": 567.1,
+       "e2e_min": 551.2,
+       "h2d": 150.0,
+       "device_chain": 187.1,
+       "d2h": 167.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.6,
+       "fft1": 19.0,
+       "transpose_boundary": 56.6,
+       "fft2": 19.7,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 598.2,
+      "e2e_min_us": 549.4,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 4640.5,
+       "first_use": 1183.4,
+       "e2e_mean": 564.6,
+       "e2e_min": 555.0,
+       "h2d": 157.3,
+       "device_chain": 187.1,
+       "d2h": 159.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.0,
+       "fft1": 19.0,
+       "transpose_boundary": 56.8,
+       "fft2": 19.2,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 546.8,
+      "e2e_min_us": 535.4,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 4581.8,
+       "first_use": 1162.4,
+       "e2e_mean": 539.3,
+       "e2e_min": 521.3,
+       "h2d": 144.6,
+       "device_chain": 193.2,
+       "d2h": 139.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.3,
+       "fft1": 19.0,
+       "transpose_boundary": 56.4,
+       "fft2": 19.2,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 765.6,
+      "e2e_min_us": 746.8,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 11298.3,
+       "first_use": 1629.2,
+       "e2e_mean": 750.2,
+       "e2e_min": 739.9,
+       "h2d": 192.2,
+       "device_chain": 199.4,
+       "d2h": 285.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 59.2,
+       "fft1": 19.0,
+       "transpose_boundary": 56.7,
+       "fft2": 19.2,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 756.1,
+      "e2e_min_us": 744.1,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7293.7,
+       "first_use": 1405.5,
+       "e2e_mean": 768.4,
+       "e2e_min": 751.1,
+       "h2d": 194.7,
+       "device_chain": 198.7,
+       "d2h": 290.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 57.6,
+       "fft1": 19.1,
+       "transpose_boundary": 56.9,
+       "fft2": 19.3,
+       "transpose_out": 45.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 598.2,
+     "min": 546.8,
+     "mean": 652.58,
+     "cv": 0.13844977212834442,
+     "samples": [
+      596.2,
+      598.2,
+      546.8,
+      765.6,
+      756.1
+     ]
+    }
+   }
+  },
+  {
+   "n": 65536,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 2.267e-07,
+   "max_abs": 0.00558,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 2.531e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 16219.8,
+      "e2e_min_us": 14929.2,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 52720.1,
+       "first_use": 17917.4,
+       "e2e_mean": 16243.4,
+       "e2e_min": 14081.9,
+       "h2d": 6941.3,
+       "device_chain": 1426.8,
+       "d2h": 5644.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 233.3,
+       "fft1": 264.6,
+       "transpose_boundary": 420.0,
+       "fft2": 262.0,
+       "transpose_out": 246.9
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 16552.3,
+      "e2e_min_us": 14592.2,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 49642.2,
+       "first_use": 15913.0,
+       "e2e_mean": 16129.7,
+       "e2e_min": 13583.4,
+       "h2d": 4343.7,
+       "device_chain": 1423.2,
+       "d2h": 6546.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 232.6,
+       "fft1": 262.5,
+       "transpose_boundary": 424.3,
+       "fft2": 261.5,
+       "transpose_out": 242.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 13303.8,
+      "e2e_min_us": 12238.6,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 60507.1,
+       "first_use": 15648.6,
+       "e2e_mean": 12889.1,
+       "e2e_min": 12326.8,
+       "h2d": 4724.0,
+       "device_chain": 1429.1,
+       "d2h": 4181.0,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 237.6,
+       "fft1": 263.2,
+       "transpose_boundary": 418.6,
+       "fft2": 261.7,
+       "transpose_out": 248.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 15877.4,
+      "e2e_min_us": 14149.9,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 51833.4,
+       "first_use": 14378.1,
+       "e2e_mean": 16176.9,
+       "e2e_min": 14997.0,
+       "h2d": 6566.7,
+       "device_chain": 1441.7,
+       "d2h": 6664.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 245.1,
+       "fft1": 264.2,
+       "transpose_boundary": 420.6,
+       "fft2": 261.4,
+       "transpose_out": 250.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 15830.2,
+      "e2e_min_us": 13749.4,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 54966.8,
+       "first_use": 15648.6,
+       "e2e_mean": 15695.5,
+       "e2e_min": 14075.3,
+       "h2d": 6509.9,
+       "device_chain": 1435.4,
+       "d2h": 5722.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 248.2,
+       "fft1": 263.5,
+       "transpose_boundary": 417.0,
+       "fft2": 260.4,
+       "transpose_out": 246.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 15877.4,
+     "min": 13303.8,
+     "mean": 15556.7,
+     "cv": 0.07432244169203742,
+     "samples": [
+      16219.8,
+      16552.3,
+      13303.8,
+      15877.4,
+      15830.2
+     ]
+    }
+   }
+  }
+ ],
+ "short_control": {
+  "n": 4096,
+  "b": 3,
+  "rc": 2,
+  "max_rel": null,
+  "max_abs": null,
+  "seq": [],
+  "seq_summary": "",
+  "e2e_transfers": "",
+  "pass": false,
+  "path": "short"
+ },
+ "e2e_transfers": {
+  "rc": 0,
+  "transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+  "line": "E2E n=8192 batch=1 reps=3 e2e_us=356.0 e2e_min_us=349.7 first_us=363.4 boot_us=688285.6 plan_us=721.5 warmup_us=904.1 mode=async host=chain input=sin"
+ },
+ "problems": [
+  "control: rc=2 (want 0)",
+  "control: overall PASS line missing",
+  "control: max_rel missing",
+  "control: seq has 0 entries, want exactly 3",
+  "control: stale-input summary line missing",
+  "control: E2E transfers line missing"
+ ],
+ "incomplete": [],
+ "status": "fail"
+}

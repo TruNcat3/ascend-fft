@@ -418,6 +418,18 @@ class ModeContractTest(unittest.TestCase):
             else:
                 os.environ["AB_LONG_BOUNDARY_IMPL"] = old
 
+    def test_control_env_pins_default_impl(self):
+        # the short control never runs the long chain, and fft_check
+        # rejects fused+short; device-fused must still get a runnable
+        # control with the canonical default pinned.
+        for mode in ("host", "device", "device-fused"):
+            env = coll.control_env(mode)
+            self.assertEqual(env["AB_LONG_BOUNDARY_IMPL"], "separate", mode)
+            self.assertEqual(env["AB_E2E"], "1", mode)
+            self.assertEqual(env["AB_INPUT_SEQ"],
+                             "impulse,random-seeded,impulse", mode)
+        self.assertNotIn("AB_BOUNDARY", coll.control_env("host"))
+
 
 class ManifestTest(unittest.TestCase):
     def test_git_state(self):

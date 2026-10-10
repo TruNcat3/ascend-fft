@@ -613,6 +613,19 @@ def env_tags(mode):
     return tags
 
 
+def control_env(mode, **extra):
+    """Env for the short-path control run (every mode).
+
+    The impl switch only exists for the long device chain; fft_check
+    rejects fused+short as a misconfig, and the control never runs that
+    chain -- pin the default for device-fused rather than stripping.
+    """
+    pin = ({"AB_LONG_BOUNDARY_IMPL": "separate"}
+           if mode == "device-fused" else {})
+    return mode_env(mode, AB_INPUT_SEQ="impulse,random-seeded,impulse",
+                    **pin, **extra)
+
+
 def mode_env(mode, **extra):
     env = dict(os.environ)
     env.update(BASE_ENV)
@@ -670,8 +683,7 @@ def collect(mode, allow_dirty=False):
             transcripts.append(
                 f"===== long A/B/A n={n} b={b} rc={rc} =====\n{out}")
     rc, out = run(["./build/fft_check", "4096", "3", "3"],
-                  env=mode_env(mode,
-                               AB_INPUT_SEQ="impulse,random-seeded,impulse"))
+                  env=control_env(mode))
     control = {"n": 4096, "b": 3, "rc": rc, **parse_point(out),
                "path": "short"}
     transcripts.append(f"===== short A/B/A control rc={rc} =====\n{out}")
