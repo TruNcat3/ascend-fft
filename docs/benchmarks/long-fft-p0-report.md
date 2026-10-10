@@ -6,14 +6,14 @@
 
 | 项 | 口径 |
 |---|---|
-| 六段事件计时 | `fft_check.cpp` 在 device 边界六次内核发射间插入事件对，`segments:` 行与产生 `device_chain` 最小值的同一次 launch 绑定，`sum(segments) == device_chain`（telescope 恒等）；host/短路径 `segments: NA`。`tests/test_scopes.py` + `tests/test_collect_evidence.py` 锁定 |
+| 六段事件计时 | `fft_check.cpp` 在 device 边界内核发射间插入事件对，`segments:` 行与产生 `device_chain` 最小值的同一次 launch 绑定，`sum(segments) == device_chain`（telescope 恒等）；host/短路径 `segments: NA`。段数随 impl 分支：separate 六段（twiddle 与段边界转置两次发射）、fused 五段（twiddle 并入段边界转置），device 链另打 `boundary_impl:` 自报。`tests/test_scopes.py` + `tests/test_collect_evidence.py` 锁定 |
 | 自研协议 | 每形状 5 独立 trial × 5 reps；host `boundary=2`、device `boundary=0`；同一 binary `sha256=a2186949a9fd` |
 | 基线协议 | `torch.fft.fft`（torch_npu 2.10.0 op-plugin，复→复）同网格，device-only 与 E2E 各 20 reps 取 min；E2E 为 pinned 口径 |
 | 逐 kernel 校验 | msprof `--task-time`（`profile_test.sh --only lfft8k1,lfft16k47,lfft32k47,lfft65k47`），提取值归档于 `results/evidence/long-fft-p0/msprof-task-time.json`，原始 profile 在 `results/profiles/20261009T041621Z/`（本地，不入库） |
 
 归档绑定（全部清洁提交）：device `git=c79a6ebb`、host `git=519e211d`、baseline `git=b186c34b`。
 
-## 2. 六段归因（全网格，5-trial 中位数，µs）
+## 2. 六段归因（separate impl，全网格，5-trial 中位数，µs）
 
 | N | B | transpose-in | FFT1 | twiddle | transpose-boundary | FFT2 | transpose-out | device_chain | chain CV% | E2E | E2E CV% | h2d | d2h |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -30,7 +30,7 @@
 | 65536 | 3 | 55.6 | 19.2 | 21.5 | 45.2 | 19.2 | 45.0 | 205.0 | 2.29 | 620.0 | 19.75 | 161.7 | 173.6 |
 | 65536 | 47 | 234.8 | 264.5 | 335.6 | 237.2 | 264.9 | 247.5 | 1587.0 | 0.22 | 5615.5 | 5.81 | 1797.2 | 1793.9 |
 
-数据源：`results/evidence/long-fft-device-boundary/acceptance.json` 的 `points[].trials.raw[].segments/scopes`。
+数据源：`results/evidence/long-fft-device-boundary/acceptance.json` 的 `points[].trials.raw[].segments/scopes`（`AB_LONG_BOUNDARY_IMPL=separate`，六发射六段）。
 
 ## 3. 优先形状的段占比与解读
 
@@ -105,12 +105,13 @@ msprof 列数据源：`results/evidence/long-fft-p0/msprof-task-time.json`（`su
 
 评论「下一轮退出条件」现状：① 8192×1 仍慢于 host（未满足，已有归因）；② 六段时间可解释 chain（**满足**，§2/§4）；③ 高 CV 未治理（待环境记录）；④ twiddle 融合未做（P1 首项）；⑤ torch_npu 同语义矩阵（**满足**，12/12 §7）。
 
-## 9. 复现
+## 10. 复现
 
 ```bash
 bash scripts/build.sh
 python3 scripts/collect_long_fft_evidence.py              # host, 含 segments
 python3 scripts/collect_long_fft_evidence.py --boundary device
+python3 scripts/collect_long_fft_evidence.py --boundary device-fused # PR-B §9
 python3 scripts/collect_long_fft_evidence.py --verify results/evidence/long-fft-acceptance/acceptance.json
 python3 scripts/bench_long_baseline.py                    # torch_npu 基线
 python3 scripts/bench_long_baseline.py --check            # md ↔ JSON

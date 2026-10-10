@@ -5,7 +5,9 @@ PR #2 stage 1 locks the field vocabulary and applicability matrix:
   h2d            logical-input H2D event span   (long chains only, else NA)
   device_chain   device compute-kernel span of the chain, transfers excluded
                  (host boundary: pass1+pass2 FFT spans; device boundary:
-                  one contiguous 3xtranspose + 2xFFT + 1xtwiddle span)
+                  one contiguous 3xtranspose + 2xFFT + 1xtwiddle span, or —
+                  with AB_LONG_BOUNDARY_IMPL=fused — the same chain with
+                  twiddle fused into the boundary transpose, 5 launches)
   d2h            logical-output D2H event span  (long chains only, else NA)
 
 Both boundary styles use the same names with the same semantics; ranges that
@@ -27,6 +29,10 @@ FIELDS = ("plan_setup", "first_use", "e2e_mean", "e2e_min",
 # P0 六段分解（PR #2 性能评论）：device 边界链的内核执行序。
 SEGMENT_FIELDS = ("transpose_in", "fft1", "twiddle",
                   "transpose_boundary", "fft2", "transpose_out")
+
+# PR-B R1：fused impl 把 twiddle 并入段边界转置（5 次发射，无 twiddle 段）。
+IMPLS = ("separate", "fused")
+FUSED_SEGMENT_FIELDS = tuple(f for f in SEGMENT_FIELDS if f != "twiddle")
 
 _MODES = ("short", "long_host", "long_device")
 
@@ -123,13 +129,31 @@ def validate_scopes(fields, mode, slack_frac=0.10, slack_us=200.0):
     return problems
 
 
+def parse_boundary_impl(line):
+    """Parse the `boundary_impl: fused|separate` line (device chains only).
+
+    Returns "fused" or "separate"; raises ValueError on any other value or
+    malformed line.  Absence of the line is a separate concern (collect's
+    parse_trial records None), so this only validates an observed line.
+    """
+    if not isinstance(line, str) or not line.startswith("boundary_impl:"):
+        raise ValueError("not a boundary_impl line: %r" % (line,))
+    value = line[len("boundary_impl:"):].strip()
+    if value not in IMPLS:
+        raise ValueError("unknown boundary_impl %r (expected one of %r)"
+                         % (value, IMPLS,))
+    return value
+
+
 def parse_segments(line):
     """Parse the `segments:` line emitted next to `scopes:`.
 
-    Returns a dict of six per-kernel spans in microseconds for the device
-    boundary chain, or None for the literal `segments: NA` (host boundary
-    and short path have no six-kernel device chain).  Raises ValueError on a
-    malformed line or missing/extra segment fields.
+    Returns a dict of per-kernel spans in microseconds for the device
+    boundary chain — all six names for the separate impl, the five fused
+    names (no `twiddle`) for the fused impl — or None for the literal
+    `segments: NA` (host boundary and short path have no device chain).
+    Raises ValueError on a malformed line or unknown segment field; the
+    exact expected field set is enforced by validate_segments(..., impl=).
     """
     if not isinstance(line, str) or not line.startswith("segments:"):
         raise ValueError("not a segments line: %r" % (line,))
@@ -139,35 +163,47 @@ def parse_segments(line):
     fields = {}
     for name in SEGMENT_FIELDS:
         m = re.search(r"\b%s=([0-9.eE+-]+) us\b" % name, body)
-        if not m:
-            raise ValueError("missing segment %s: %r" % (name, line))
-        fields[name] = float(m.group(1))
+        if m:
+            fields[name] = float(m.group(1))
+    if not fields:
+        raise ValueError("no segment fields: %r" % (line,))
     for name in set(re.findall(r"([a-z0-9_]+)=", body)) - set(SEGMENT_FIELDS):
         raise ValueError("unexpected segment field %r: %r" % (name, line))
     return fields
 
 
-def validate_segments(seg, fields, mode, rel_tol=0.01, abs_tol_us=20.0):
+def validate_segments(seg, fields, mode, impl="separate",
+                      rel_tol=0.01, abs_tol_us=20.0):
     """Applicability + range + telescoping checks for a `segments:` dict.
 
     `seg` is the parsed dict (or None for NA), `fields` the parsed scopes
-    dict, `mode` one of _MODES.  The six spans must come from the same
-    launch as device_chain, so sum(seg) == device_chain up to event-clock
-    float noise; a larger gap means the segment events stopped telescoping
-    (e.g. an event pair was moved across a memcpy).
+    dict, `mode` one of _MODES, `impl` one of IMPLS: a separate chain must
+    report all six spans (twiddle and boundary transpose as two launches),
+    a fused chain exactly the five without `twiddle`.  The spans must come
+    from the same launch as device_chain, so sum(seg) == device_chain up
+    to event-clock float noise; a larger gap means the segment events
+    stopped telescoping (e.g. an event pair was moved across a memcpy).
     """
     problems = []
     if mode not in _MODES:
         return ["unknown mode %r (expected one of %r)" % (mode, _MODES,)]
+    if impl not in IMPLS:
+        return ["unknown impl %r (expected one of %r)" % (impl, IMPLS,)]
     if mode != "long_device":
         if seg is not None:
             problems.append("segments must be NA on %s, got %r" % (mode, seg))
         return problems
+    expected = SEGMENT_FIELDS if impl == "separate" else FUSED_SEGMENT_FIELDS
+    want = "six" if impl == "separate" else "five"
     if seg is None:
-        problems.append("long_device chain must report the six segments")
+        problems.append("long_device chain must report the %s segments"
+                        % want)
         return problems
+    if impl == "fused" and "twiddle" in seg:
+        problems.append("fused chain must not report the twiddle segment "
+                        "(twiddle is fused into transpose_boundary)")
     total = 0.0
-    for name in SEGMENT_FIELDS:
+    for name in expected:
         v = seg.get(name)
         if not isinstance(v, (int, float)):
             problems.append("segment %s missing" % name)

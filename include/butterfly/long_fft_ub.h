@@ -20,6 +20,25 @@
  * (bRow/bAr/bWp/bR/bEx/bIn) => 24 bytes per row element. */
 #define AB_TWIDDLE_UB_BYTES(len) (24ull * (unsigned long long)(len))
 
+/* Fused boundary chain (PR-B / R1): kfft_lt_tr gains the tw tile buffer bTw
+ * (tileN*2 floats, loaded with the data tile's DataCopyParams) when it
+ * consumes `tw`.  The stripe planarize/multiply machinery (planar data,
+ * planar tw, product, three index tables) is carved out of bOut's lifetime,
+ * so the peak is exactly four tile buffers:
+ *   AB_FUSED_UB_BYTES = AB_TRANSPOSE_UB_BYTES + LT_H*LT_W*8 = 128 KiB <= 192.
+ * Single .o entry: the compiler's static layout includes bTw on every path,
+ * so the descriptor gates EVERY kfft_lt_tr launch at this peak (separate
+ * chains pass tw=nullptr and skip the twiddle phase at runtime). */
+#define AB_FUSED_UB_BYTES                                                 \
+  (AB_TRANSPOSE_UB_BYTES +                                                \
+   (unsigned long long)AB_LT_H * (unsigned long long)AB_LT_W * 8ull)
+
+/* Stripe length (complex elements) for the fused in-tile twiddle: the three
+ * planar regions need 3*2*K floats and the three index tables 4*K uint32 in
+ * bOut (2*tileN floats), i.e. 10*K <= 2*LT_H*LT_W must hold (locked by
+ * test_limits: 10*512*4 = 20480 <= 32768). */
+#define AB_FUSE_STRIPE_K 512u
+
 /* kfft_fwd peak UB: exact InitBuffer sum of src/ascendc/fft_radix2.cpp as a
  * function of the stage length n, the batch fold D (arg byte 0, resolved by
  * bfly::foldDFor(len, launch_rows, 48) or the AB_FOLD_D override) and the

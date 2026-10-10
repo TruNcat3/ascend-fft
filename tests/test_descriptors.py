@@ -8,7 +8,10 @@ CANN), runs its machine-readable case table, and checks
     back as `abstract-feasible-but-not-lowered`, never as supported),
   - the launch manifest matches the runtime: 6 device-boundary launches in
     transpose_in|row_fft|twiddle|transpose_boundary|row_fft|transpose_out
-    order, 2 host-boundary row_fft launches, 1 materialized GM boundary each,
+    order (PR-B: 5 launches with boundary_impl=Fused, twiddle merged into
+    transpose_boundary, boundary_edge unchanged), 2 host-boundary row_fft
+    launches, 1 materialized GM boundary each, and gm_rw bytes = launches x
+    2 x n x batch x 8,
   - the builtin H profile stays in sync with config/ascend910_93_profile.json,
   - batch only adds data-dimension work (identical lowering structure),
   - fft_check queries the lowering contract before any allocation or launch.
@@ -29,6 +32,7 @@ EXPECTED_CASES = {
     "default_65536_b3": (True, None),
     "batch_4096_independent": (True, None),
     "default_device_gm": (True, None),
+    "fused_device_gm": (True, None),
     "cell_resident_not_lowered": (False, NOT_LOWERED),
     "us2_not_lowered": (False, NOT_LOWERED),
     "td99_not_lowered": (False, NOT_LOWERED),
@@ -149,29 +153,54 @@ class DescriptorLegalityTests(unittest.TestCase):
         self.assertEqual(struct["host_assisted"], "0")
         self.assertEqual(struct["on_chip"], "0")
         self.assertEqual(struct["abstract"], "1")
+        # GM accounting (PR-B): 6 launches x 2 x n x batch x 8 bytes,
+        # 8192x1 tensor -> 6 * 2 * 65536 = 786432.
+        self.assertEqual(struct["gm_rw"], "786432")
+
+    def test_fused_device_chain_manifest_is_five_launches(self):
+        # PR-B R1: boundary_impl=Fused drops the twiddle record; the merged
+        # boundary transpose keeps the single GM edge, UB peak unchanged
+        # (bTw statically reserved in kfft_lt_tr), GM bytes lose one
+        # launch's full read+write.
+        struct = self.structs["fused_device_gm"]
+        self.assertEqual(struct["launches"], "5")
+        self.assertEqual(struct["kinds"],
+                         "transpose_in|row_fft|transpose_boundary|"
+                         "row_fft|transpose_out")
+        self.assertEqual(struct["gm_boundaries"], "1")
+        self.assertEqual(struct["host_assisted"], "0")
+        self.assertEqual(struct["on_chip"], "0")
+        self.assertEqual(struct["abstract"], "1")
+        self.assertEqual(struct["ub_peak"], "131072")
+        self.assertEqual(struct["gm_rw"], "655360")
+        self.assertEqual(int(struct["gm_rw"]) + 2 * 8192 * 8,
+                         int(self.structs["default_device_gm"]["gm_rw"]))
 
     def test_plan_ub_is_serial_peak_not_sum(self):
-        # device peak = transpose 3*128*32*8 = 98304 (twiddle/rowFFT smaller
-        # at these stages); host peak = row FFT AB_ROW_FFT_UB_BYTES with the
-        # launch's rows-aware D: len128/rows64 -> D=1,K=8 -> 6208 (R0.1,
-        # was 6080 under the stale 46.5n+128 macro).
-        self.assertEqual(self.structs["default_device_gm"]["ub_peak"], "98304")
+        # device peak = transpose 3*128*32*8 = 98304 plus the statically
+        # reserved twiddle tile 128*32*8 = 32768 -> AB_FUSED_UB_BYTES
+        # 131072 (PR-B; was 98304 before bTw). Host peak = row FFT
+        # AB_ROW_FFT_UB_BYTES with the launch's rows-aware D:
+        # len128/rows64 -> D=1,K=8 -> 6208 (R0.1, was 6080 under the stale
+        # 46.5n+128 macro).
+        self.assertEqual(self.structs["default_device_gm"]["ub_peak"],
+                         "131072")
         self.assertEqual(self.structs["default_host_memory"]["ub_peak"], "6208")
         self.assertEqual(self.structs["ub_exact_transpose_peak"]["ub_peak"],
-                         "98304")
+                         "131072")
 
     def test_ub_below_transpose_peak_rejects_device_not_host(self):
         # the discriminating boundary: same 80000 B UB, host chain fits,
-        # device chain must not (kfft_lt_tr peak 98304)
+        # device chain must not (kfft_lt_tr peak 131072)
         status, reason = self.cases["ub_below_transpose_peak"]
         self.assertEqual(status, "UNSUPPORTED")
         self.assertIn("UB overflow", reason)
         self.assertIn("kfft_lt_tr", reason)
-        self.assertIn("98304", reason)
+        self.assertIn("131072", reason)
         self.assertEqual(self.cases["ub_host_ok_at_80000"][0], "SUPPORTED")
 
     def test_rowfft_checked_after_transpose_threshold(self):
-        # ub == 98304: transpose passes, then kfft_fwd (191616 B) rejects
+        # ub == 131072: transpose passes, then kfft_fwd (191616 B) rejects
         status, reason = self.cases["ub_rowfft_checked_after_transpose"]
         self.assertEqual(status, "UNSUPPORTED")
         self.assertIn("UB overflow", reason)
@@ -190,12 +219,14 @@ class DescriptorLegalityTests(unittest.TestCase):
     def test_batch_is_data_dimension_not_architectural(self):
         # Since R0.1 the row-FFT resource is rows-aware (fold D depends on the
         # launch's row count), so ub_peak may grow with batch: 6208 (b=1) vs
-        # 17536 (b=4096, D=4).  The ARCHITECTURE -- launches, kinds, GM
-        # boundaries, feasibility -- must stay batch-independent.
+        # 17536 (b=4096, D=4), and gm_rw scales linearly with the tensor.
+        # The ARCHITECTURE -- launches, kinds, GM boundaries, feasibility --
+        # must stay batch-independent.
         a = dict(self.structs["default_8192"])
         b = dict(self.structs["batch_4096_independent"])
         a.pop("ub_peak")
         b.pop("ub_peak")
+        gm_a, gm_b = a.pop("gm_rw"), b.pop("gm_rw")
         self.assertEqual(a, b,
                          "batch must not change the lowering structure")
         self.assertEqual(self.structs["default_8192"]["ub_peak"], "6208")
@@ -205,6 +236,8 @@ class DescriptorLegalityTests(unittest.TestCase):
             int(self.structs["batch_4096_independent"]["ub_peak"]),
             int(self.structs["default_8192"]["ub_peak"]),
             "larger batch -> larger fold D -> larger exact UB (documented)")
+        self.assertEqual(int(gm_b), 4096 * int(gm_a),
+                         "gm_rw must scale linearly with the tensor")
 
     def test_fft_check_queries_before_allocation_and_launch(self):
         src = (ROOT / "src" / "host" / "fft_check.cpp").read_text()

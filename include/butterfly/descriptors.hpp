@@ -57,6 +57,19 @@ enum class Residence { None, CellResident, BlockResident, WorkerResident };
 // Where the inter-stage boundary is materialized when it leaves on-chip storage.
 enum class BoundaryHome { HostMemory, DeviceGM, OnChip };
 
+// PR-B R1: how the device chain materializes the inter-stage boundary.
+//   Separate (default): 6 launches (transpose-in, row-FFT, twiddle,
+//                        transpose-boundary, row-FFT, transpose-out)
+//   Fused:              5 launches -- kfft_lt_tr consumes the twiddle table
+//                        in the same launch as the boundary transpose.
+// Only meaningful for BoundaryHome::DeviceGM; host chains keep the host-side
+// scalar boundary regardless.
+enum class BoundaryImpl { Separate, Fused };
+
+inline const char* boundary_impl_name(BoundaryImpl i){
+  return i == BoundaryImpl::Fused ? "fused" : "separate";
+}
+
 inline const char* residence_name(Residence r){
   switch(r){
     case Residence::None:           return "none";
@@ -78,6 +91,10 @@ struct ArchitectureMapping {
   Residence residence = Residence::None;
   Layout boundary_layout = Layout::TwiddledStage;
   BoundaryHome boundary_home = BoundaryHome::HostMemory;
+  // Device-boundary launch shape (PR-B): fft_check fills this from
+  // AB_LONG_BOUNDARY_IMPL before query_lowering, so the manifest (5/6
+  // launches), the GM-byte accounting and the runtime launch agree.
+  BoundaryImpl boundary_impl = BoundaryImpl::Separate;
   int pipeline_buffers = 1;
   // Row-FFT resource overrides (0 = derive): mirror the AB_FOLD_D / AB_PLANE_K
   // test hooks so the descriptor gate and the launch resolve the SAME (D,K)
@@ -232,16 +249,38 @@ inline KernelResource row_fft_resource(uint32_t len, uint32_t launch_rows,
                         "UB(n,D,K) with the launch's fold D and plane K"};
 }
 inline KernelResource transpose_resource(){
+  // kfft_lt_tr is one .o entry with the fused tw path statically included
+  // (bTw in InitBuffer), so EVERY launch of it is gated at AB_FUSED_UB_BYTES
+  // = 128 KiB (PR-B; was 96 KiB when the kernel had three buffers only).
   return KernelResource{"kfft_lt_tr", CoreKind::AIVVectorCore,
-                        (size_t)AB_TRANSPOSE_UB_BYTES,
+                        (size_t)AB_FUSED_UB_BYTES,
                         SyncScope::AIVIntraCore,
-                        "fixed LT_H x LT_W tile, shape independent"};
+                        "fused-capable LT_H x LT_W tile (bIn+bOut+bIdx+bTw), "
+                        "shape independent"};
 }
 inline KernelResource twiddle_resource(uint32_t len){
   return KernelResource{"kfft_lt_tw", CoreKind::AIVVectorCore,
                         (size_t)AB_TWIDDLE_UB_BYTES(len),
                         SyncScope::AIVIntraCore,
                         "half-row chunking over one stage length"};
+}
+
+// GM-byte accounting for one execute (PR-B): every lowered launch streams
+// one full complex tensor in and one full tensor out of global memory
+// (row FFT reads its input tensor and writes its output tensor; transpose
+// and in-place twiddle read + write the chain tensor).  H2D/D2H are host
+// transfers, not manifest launches, and are excluded.  The fused boundary
+// chain drops one launch's full read+write (2 * n * batch * 8 bytes).
+inline uint64_t launch_gm_rw_bytes(LaunchKind k, uint64_t tensor_bytes){
+  switch(k){
+    case LaunchKind::RowFFT:
+    case LaunchKind::TransposeIn:
+    case LaunchKind::Twiddle:
+    case LaunchKind::TransposeBoundary:
+    case LaunchKind::TransposeOut:
+      return 2ull * tensor_bytes;
+  }
+  return 2ull * tensor_bytes;
 }
 
 // Plan-level UB for serial launches is the PEAK of the per-kernel records,
@@ -274,6 +313,9 @@ struct LoweringResult {
   int materialized_gm_boundaries = 0;       // stage edges that touch GM/host memory
                                             // (sum of boundary_edge flags)
   size_t plan_ub_bytes = 0;                 // serial plan UB peak over the manifest
+  uint64_t gm_rw_bytes = 0;                 // GM read+write bytes of one execute's
+                                            // manifest launches (kernel traffic only;
+                                            // H2D/D2H excluded, PR-B accounting)
   Residence resident_subgraph = Residence::None;
   bool whole_transform_on_chip = false;
   bool host_assisted = false;               // boundary crosses host memory today
@@ -411,16 +453,30 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
   // --- executable: derive the manifest, then derive every count from it ---
   std::vector<LaunchRecord> man;
   if(m.boundary_home == BoundaryHome::DeviceGM){
-    // addendum §3 device chain: transpose-in -> FFT-1 -> twiddle ->
-    // transpose-boundary -> FFT-2 -> transpose-out (all on device, no host hop).
-    man = {
-      {LaunchKind::TransposeIn,       0, 0},
-      {LaunchKind::RowFFT,            0, 0},
-      {LaunchKind::Twiddle,           0, 0},
-      {LaunchKind::TransposeBoundary, 1, 1},  // consumes the GM stage edge
-      {LaunchKind::RowFFT,            1, 0},
-      {LaunchKind::TransposeOut,      1, 0},
-    };
+    if(m.boundary_impl == BoundaryImpl::Fused){
+      // PR-B R1 fused chain: the twiddle launches inside kfft_lt_tr at the
+      // stage edge, so the manifest drops the Twiddle record; the merged
+      // boundary transpose still consumes the edge (boundary_edge = 1) and
+      // its UB peak is AB_FUSED_UB_BYTES.
+      man = {
+        {LaunchKind::TransposeIn,       0, 0},
+        {LaunchKind::RowFFT,            0, 0},
+        {LaunchKind::TransposeBoundary, 1, 1},  // fused: twiddle+transpose, edge here
+        {LaunchKind::RowFFT,            1, 0},
+        {LaunchKind::TransposeOut,      1, 0},
+      };
+    }else{
+      // addendum §3 device chain: transpose-in -> FFT-1 -> twiddle ->
+      // transpose-boundary -> FFT-2 -> transpose-out (no host hop).
+      man = {
+        {LaunchKind::TransposeIn,       0, 0},
+        {LaunchKind::RowFFT,            0, 0},
+        {LaunchKind::Twiddle,           0, 0},
+        {LaunchKind::TransposeBoundary, 1, 1},  // consumes the GM stage edge
+        {LaunchKind::RowFFT,            1, 0},
+        {LaunchKind::TransposeOut,      1, 0},
+      };
+    }
   }else{ // HostMemory: host does transpose/twiddle/reorder between the two FFTs
     man = {
       {LaunchKind::RowFFT, 0, 0},
@@ -429,6 +485,15 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
   }
   r.launch_manifest = std::move(man);
   r.visible_launches = (int)r.launch_manifest.size();
+  {
+    // GM traffic of the chain, derived from the same manifest the runtime
+    // launches (PR-B): separate device chain 6*2T, fused 5*2T, T = n*batch*8.
+    const uint64_t tensor_bytes = 8ull * (uint64_t)spec.n * (uint64_t)spec.batch;
+    uint64_t rw = 0;
+    for(const auto& rec : r.launch_manifest)
+      rw += launch_gm_rw_bytes(rec.kind, tensor_bytes);
+    r.gm_rw_bytes = rw;
+  }
 
   // Per-kernel UB fit, checked in launch order (transpose launches come
   // first in the device manifest, so a UB below the transpose peak is

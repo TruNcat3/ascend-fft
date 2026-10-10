@@ -7,6 +7,9 @@ Every number in the report is recomputed here from committed archives only:
   results/evidence/long-fft-baseline/baseline.json            torch_npu baseline (§7)
   results/evidence/long-fft-p0/msprof-task-time.json          msprof §4 (extracted once
       from the local profile run via scripts/sum_prof.py; profiles stay uncommitted)
+  results/evidence/long-fft-device-boundary-fused/acceptance.json
+      PR-B R1 fused chain (§9); section rendered only when this archive
+      exists, so pre-PR-B renders stay byte-identical
 
   python3 scripts/gen_p0_report.py            # rewrite the report
   python3 scripts/gen_p0_report.py --check    # fail on drift (lock chain)
@@ -27,10 +30,14 @@ DEVICE = EVIDENCE / "long-fft-device-boundary" / "acceptance.json"
 HOST = EVIDENCE / "long-fft-acceptance" / "acceptance.json"
 BASELINE = EVIDENCE / "long-fft-baseline" / "baseline.json"
 MSPROF = EVIDENCE / "long-fft-p0" / "msprof-task-time.json"
+FUSED = EVIDENCE / "long-fft-device-boundary-fused" / "acceptance.json"
 OUT = ROOT / "docs" / "benchmarks" / "long-fft-p0-report.md"
 
 SEGS = ("transpose_in", "fft1", "twiddle", "transpose_boundary", "fft2",
         "transpose_out")
+# PR-B R1: fused chains report five spans (twiddle merged into the boundary
+# transpose), so archive-derived segment iteration must follow the impl.
+FUSED_SEGS = tuple(k for k in SEGS if k != "twiddle")
 PRIORITY = ((8192, 1), (16384, 47), (32768, 47), (65536, 47))
 
 
@@ -59,7 +66,7 @@ def _pct0(value):
                                             rounding=ROUND_HALF_UP))
 
 
-def _chain_rows(doc):
+def _chain_rows(doc, segs=SEGS):
     rows = []
     for p in doc["points"]:
         raw = p["trials"]["raw"]
@@ -68,7 +75,7 @@ def _chain_rows(doc):
         rows.append({
             "n": p["n"], "b": p["b"],
             "segs": {k: _med([r["segments"][k] for r in raw])
-                     for k in SEGS},
+                     for k in segs},
             "chain": _med(chains), "chain_cv": _cv_pct(chains),
             "e2e": _med(e2es), "e2e_cv": _cv_pct(e2es),
             "h2d": _med([r["scopes"]["h2d"] for r in raw]),
@@ -82,9 +89,9 @@ def _host_e2e(doc):
             for p in doc["points"]}
 
 
-def _shares(row):
+def _shares(row, segs=SEGS):
     """Segment share of chain (%), 1-decimal half-up Decimals."""
-    return {k: _r1(row["segs"][k] / row["chain"] * 100.0) for k in SEGS}
+    return {k: _r1(row["segs"][k] / row["chain"] * 100.0) for k in segs}
 
 
 def _shape_key(n, b):
@@ -96,6 +103,7 @@ def render():
     host_doc = _load(HOST)
     base = _load(BASELINE)
     msp = _load(MSPROF)
+    fused_doc = _load(FUSED) if FUSED.is_file() else None
 
     dev = _chain_rows(dev_doc)
     dev_map = {(r["n"], r["b"]): r for r in dev}
@@ -203,10 +211,12 @@ def render():
     a("")
     a("| 项 | 口径 |")
     a("|---|---|")
-    a("| 六段事件计时 | `fft_check.cpp` 在 device 边界六次内核发射间插入事件对，"
+    a("| 六段事件计时 | `fft_check.cpp` 在 device 边界内核发射间插入事件对，"
       "`segments:` 行与产生 `device_chain` 最小值的同一次 launch 绑定，"
       "`sum(segments) == device_chain`（telescope 恒等）；host/短路径 "
-      "`segments: NA`。`tests/test_scopes.py` + "
+      "`segments: NA`。段数随 impl 分支：separate 六段（twiddle 与段边界"
+      "转置两次发射）、fused 五段（twiddle 并入段边界转置），device 链"
+      "另打 `boundary_impl:` 自报。`tests/test_scopes.py` + "
       "`tests/test_collect_evidence.py` 锁定 |")
     a(f"| 自研协议 | 每形状 {dev_doc['trials_per_shape']} 独立 trial × "
       f"{dev_doc['trials_per_shape']} reps；host `boundary=2`、device "
@@ -219,10 +229,13 @@ def render():
       f"`{MSPROF.relative_to(ROOT)}`，原始 profile 在 "
       f"`{profile_dir}/`（本地，不入库） |")
     a("")
-    a(f"归档绑定（全部清洁提交）：device `git={dev_git}`、host "
-      f"`git={host_git}`、baseline `git={base_git}`。")
+    bound = (f"归档绑定（全部清洁提交）：device `git={dev_git}`、host "
+             f"`git={host_git}`、baseline `git={base_git}`")
+    if fused_doc is not None:
+        bound += f"、fused `git={fused_doc['manifest']['git_sha'][:8]}`"
+    a(bound + "。")
     a("")
-    a("## 2. 六段归因（全网格，5-trial 中位数，µs）")
+    a("## 2. 六段归因（separate impl，全网格，5-trial 中位数，µs）")
     a("")
     a("| N | B | transpose-in | FFT1 | twiddle | transpose-boundary | FFT2 | "
       "transpose-out | device_chain | chain CV% | E2E | E2E CV% | h2d | d2h |")
@@ -237,7 +250,9 @@ def render():
           f"{r['h2d']:.1f} | {r['d2h']:.1f} |")
     a("")
     a("数据源：`results/evidence/long-fft-device-boundary/acceptance.json` "
-      "的 `points[].trials.raw[].segments/scopes`。")
+      "的 `points[].trials.raw[].segments/scopes`（`AB_LONG_BOUNDARY_IMPL"
+      "=separate`，六发射六段"
+      + ("；fused 五段对照见 §9" if fused_doc is not None else "") + "）。")
     a("")
     a("## 3. 优先形状的段占比与解读")
     a("")
@@ -370,7 +385,9 @@ def render():
     a(f"1. **融合 twiddle + transpose-boundary**（`fft_long.cpp`，"
       "`kfft_lt_tr` 签名已带 `tw`）：目标消掉最大单段（"
       f"{_pct0(min(tw_b47))}%–{_pct0(max(tw_b47))}%）+ 中间态一整次 GM 写读；"
-      "验收 = 六段计时 + GM 字节 + A/B/A，六内核路径保留 incumbent。")
+      "验收 = 六段计时 + GM 字节 + A/B/A，六内核路径保留 incumbent"
+      + ("（PR-B 已落地 separate/fused 双路径，对照见 §9）"
+         if fused_doc is not None else "") + "。")
     a(f"2. **转置成本**（`8192×1` 占 {tr8192x1}%、b=47 合计 "
       f"{_pct0(min(tr_b47))}%–{_pct0(max(tr_b47))}%）：tile/LT_H×LT_W "
       "参数化、双缓冲（当前 3×32KB UB，`long_fft_ub.h` 模型已就位）、"
@@ -383,17 +400,61 @@ def render():
     cond1 = ("不再慢于 host（满足）" if ratio_8192x1 >= 1.0
              else "仍慢于 host（未满足，已有归因）")
     mark5 = "**满足**" if npass == 12 else "**未满足**"
+    cond4 = ("twiddle 融合已做（PR-B separate/fused 双路径，§9）"
+             if fused_doc is not None else "twiddle 融合未做（P1 首项）")
     a(f"评论「下一轮退出条件」现状：① 8192×1 {cond1}；"
       "② 六段时间可解释 chain（**满足**，§2/§4）；"
-      "③ 高 CV 未治理（待环境记录）；④ twiddle 融合未做（P1 首项）；"
+      f"③ 高 CV 未治理（待环境记录）；④ {cond4}；"
       f"⑤ torch_npu 同语义矩阵（{mark5}，{npass}/12 §7）。")
     a("")
-    a("## 9. 复现")
+    if fused_doc is not None:
+        fu = _chain_rows(fused_doc, segs=FUSED_SEGS)
+        fu_map = {(r["n"], r["b"]): r for r in fu}
+        a("## 9. PR-B R1：twiddle 并入边界转置（separate vs fused 对照）")
+        a("")
+        a("`AB_LONG_BOUNDARY_IMPL` 双路径：separate = 六次发射六段"
+          "（twiddle 独立成段），fused = 五次发射五段（`kfft_lt_tr` 在段"
+          "边界转置的读入 tile 内复乘 twiddle，`tw` 参数直接消费）。"
+          f"归档 `{FUSED.relative_to(ROOT)}`：`boundary={fused_doc['boundary']}`、"
+          f"`impl={fused_doc.get('impl')}`，每 trial 自报 "
+          "`boundary_impl: fused` 且段数契约由 collect 逐 trial 校验"
+          "（`segments` 五段 telescope 进 `device_chain`）。"
+          "链与 E2E 均为 5-trial 中位数：")
+        a("")
+        a("| 形状 | separate chain | fused chain | Δ chain | separate E2E "
+          "| fused E2E | Δ E2E |")
+        a("|---|---|---|---|---|---|---|")
+        dchain, de2e = [], []
+        for r in dev:
+            f = fu_map.get((r["n"], r["b"]))
+            if f is None:
+                continue
+            d = (f["chain"] - r["chain"]) / r["chain"] * 100.0
+            de = (f["e2e"] - r["e2e"]) / r["e2e"] * 100.0
+            dchain.append(d)
+            de2e.append(de)
+            a(f"| {_shape_key(r['n'], r['b'])} | {r['chain']:.1f} | "
+              f"{f['chain']:.1f} | {d:+.1f}% | {r['e2e']:.1f} | "
+              f"{f['e2e']:.1f} | {de:+.1f}% |")
+        a("")
+        fused_faster = sum(1 for d in dchain if d < 0)
+        a(f"- fused 在 {fused_faster}/{len(dchain)} 个形状上缩短 device_chain"
+          f"（Δ 中位数 {statistics.median(dchain):+.1f}%，"
+          f"最差 {max(dchain):+.1f}%）；E2E 因 H2D+D2H 占比被稀释"
+          f"（ΔE2E 中位数 {statistics.median(de2e):+.1f}%）。")
+        a("- 本表是全网格初测（非交错序）；晋升门槛"
+          "（≥4/5 配对不慢且中位数改善 ≥5%，任一点回退 >3% 则保留 "
+          "separate fallback）以 4 优先点 `8192×1 / 16384×47 / 32768×47 / "
+          "65536×47` 的 separate/fused 交错 ≥5 trial 归因为准。")
+        a("")
+    a("## 10. 复现")
     a("")
     a("```bash")
     a("bash scripts/build.sh")
     a("python3 scripts/collect_long_fft_evidence.py              # host, 含 segments")
     a("python3 scripts/collect_long_fft_evidence.py --boundary device")
+    a("python3 scripts/collect_long_fft_evidence.py --boundary device-fused "
+      "# PR-B §9")
     a("python3 scripts/collect_long_fft_evidence.py --verify "
       "results/evidence/long-fft-acceptance/acceptance.json")
     a("python3 scripts/bench_long_baseline.py                    # torch_npu 基线")

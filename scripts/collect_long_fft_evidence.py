@@ -21,6 +21,10 @@ unit-tested in tests/test_collect_evidence.py):
     every raw rc==0, PASS/maxRel captured and under threshold, all timing
     fields finite, host and device scopes validated via scopes.validate_scopes,
     and stats are recomputed from raw (the cached block is output-only);
+  - PR-B impl contract: device chains report the impl-matched segment
+    decomposition (six spans separate / five fused, telescoping into
+    device_chain) plus a matching `boundary_impl:` self-report; host
+    chains report segments=NA and no boundary_impl line;
   - manifest: clean git tree is required (or --allow-dirty records a patch
     digest), sha256(build/fft_check), sha256 of the runtime kernel objects
     (fft_radix2.o / fft_long.o / fft_real.o), sha256 of config/*.json, build
@@ -37,6 +41,10 @@ unit-tested in tests/test_collect_evidence.py):
       # addendum §3 device-materialized 段边界（AB_BOUNDARY=device）：
       # 同一网格 + A/B/A，段边界不回宿主 => 期望 E2E boundary=0，
       # 证据写入 results/evidence/long-fft-device-boundary/。
+  python3 scripts/collect_long_fft_evidence.py --boundary device-fused
+      # PR-B R1：device 链 + AB_LONG_BOUNDARY_IMPL=fused（twiddle 并入段
+      # 边界转置，5 发射 5 段），证据写入
+      # results/evidence/long-fft-device-boundary-fused/（不覆盖旧档）。
   --allow-dirty       记录 patch digest 后继续（默认脏树直接拒绝发布证据）
   --allow-incomplete  driver/哈希不全时仍发布（status 保持 incomplete）
   --verify PATH       对已存 acceptance.json 跑归档级校验后退出
@@ -63,11 +71,17 @@ THRESHOLD = 1e-4
 EXPECTED_SEQ = ("impulse", "random-seeded", "impulse")
 TRIALS = 5
 # 全部执行带 AB_E2E：逐点断言段边界传输契约——
-# host 模式 = 宿主中介链 boundary=2（行为锁定）；device 模式 = 不回宿主 boundary=0。
+# host 模式 = 宿主中介链 boundary=2（行为锁定）；device/device-fused 模式 =
+# 不回宿主 boundary=0，fused 额外锁定 AB_LONG_BOUNDARY_IMPL（mode_env 统一置）。
 BASE_ENV = {"AB_E2E": "1"}
-BOUNDARY_BY_MODE = {"host": "boundary=2", "device": "boundary=0"}
+BOUNDARY_BY_MODE = {"host": "boundary=2", "device": "boundary=0",
+                    "device-fused": "boundary=0"}
 OUT_BY_MODE = {"host": "long-fft-acceptance",
-               "device": "long-fft-device-boundary"}
+               "device": "long-fft-device-boundary",
+               "device-fused": "long-fft-device-boundary-fused"}
+# PR-B R1：每种采集模式对应的段边界发射形态（fused 只在 device-fused 出现）。
+IMPL_BY_MODE = {"host": "separate", "device": "separate",
+                "device-fused": "fused"}
 
 
 def run(args, env=None):
@@ -121,6 +135,14 @@ def parse_trial(out):
                     "")
     sample["segments"] = (scopes.parse_segments(seg_line)
                           if seg_line else None)
+    # PR-B：device 链自报发射形态（5/6 段归属的运行时佐证）；宿主/短路径无此行。
+    bi_line = next((l for l in out.splitlines()
+                    if l.startswith("boundary_impl:")), "")
+    if bi_line:
+        scopes.parse_boundary_impl(bi_line)   # malformed => ValueError
+        sample["boundary_impl"] = bi_line.split(":", 1)[1].strip()
+    else:
+        sample["boundary_impl"] = None
     return sample
 
 
@@ -136,8 +158,14 @@ def compute_stats(values):
 
 
 # ---------- hard acceptance (pure; unit-tested) --------------------------
-def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True):
-    """Explicit problems for one long shape; [] == accepted."""
+def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True,
+                 impl="separate"):
+    """Explicit problems for one long shape; [] == accepted.
+
+    `impl` (PR-B) selects the segment contract: separate device chains
+    must report six spans, fused chains five (no twiddle), and every raw
+    device trial must self-report the matching `boundary_impl:` line.
+    """
     problems = []
     if p.get("rc") != 0:
         problems.append(f"rc={p.get('rc')} (want 0)")
@@ -238,23 +266,41 @@ def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True):
                         if isinstance(v, (int, float)) and not _finite(v):
                             problems.append(
                                 f"trial[{i}] scope {name} not finite: {v!r}")
-                # P0 six-segment instrumentation: device chains must report
-                # the full decomposition (telescoping into device_chain);
-                # host chains must keep the explicit NA.
+                # PR-B segment instrumentation: device chains must report
+                # the impl-matched decomposition (six spans separate, five
+                # fused, telescoping into device_chain) plus the matching
+                # boundary_impl self-report; host chains keep explicit NA
+                # and no boundary_impl line.
                 seg = s.get("segments", "unset")
+                bi = s.get("boundary_impl")
                 if expect_boundary == "boundary=0":
+                    want = "six" if impl == "separate" else "five"
                     if not fields or seg in (None, "unset"):
                         problems.append(
-                            f"trial[{i}] device chain missing six segments")
+                            f"trial[{i}] device chain missing {want} "
+                            f"segments ({impl})")
                     else:
                         problems += [
                             f"trial[{i}] {x}" for x in
                             scopes.validate_segments(seg, fields,
-                                                     "long_device")]
-                elif expect_boundary and seg not in (None,):
-                    problems.append(
-                        f"trial[{i}] host chain must report segments=NA, "
-                        f"got {seg!r}")
+                                                     "long_device",
+                                                     impl=impl)]
+                    # attest only when the trial actually carries the key:
+                    # parse_trial always records it for new collections
+                    # (None when the line was absent), while pre-PR-B
+                    # archives predate it entirely.
+                    if "boundary_impl" in s and bi != impl:
+                        problems.append(
+                            f"trial[{i}] boundary_impl {bi!r} != {impl!r}")
+                else:
+                    if expect_boundary and seg not in (None,):
+                        problems.append(
+                            f"trial[{i}] host chain must report "
+                            f"segments=NA, got {seg!r}")
+                    if bi is not None:
+                        problems.append(
+                            f"trial[{i}] host chain must not report "
+                            f"boundary_impl, got {bi!r}")
             # Stats are an output cache: recompute from raw so a tampered
             # median/min/mean/cv can never drift from the archived samples.
             recomputed = compute_stats([(s or {}).get("e2e_us")
@@ -328,14 +374,25 @@ def verify_document(doc, threshold=None):
     expect = BOUNDARY_BY_MODE.get(boundary)
     if expect is None:
         return [f"unknown boundary {boundary!r}"]
+    # PR-B：impl 归属（无 impl 键的旧档 = separate，天然向后兼容）；档头
+    # boundary 与 impl 必须互相印证，防止单方面改键绕过段数契约。
+    impl = doc.get("impl", "separate")
+    if impl not in scopes.IMPLS:
+        return [f"unknown impl {impl!r} (expected one of {scopes.IMPLS})"]
+    problems = []
+    want_impl = IMPL_BY_MODE.get(boundary)
+    if want_impl is not None and impl != want_impl:
+        problems.append(f"impl {impl!r} != {want_impl!r} for "
+                        f"boundary {boundary!r}")
     thr = doc.get("threshold", THRESHOLD) if threshold is None else threshold
     grid = doc.get("grid") or {}
-    problems = [f"grid: {x}" for x in
-                verify_grid(doc["points"], tuple(grid.get("ns") or ()),
-                            tuple(grid.get("bs") or ()))]
+    problems += [f"grid: {x}" for x in
+                 verify_grid(doc["points"], tuple(grid.get("ns") or ()),
+                             tuple(grid.get("bs") or ()))]
     for p in doc["points"]:
         problems += [f"point n={p.get('n')} b={p.get('b')}: {x}"
-                     for x in verify_point(p, expect, threshold=thr)]
+                     for x in verify_point(p, expect, threshold=thr,
+                                           impl=impl)]
     problems += [f"control: {x}" for x in
                  verify_control(doc["short_control"], threshold=thr)]
     problems += [f"e2e: {x}" for x in
@@ -547,17 +604,31 @@ def build_manifest(mode, allow_dirty):
 
 
 # ---------- collection ---------------------------------------------------
+def env_tags(mode):
+    """Env contract recorded next to each archived command argv."""
+    tags = []
+    if mode in ("device", "device-fused"):
+        tags.append("AB_BOUNDARY=device")
+    tags.append(f"AB_LONG_BOUNDARY_IMPL={IMPL_BY_MODE[mode]}")
+    return tags
+
+
 def mode_env(mode, **extra):
     env = dict(os.environ)
     env.update(BASE_ENV)
-    if mode == "device":
+    if mode in ("device", "device-fused"):
         env["AB_BOUNDARY"] = "device"
+    # pin the impl for every mode: host runs must not inherit a stray
+    # AB_LONG_BOUNDARY_IMPL=fused from the ambient environment (fft_check
+    # rejects fused+host), and each device mode gets its contracted shape.
+    env["AB_LONG_BOUNDARY_IMPL"] = IMPL_BY_MODE[mode]
     env.update(extra)
     return env
 
 
 def collect(mode, allow_dirty=False):
     expect_boundary = BOUNDARY_BY_MODE[mode]
+    impl = IMPL_BY_MODE[mode]
     binary = ROOT / "build" / "fft_check"
     if not binary.is_file():
         return None, ["build/fft_check missing; run scripts/build.sh check"]
@@ -571,9 +642,7 @@ def collect(mode, allow_dirty=False):
                 commands.append({"kind": "aba_seq", "argv": seq_cmd,
                                  "env": [
                                      "AB_INPUT_SEQ=impulse,random-seeded,impulse",
-                                     "AB_E2E=1"] +
-                                    (["AB_BOUNDARY=device"]
-                                     if mode == "device" else []),
+                                     "AB_E2E=1"] + env_tags(mode),
                                  "reps": 3, "note": "first shape"})
             rc, out = run(seq_cmd, env=mode_env(
                 mode, AB_INPUT_SEQ="impulse,random-seeded,impulse"))
@@ -589,8 +658,7 @@ def collect(mode, allow_dirty=False):
                         commands[-1]["kind"] != "trial":
                     commands.append(
                         {"kind": "trial", "argv": trial_cmd,
-                         "env": ["AB_E2E=5"] + (["AB_BOUNDARY=device"]
-                                                if mode == "device" else []),
+                         "env": ["AB_E2E=5"] + env_tags(mode),
                          "reps": 5, "note": "repeated per shape"})
                 sample = parse_trial(outt)
                 sample["rc"] = rct
@@ -619,8 +687,7 @@ def collect(mode, allow_dirty=False):
            "line": (re.search(r"^(E2E n=.*)$", out, re.M).group(1)
                     if re.search(r"^E2E n=.*$", out, re.M) else "")}
     commands.append({"kind": "e2e", "argv": e2e_cmd,
-                     "env": ["AB_E2E=3"] + (["AB_BOUNDARY=device"]
-                                            if mode == "device" else []),
+                     "env": ["AB_E2E=3"] + env_tags(mode),
                      "reps": 3})
     transcripts.append(f"===== E2E transfer assertion rc={rc} =====\n{out}")
 
@@ -628,7 +695,7 @@ def collect(mode, allow_dirty=False):
     problems += [f"grid: {p}" for p in verify_grid(points)]
     for p in points:
         problems += [f"point n={p['n']} b={p['b']}: {x}"
-                     for x in verify_point(p, expect_boundary)]
+                     for x in verify_point(p, expect_boundary, impl=impl)]
     problems += [f"control: {x}" for x in verify_control(control)]
     problems += [f"e2e: {x}" for x in verify_e2e(e2e, expect_boundary)]
     incomplete = manifest_incomplete(manifest)
@@ -638,9 +705,10 @@ def collect(mode, allow_dirty=False):
         "manifest": manifest,
         "commands": commands,
         "command": "python3 scripts/collect_long_fft_evidence.py"
-                   + (" --boundary device" if mode == "device" else ""),
+                   + (f" --boundary {mode}" if mode != "host" else ""),
         "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
         "boundary": mode,
+        "impl": impl,
         "threshold": THRESHOLD,
         "grid": {"ns": list(NS), "bs": list(BS)},
         "trials_per_shape": TRIALS,
@@ -657,7 +725,9 @@ def collect(mode, allow_dirty=False):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--boundary", choices=("host", "device"), default="host")
+    ap.add_argument("--boundary",
+                    choices=("host", "device", "device-fused"),
+                    default="host")
     ap.add_argument("--allow-dirty", action="store_true",
                     help="record a patch digest instead of refusing on a "
                          "dirty tree")
