@@ -1,190 +1,190 @@
 ===== long A/B/A n=8192 b=1 rc=0 =====
 long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
-E2E n=8192 batch=1 reps=1 e2e_us=277.8 e2e_min_us=277.8 first_us=277.8 boot_us=661983.5 plan_us=610.9 warmup_us=767.4 mode=async host=chain input=sin
+E2E n=8192 batch=1 reps=1 e2e_us=390.1 e2e_min_us=390.1 first_us=390.1 boot_us=674058.5 plan_us=768.9 warmup_us=1015.8 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=610.9 us first_use=765.6 us host_end_to_end mean=275.2 min=273.0 us h2d=50.3 us device_chain=20.8 us d2h=51.9 us reps=3
+scopes: plan_setup=768.9 us first_use=1013.8 us host_end_to_end mean=374.1 min=367.7 us h2d=60.8 us device_chain=45.9 us d2h=70.4 us reps=3
 segments: NA
 seq[0]=impulse maxRel=0.000e+00 PASS
 seq[1]=random-seeded maxRel=1.503e-07 PASS
 seq[2]=impulse maxRel=0.000e+00 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=8192 batch=1 blocks=48  maxAbs=7.197e-04 maxRel=1.020e-07 (worst idx 8163)
-kfft_fwd: 275.2 us/call over 3 reps (min 273.0 us) med 273.4 us
+kfft_fwd: 374.1 us/call over 3 reps (min 367.7 us) med 376.9 us
 PASS
 
 ===== long A/B/A n=8192 b=3 rc=0 =====
 long backend: n=8192 split N1=64 N2=128 rows1=384 rows2=192 gm_bytes=589824
-E2E n=8192 batch=3 reps=1 e2e_us=416.1 e2e_min_us=416.1 first_us=416.1 boot_us=664797.7 plan_us=681.1 warmup_us=959.2 mode=async host=chain input=sin
+E2E n=8192 batch=3 reps=1 e2e_us=547.8 e2e_min_us=547.8 first_us=547.8 boot_us=672466.9 plan_us=581.2 warmup_us=1196.6 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=681.1 us first_use=957.1 us host_end_to_end mean=393.2 min=371.2 us h2d=63.2 us device_chain=20.7 us d2h=67.0 us reps=3
+scopes: plan_setup=581.2 us first_use=1195.2 us host_end_to_end mean=478.0 min=470.9 us h2d=73.5 us device_chain=45.6 us d2h=85.6 us reps=3
 segments: NA
 seq[0]=impulse maxRel=1.192e-07 PASS
 seq[1]=random-seeded maxRel=1.676e-07 PASS
 seq[2]=impulse maxRel=1.192e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=8192 batch=3 blocks=48  maxAbs=7.197e-04 maxRel=1.158e-07 (worst idx 8163)
-kfft_fwd: 393.2 us/call over 3 reps (min 371.2 us) med 396.7 us
+kfft_fwd: 478.0 us/call over 3 reps (min 470.9 us) med 473.6 us
 PASS
 
 ===== long A/B/A n=8192 b=47 rc=0 =====
 long backend: n=8192 split N1=64 N2=128 rows1=6016 rows2=3008 gm_bytes=9240576
-E2E n=8192 batch=47 reps=1 e2e_us=2875.5 e2e_min_us=2875.5 first_us=2875.5 boot_us=662794.6 plan_us=6695.1 warmup_us=3350.0 mode=async host=chain input=sin
+E2E n=8192 batch=47 reps=1 e2e_us=6085.8 e2e_min_us=6085.8 first_us=6085.8 boot_us=634879.6 plan_us=7352.7 warmup_us=6494.2 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=6695.1 us first_use=3348.2 us host_end_to_end mean=2870.5 min=2828.6 us h2d=270.3 us device_chain=166.6 us d2h=245.3 us reps=3
+scopes: plan_setup=7352.7 us first_use=6491.3 us host_end_to_end mean=6139.8 min=6044.4 us h2d=1060.7 us device_chain=166.7 us d2h=1002.6 us reps=3
 segments: NA
 seq[0]=impulse maxRel=2.384e-07 PASS
 seq[1]=random-seeded maxRel=1.716e-07 PASS
 seq[2]=impulse maxRel=2.384e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=8192 batch=47 blocks=48  maxAbs=7.442e-04 maxRel=1.989e-07 (worst idx 311267)
-kfft_fwd: 2870.5 us/call over 3 reps (min 2828.6 us) med 2852.0 us
+kfft_fwd: 6139.8 us/call over 3 reps (min 6044.4 us) med 6067.3 us
 PASS
 
 ===== long A/B/A n=16384 b=1 rc=0 =====
 long backend: n=16384 split N1=128 N2=128 rows1=128 rows2=128 gm_bytes=393216
-E2E n=16384 batch=1 reps=1 e2e_us=483.7 e2e_min_us=483.7 first_us=483.7 boot_us=651987.6 plan_us=785.0 warmup_us=921.3 mode=async host=chain input=sin
+E2E n=16384 batch=1 reps=1 e2e_us=366.5 e2e_min_us=366.5 first_us=366.5 boot_us=654859.7 plan_us=768.5 warmup_us=905.1 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=785.0 us first_use=919.5 us host_end_to_end mean=453.3 min=446.7 us h2d=65.2 us device_chain=53.5 us d2h=85.5 us reps=3
+scopes: plan_setup=768.5 us first_use=903.5 us host_end_to_end mean=368.1 min=365.1 us h2d=54.8 us device_chain=22.8 us d2h=63.1 us reps=3
 segments: NA
 seq[0]=impulse maxRel=0.000e+00 PASS
 seq[1]=random-seeded maxRel=1.871e-07 PASS
 seq[2]=impulse maxRel=0.000e+00 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=16384 batch=1 blocks=48  maxAbs=1.571e-03 maxRel=2.269e-07 (worst idx 16327)
-kfft_fwd: 453.3 us/call over 3 reps (min 446.7 us) med 448.6 us
+kfft_fwd: 368.1 us/call over 3 reps (min 365.1 us) med 366.2 us
 PASS
 
 ===== long A/B/A n=16384 b=3 rc=0 =====
 long backend: n=16384 split N1=128 N2=128 rows1=384 rows2=384 gm_bytes=1179648
-E2E n=16384 batch=3 reps=1 e2e_us=1166.8 e2e_min_us=1166.8 first_us=1166.8 boot_us=648919.6 plan_us=1258.4 warmup_us=1445.6 mode=async host=chain input=sin
+E2E n=16384 batch=3 reps=1 e2e_us=910.5 e2e_min_us=910.5 first_us=910.5 boot_us=652831.0 plan_us=1056.9 warmup_us=1624.0 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=1258.4 us first_use=1443.4 us host_end_to_end mean=853.3 min=788.1 us h2d=98.9 us device_chain=52.5 us d2h=117.6 us reps=3
+scopes: plan_setup=1056.9 us first_use=1620.5 us host_end_to_end mean=911.3 min=843.8 us h2d=113.4 us device_chain=33.7 us d2h=139.8 us reps=3
 segments: NA
 seq[0]=impulse maxRel=1.192e-07 PASS
 seq[1]=random-seeded maxRel=1.871e-07 PASS
 seq[2]=impulse maxRel=1.192e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=16384 batch=3 blocks=48  maxAbs=1.571e-03 maxRel=2.269e-07 (worst idx 16327)
-kfft_fwd: 853.3 us/call over 3 reps (min 788.1 us) med 829.1 us
+kfft_fwd: 911.3 us/call over 3 reps (min 843.8 us) med 910.9 us
 PASS
 
 ===== long A/B/A n=16384 b=47 rc=0 =====
 long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
-E2E n=16384 batch=47 reps=1 e2e_us=9605.1 e2e_min_us=9605.1 first_us=9605.1 boot_us=664392.1 plan_us=12090.7 warmup_us=9983.5 mode=async host=chain input=sin
+E2E n=16384 batch=47 reps=1 e2e_us=13338.4 e2e_min_us=13338.4 first_us=13338.4 boot_us=646612.5 plan_us=12777.4 warmup_us=13661.8 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=12090.7 us first_use=9981.1 us host_end_to_end mean=9528.9 min=9501.0 us h2d=1169.7 us device_chain=242.0 us d2h=1100.4 us reps=3
+scopes: plan_setup=12777.4 us first_use=13659.2 us host_end_to_end mean=13113.9 min=13027.1 us h2d=1833.7 us device_chain=236.1 us d2h=1867.5 us reps=3
 segments: NA
 seq[0]=impulse maxRel=2.980e-07 PASS
 seq[1]=random-seeded maxRel=1.961e-07 PASS
 seq[2]=impulse maxRel=2.980e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=16384 batch=47 blocks=48  maxAbs=1.989e-03 maxRel=2.269e-07 (worst idx 540615)
-kfft_fwd: 9528.9 us/call over 3 reps (min 9501.0 us) med 9536.2 us
+kfft_fwd: 13113.9 us/call over 3 reps (min 13027.1 us) med 13056.9 us
 PASS
 
 ===== long A/B/A n=32768 b=1 rc=0 =====
 long backend: n=32768 split N1=128 N2=256 rows1=256 rows2=128 gm_bytes=786432
-E2E n=32768 batch=1 reps=1 e2e_us=841.2 e2e_min_us=841.2 first_us=841.2 boot_us=657543.5 plan_us=1398.7 warmup_us=1496.5 mode=async host=chain input=sin
+E2E n=32768 batch=1 reps=1 e2e_us=781.1 e2e_min_us=781.1 first_us=781.1 boot_us=674051.8 plan_us=1567.8 warmup_us=1390.5 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=1398.7 us first_use=1492.6 us host_end_to_end mean=719.0 min=702.6 us h2d=99.2 us device_chain=38.4 us d2h=118.2 us reps=3
+scopes: plan_setup=1567.8 us first_use=1387.3 us host_end_to_end mean=748.0 min=686.6 us h2d=93.3 us device_chain=38.6 us d2h=117.1 us reps=3
 segments: NA
 seq[0]=impulse maxRel=0.000e+00 PASS
 seq[1]=random-seeded maxRel=9.919e-08 PASS
 seq[2]=impulse maxRel=0.000e+00 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=32768 batch=1 blocks=48  maxAbs=1.029e-03 maxRel=4.140e-08 (worst idx 3981)
-kfft_fwd: 719.0 us/call over 3 reps (min 702.6 us) med 710.9 us
+kfft_fwd: 748.0 us/call over 3 reps (min 686.6 us) med 708.6 us
 PASS
 
 ===== long A/B/A n=32768 b=3 rc=0 =====
 long backend: n=32768 split N1=128 N2=256 rows1=768 rows2=384 gm_bytes=2359296
-E2E n=32768 batch=3 reps=1 e2e_us=1095.8 e2e_min_us=1095.8 first_us=1095.8 boot_us=666087.2 plan_us=2171.9 warmup_us=1644.4 mode=async host=chain input=sin
+E2E n=32768 batch=3 reps=1 e2e_us=1446.1 e2e_min_us=1446.1 first_us=1446.1 boot_us=641544.4 plan_us=2685.1 warmup_us=2264.0 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=2171.9 us first_use=1642.9 us host_end_to_end mean=1072.0 min=1060.1 us h2d=111.4 us device_chain=53.4 us d2h=115.8 us reps=3
+scopes: plan_setup=2685.1 us first_use=2261.2 us host_end_to_end mean=1287.4 min=1263.3 us h2d=133.5 us device_chain=58.7 us d2h=181.0 us reps=3
 segments: NA
 seq[0]=impulse maxRel=1.192e-07 PASS
 seq[1]=random-seeded maxRel=2.041e-07 PASS
 seq[2]=impulse maxRel=1.192e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=32768 batch=3 blocks=48  maxAbs=1.545e-03 maxRel=9.733e-08 (worst idx 81805)
-kfft_fwd: 1072.0 us/call over 3 reps (min 1060.1 us) med 1075.5 us
+kfft_fwd: 1287.4 us/call over 3 reps (min 1263.3 us) med 1267.1 us
 PASS
 
 ===== long A/B/A n=32768 b=47 rc=0 =====
 long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
-E2E n=32768 batch=47 reps=1 e2e_us=24545.6 e2e_min_us=24545.6 first_us=24545.6 boot_us=661172.4 plan_us=31431.7 warmup_us=24707.1 mode=async host=chain input=sin
+E2E n=32768 batch=47 reps=1 e2e_us=22754.5 e2e_min_us=22754.5 first_us=22754.5 boot_us=649928.6 plan_us=33529.6 warmup_us=23626.8 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=31431.7 us first_use=24704.8 us host_end_to_end mean=24517.9 min=23939.3 us h2d=3550.6 us device_chain=371.1 us d2h=3500.1 us reps=3
+scopes: plan_setup=33529.6 us first_use=23624.8 us host_end_to_end mean=22126.6 min=21787.1 us h2d=2895.1 us device_chain=328.5 us d2h=2197.1 us reps=3
 segments: NA
 seq[0]=impulse maxRel=2.980e-07 PASS
 seq[1]=random-seeded maxRel=2.214e-07 PASS
 seq[2]=impulse maxRel=2.980e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=32768 batch=47 blocks=48  maxAbs=2.785e-03 maxRel=1.307e-07 (worst idx 262029)
-kfft_fwd: 24517.9 us/call over 3 reps (min 23939.3 us) med 24390.4 us
+kfft_fwd: 22126.6 us/call over 3 reps (min 21787.1 us) med 22066.9 us
 PASS
 
 ===== long A/B/A n=65536 b=1 rc=0 =====
 long backend: n=65536 split N1=256 N2=256 rows1=256 rows2=256 gm_bytes=1572864
-E2E n=65536 batch=1 reps=1 e2e_us=972.4 e2e_min_us=972.4 first_us=972.4 boot_us=635565.3 plan_us=2020.2 warmup_us=1454.8 mode=async host=chain input=sin
+E2E n=65536 batch=1 reps=1 e2e_us=850.6 e2e_min_us=850.6 first_us=850.6 boot_us=661248.5 plan_us=1955.1 warmup_us=1342.1 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=2020.2 us first_use=1452.9 us host_end_to_end mean=941.7 min=922.0 us h2d=111.0 us device_chain=36.0 us d2h=146.8 us reps=3
+scopes: plan_setup=1955.1 us first_use=1340.3 us host_end_to_end mean=1157.8 min=1063.5 us h2d=100.1 us device_chain=60.8 us d2h=152.8 us reps=3
 segments: NA
 seq[0]=impulse maxRel=0.000e+00 PASS
 seq[1]=random-seeded maxRel=1.271e-07 PASS
 seq[2]=impulse maxRel=0.000e+00 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=65536 batch=1 blocks=48  maxAbs=2.003e-03 maxRel=8.040e-08 (worst idx 65306)
-kfft_fwd: 941.7 us/call over 3 reps (min 922.0 us) med 947.0 us
+kfft_fwd: 1157.8 us/call over 3 reps (min 1063.5 us) med 1158.8 us
 PASS
 
 ===== long A/B/A n=65536 b=3 rc=0 =====
 long backend: n=65536 split N1=256 N2=256 rows1=768 rows2=768 gm_bytes=4718592
-E2E n=65536 batch=3 reps=1 e2e_us=1903.9 e2e_min_us=1903.9 first_us=1903.9 boot_us=659268.6 plan_us=3978.5 warmup_us=2447.0 mode=async host=chain input=sin
+E2E n=65536 batch=3 reps=1 e2e_us=2655.9 e2e_min_us=2655.9 first_us=2655.9 boot_us=659916.1 plan_us=4202.1 warmup_us=3307.4 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=3978.5 us first_use=2445.5 us host_end_to_end mean=2313.7 min=1859.8 us h2d=174.7 us device_chain=66.5 us d2h=162.4 us reps=3
+scopes: plan_setup=4202.1 us first_use=3304.3 us host_end_to_end mean=2239.0 min=2220.1 us h2d=209.4 us device_chain=69.4 us d2h=285.6 us reps=3
 segments: NA
 seq[0]=impulse maxRel=1.192e-07 PASS
 seq[1]=random-seeded maxRel=1.334e-07 PASS
 seq[2]=impulse maxRel=1.192e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=65536 batch=3 blocks=48  maxAbs=3.516e-03 maxRel=1.406e-07 (worst idx 130842)
-kfft_fwd: 2313.7 us/call over 3 reps (min 1859.8 us) med 2325.5 us
+kfft_fwd: 2239.0 us/call over 3 reps (min 2220.1 us) med 2231.5 us
 PASS
 
 ===== long A/B/A n=65536 b=47 rc=0 =====
 long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
-E2E n=65536 batch=47 reps=1 e2e_us=45412.3 e2e_min_us=45412.3 first_us=45412.3 boot_us=664100.9 plan_us=46793.3 warmup_us=41204.0 mode=async host=chain input=sin
+E2E n=65536 batch=47 reps=1 e2e_us=42155.1 e2e_min_us=42155.1 first_us=42155.1 boot_us=663152.1 plan_us=47351.9 warmup_us=42941.8 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=46793.3 us first_use=41202.1 us host_end_to_end mean=44127.3 min=43235.4 us h2d=5852.0 us device_chain=550.4 us d2h=5233.0 us reps=3
+scopes: plan_setup=47351.9 us first_use=42939.8 us host_end_to_end mean=44293.6 min=43590.2 us h2d=6574.6 us device_chain=527.5 us d2h=4884.9 us reps=3
 segments: NA
 seq[0]=impulse maxRel=2.980e-07 PASS
 seq[1]=random-seeded maxRel=2.335e-07 PASS
 seq[2]=impulse maxRel=2.980e-07 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
-kfft_fwd: 44127.3 us/call over 3 reps (min 43235.4 us) med 44566.4 us
+kfft_fwd: 44293.6 us/call over 3 reps (min 43590.2 us) med 44624.3 us
 PASS
 
 ===== short A/B/A control rc=0 =====
-E2E n=4096 batch=3 reps=1 e2e_us=194.4 e2e_min_us=194.4 first_us=194.4 boot_us=678712.8 plan_us=447.6 warmup_us=535.9 mode=async host=pinned input=sin
+E2E n=4096 batch=3 reps=1 e2e_us=223.4 e2e_min_us=223.4 first_us=223.4 boot_us=660198.5 plan_us=564.7 warmup_us=644.0 mode=async host=pinned input=sin
 E2E transfers: in=1 out=1 boundary=0 per_execution
-scopes: plan_setup=447.6 us first_use=507.8 us host_end_to_end mean=85.4 min=82.3 us h2d=NA device_chain=28.8 us d2h=NA reps=3
+scopes: plan_setup=564.7 us first_use=614.3 us host_end_to_end mean=105.1 min=100.2 us h2d=NA device_chain=27.7 us d2h=NA reps=3
 segments: NA
 seq[0]=impulse maxRel=0.000e+00 PASS
 seq[1]=random-seeded maxRel=1.414e-07 PASS
 seq[2]=impulse maxRel=0.000e+00 PASS
 seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS
 n=4096 batch=3 blocks=3  maxAbs=2.374e-04 maxRel=1.350e-07 (worst idx 8178)
-kfft_fwd: 85.4 us/call over 3 reps (min 82.3 us) med 86.6 us
+kfft_fwd: 105.1 us/call over 3 reps (min 100.2 us) med 102.4 us
 PASS
 
 ===== E2E transfer assertion rc=0 =====
 long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
-E2E n=8192 batch=1 reps=3 e2e_us=285.8 e2e_min_us=267.3 first_us=308.6 boot_us=661363.4 plan_us=591.7 warmup_us=809.8 mode=async host=chain input=sin
+E2E n=8192 batch=1 reps=3 e2e_us=310.3 e2e_min_us=306.8 first_us=311.7 boot_us=649108.0 plan_us=566.5 warmup_us=805.0 mode=async host=chain input=sin
 E2E transfers: in=1 out=1 boundary=2 per_execution
-scopes: plan_setup=591.7 us first_use=807.9 us host_end_to_end mean=276.7 min=269.4 us h2d=55.3 us device_chain=28.0 us d2h=48.9 us reps=3
+scopes: plan_setup=566.5 us first_use=803.2 us host_end_to_end mean=280.7 min=275.0 us h2d=53.5 us device_chain=18.8 us d2h=53.6 us reps=3
 segments: NA
 n=8192 batch=1 blocks=48  maxAbs=7.197e-04 maxRel=1.020e-07 (worst idx 8163)
-kfft_fwd: 276.7 us/call over 3 reps (min 269.4 us) med 272.1 us
+kfft_fwd: 280.7 us/call over 3 reps (min 275.0 us) med 283.5 us
 PASS
