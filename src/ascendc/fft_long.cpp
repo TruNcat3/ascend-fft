@@ -180,3 +180,34 @@ extern "C" __global__ __aicore__ __vector__ void kfft_lt_tw(
 #undef AB_LT_TR_W
 #undef AB_LT_TR_K
 #undef AB_LT_TR_RESIDENT
+
+// R2-B：管线实验入口（固定胜者配置 128x32/K=256/resident）。
+//   _nb：串行循环 + 跨 pipe 屏障收窄（条带循环内部 PIPE_ALL 删除）。
+//   _pp：_nb + 输入乒乓软流水（+32KiB bIn，UB 164KiB<=192KiB）。
+#define AB_LT_TR_SUFFIX _k256ri_nb
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 1
+#define AB_LT_TR_PP 0
+#include "fft_long_lt_tr_pipe.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+#undef AB_LT_TR_PP
+
+#define AB_LT_TR_SUFFIX _k256ri_pp
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 1
+#define AB_LT_TR_PP 1
+#include "fft_long_lt_tr_pipe.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+#undef AB_LT_TR_PP
