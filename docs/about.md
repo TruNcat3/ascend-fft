@@ -11,6 +11,25 @@ Computing Lab，并以中国科学技术大学苏州高等研究院为作者机�
 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 的混合空间-时间蝶形计算方法迁移到
 Ascend NPU，并独立实现 AscendC kernel、硬件映射、性能模型与实测选型。
 
+这里的迁移对象是**方法层的计算流编排**，不是某个 CUDA 计算核心的移植。我们优化的是
+“数据如何流经局部计算”：阶段/数据的空间展开、时间复用、布局交接、片上驻留和流水；局部
+“计算是什么”则作为可替换的 processing-unit 选项。radix-2、radix-4、Cube 或其他成熟 FFT
+核心都可以在满足 Ascend 的对齐、UB、指令和同步 lowering contract 后接入。二者在概念上正交、
+在物理资源上耦合，因此性能收益必须用相同流组织比较核心，或用相同核心比较流组织，不能把
+局部核心改进自动归因于混合数据流方法。
+
+本仓库关于 Roofline、依赖导致的流水问题、空间/时间展开边界、流与核心的正交分层及其详细
+设计结论，来源于并应归属于 [cuButterfly](https://github.com/TruNcat3/cuButterfly)。Ascend-FFT
+的独立贡献是将这些观点迁移到 Ascend 平台，完成 AIV/UB/MTE/GM 的具体 lowering、硬件 profile、
+候选搜索、正确性门禁和性能证据归档。引用方法论时请同时引用 cuButterfly；引用 Ascend 平台实现
+和实验时再引用 Ascend-FFT。
+
+**方法范围**：
+
+- 主研究对象：架构映射、计算流、参数搜索和合法 lowering contract；
+- 可替换空间：局部 radix/FFT/Cube/向量计算核心；
+- 平台贡献：AscendC、AIV/UB/MTE/GM 映射、硬件 profile 和可复核实验归档。
+
 ## 作者与联系
 
 | 项目 | 信息 |
