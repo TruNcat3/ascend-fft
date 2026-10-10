@@ -1,10 +1,14 @@
-// 长链 device-materialized 边界内核（addendum §3 step 3）：
+// 长链 device-materialized 边界内核（addendum §3 step 3，PR-B 融合）：
 //   kfft_lt_tr   分块矩阵转置：src[b][nRows][nCols] -> dst[b][nCols][nRows]，
-//                即 dst[c][i] = src[i][c]（转置入 / 段间转置 / 自然序写出共用）
-//   kfft_lt_tw   段边界点乘：dIn[j][k1] *= W_N^{j·k1}（行连续，原地）
-// 边界形态：host 路径把 twiddle+转置合在宿主内存里做；device 路径拆成
-// 点乘（全连续 GM 读写）+ 转置（列切片 strided 读 + 行段连续写）两步，
-// 段边界数据不回宿主（E2E boundary=0），wT 表 plan 期上传（输入无关）。
+//                即 dst[c][i] = src[i][c]（转置入 / 段间转置 / 自然序写出共用）。
+//                tw != nullptr（AB_LONG_BOUNDARY_IMPL=fused 的段边界发射）时先在
+//                读入 tile 内做 twiddle 复乘 dst[c][i] = src[i][c]*wT[i][c]，把
+//                kfft_lt_tw 的整张量 GM 往返折进转置读，发射数 6 -> 5。
+//   kfft_lt_tw   段边界点乘：dIn[j][k1] *= W_N^{j·k1}（行连续，原地，separate 用）
+// 边界形态：host 路径把 twiddle+转置合在宿主内存里做；device 路径默认拆成
+// 点乘（全连续 GM 读写）+ 转置两步（separate），fused 模式合成一次转置发射；
+// 段边界数据不回宿主（E2E boundary=0），wT 表 plan 期上传（输入无关、批共享、
+// 与 src 同形、同 DataCopyParams）。
 //
 // GM 非连续访问用 DataCopyParams 分块搬运（CANN 9.0.0 单位：blockLen/srcStride
 // 均为 32B datablock，gap 为「上一块尾->下一块头」，blockCount<=4095）：
@@ -14,76 +18,62 @@
 // 约束：nRows/nCols 为 >=64 的 2 的幂（阶段因子域），W=32 恒 4 对齐，
 // blockLen=wCnt/4、srcGap=(nCols-wCnt)/4 均为整 datablock。
 // 两内核同签名 (dst, src, tw, nRows, nCols, batch) = 36B（fft_real 同款约定，
-// readArgSize 对整个 .o 只给一个值；kfft_lt_tr 的 tw 不用但必须占位）。
+// readArgSize 对整个 .o 只给一个值）。
 #include "kernel_operator.h"
 #include "basic_api/kernel_operator_vec_gather_intf.h"
-// 分块常量与 UB 资源公式同源（PR #2 阶段 3）：描述符层 query_lowering 用
-// include/butterfly/long_fft_ub.h 的 AB_TRANSPOSE_UB_BYTES 校验本内核峰值，
-// 两处共享同一份宏，防止 descriptor 与实现漂移。
+// 分块常量与 UB 资源公式同源（PR #2 阶段 3 / PR-B）：描述符层 query_lowering
+// 用 include/butterfly/long_fft_ub.h 的 AB_TRANSPOSE_UB_BYTES /
+// AB_FUSED_UB_BYTES 校验本内核峰值，两处共享同一份宏，防止漂移。
 #include "butterfly/long_fft_ub.h"
 using namespace AscendC;
 
-#define LT_H AB_LT_H   // 分块行数（src 行内切块），blockCount <= 4095
-#define LT_W AB_LT_W   // 分块列数（dst 行内一段），须 4 的倍数（32B 对齐）
+// ---- 分块转置（+ 可融合 twiddle）------------------------------------------
+// tile 读入 [H][W]（行=i 列=c，交错复数），tw!=nullptr 时先做带内 twiddle
+// 复乘（AB_FUSE_STRIPE_K 复数一条带），Gather 重排为 dst 行序写回。
+// R2-A：内核体在 src/ascendc/fft_long_lt_tr.inc，按候选 (H,W) 逐个展开；
+// TPipe 必须留在 __global__ 入口（ccec 9.0.0 约束，见 .inc 头注释）。
+#define AB_KLTT_CAT2(a, b) a##b
+#define AB_KLTT_CAT(a, b) AB_KLTT_CAT2(a, b)
 
-// ---- 分块转置 ------------------------------------------------------------
-// tile 读入 [H][W]（行=i 列=c，交错复数），Gather 重排为 dst 行序 [W][H]，
-// 再按 dst 行逐段连续写回。dst 行号按批线性展开，grid-stride 分块。
-extern "C" __global__ __aicore__ __vector__ void kfft_lt_tr(
-    __gm__ float* dst, __gm__ float* src, __gm__ float* tw,
-    uint32_t nRows, uint32_t nCols, uint32_t batch)
-{
-    (void)tw;
-    TPipe pipe;
-    TBuf<TPosition::VECCALC> bIn, bOut, bIdx;
-    const uint32_t tileN = LT_H * LT_W;                    // 复数 / tile
-    pipe.InitBuffer(bIn,  tileN * 2u * sizeof(float));
-    pipe.InitBuffer(bOut, tileN * 2u * sizeof(float));
-    pipe.InitBuffer(bIdx, tileN * 2u * sizeof(uint32_t));
-    LocalTensor<float> tIn  = bIn.Get<float>();
-    LocalTensor<float> tOut = bOut.Get<float>();
-    LocalTensor<uint32_t> idx = bIdx.Get<uint32_t>();
-    // 重排索引：dst 行序 t=2*(w*H+i)+e <- tile 位置 (i*W+w)
-    for (uint32_t i = 0; i < LT_H; i++)
-        for (uint32_t w = 0; w < LT_W; w++) {
-            uint32_t p = (i * LT_W + w) * 8u;
-            idx.SetValue(2u * (w * LT_H + i),      p);
-            idx.SetValue(2u * (w * LT_H + i) + 1u, p + 4u);
-        }
-    PipeBarrier<PIPE_ALL>();
+// 默认 128x32（PR-B 行为不变）+ K=512 下裁剪后的融合合法候选。
+// 裁剪：10K=5120 <= 2HW => HW>=2560；4*HW*8 <= 192 KiB => HW<=6144。
+// (64,32)/(128,16) 在 K=512 非法（stripe K 轮解锁）；(128,64)/(256,32/
+// 256,64) UB 超预算，不导出。
+#define AB_LT_TR_SUFFIX
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K AB_FUSE_STRIPE_K
+#define AB_LT_TR_RESIDENT 0
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
 
-    int64_t nblk = GetBlockNum(); if (nblk <= 0) nblk = 1;
-    int64_t blk  = GetBlockIdx();
-    const uint32_t nC = nCols / LT_W;                      // dst 行 tile 数 / 批
-    const uint32_t nI = (nRows + LT_H - 1u) / LT_H;        // src 行 tile 数
-    const uint64_t tiles = (uint64_t)batch * nC * nI;
-    const uint64_t span  = 2ull * (uint64_t)nRows * nCols; // float / 批（复数*2）
-    for (uint64_t tt = (uint64_t)blk; tt < tiles; tt += (uint64_t)nblk) {
-        const uint32_t wT0 = (uint32_t)(tt % nC) * LT_W;
-        const uint32_t iT0 = (uint32_t)((tt / nC) % nI) * LT_H;
-        const uint32_t b   = (uint32_t)(tt / ((uint64_t)nC * nI));
-        const uint32_t wCnt = nCols - wT0 >= LT_W ? LT_W : nCols - wT0;
-        const uint32_t rCnt = nRows - iT0 >= LT_H ? LT_H : nRows - iT0;
-        GlobalTensor<float> gs, gd;
-        // 块 r 起点 = base + r*(nCols*8 字节)；块长 wCnt*8，gap = (nCols-wCnt)*8
-        gs.SetGlobalBuffer(src + (uint64_t)b * span +
-                           ((uint64_t)iT0 * nCols + (uint64_t)wT0) * 2u,
-                           (uint64_t)rCnt * nCols * 2u);
-        DataCopy(tIn, gs,
-                 DataCopyParams{(uint16_t)rCnt, (uint16_t)(wCnt / 4u),
-                                (uint16_t)((nCols - wCnt) / 4u), 0});
-        PipeBarrier<PIPE_ALL>();
-        Gather(tOut, tIn, idx, 0u, 2u * tileN);
-        PipeBarrier<PIPE_ALL>();
-        for (uint32_t w = 0; w < wCnt; w++) {
-            gd.SetGlobalBuffer(dst + (uint64_t)b * span +
-                               ((uint64_t)(wT0 + w) * nRows + iT0) * 2u, rCnt * 2u);
-            DataCopy(gd, tOut[w * 2u * LT_H], rCnt * 2u);
-        }
-        PipeBarrier<PIPE_ALL>();
-    }
-    PipeBarrier<PIPE_ALL>();
-}
+#define AB_LT_TR_SUFFIX _t64x64
+#define AB_LT_TR_H 64
+#define AB_LT_TR_W 64
+#define AB_LT_TR_K AB_FUSE_STRIPE_K
+#define AB_LT_TR_RESIDENT 0
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+
+#define AB_LT_TR_SUFFIX _t256x16
+#define AB_LT_TR_H 256
+#define AB_LT_TR_W 16
+#define AB_LT_TR_K AB_FUSE_STRIPE_K
+#define AB_LT_TR_RESIDENT 0
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
 
 // ---- 段边界点乘（原地、行连续） ------------------------------------------
 // 行 r 属批 b 的第 j 行：dIn[(b*n2+j)][k1] *= wT[j][k1]（wT 与 j 对齐、批共享）。
@@ -148,3 +138,93 @@ extern "C" __global__ __aicore__ __vector__ void kfft_lt_tw(
     }
     PipeBarrier<PIPE_ALL>();
 }
+
+// R2-A Round 2（stripe K 单因素，默认 128x32 tile）：K 只改条带机件的
+// 循环粒度与 carve 尺寸（10K<=2HW 在默认 tile 恒满足），不改 tile 峰值。
+// AB_LT_STRIPE_K=256|128 选择 _k{K} 入口；K=512 即默认入口。
+#define AB_LT_TR_SUFFIX _k256
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 0
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+
+#define AB_LT_TR_SUFFIX _k128
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 128
+#define AB_LT_TR_RESIDENT 0
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+
+// R2-A Round 3（索引常驻，默认 128x32 tile）：条带索引表移入独立只读
+// bSidx（16K 字节），入口建一次、grid-stride 不再重建。先在 K=256 上
+// 与 rebuild A/B（k256_ri vs k256），赢家后再补 K=512/128 的 _ri 入口。
+#define AB_LT_TR_SUFFIX _k256_ri
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 1
+#include "fft_long_lt_tr.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+
+// R2-B：管线实验入口（固定胜者配置 128x32/K=256/resident）。
+//   _nb：串行循环 + 跨 pipe 屏障收窄（条带循环内部 PIPE_ALL 删除）。
+//   _pp：_nb + 输入乒乓软流水（+32KiB bIn，UB 164KiB<=192KiB）。
+#define AB_LT_TR_SUFFIX _k256ri_nb
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 1
+#define AB_LT_TR_PP 0
+#include "fft_long_lt_tr_pipe.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+#undef AB_LT_TR_PP
+
+#define AB_LT_TR_SUFFIX _k256ri_pp
+#define AB_LT_TR_H 128
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 1
+#define AB_LT_TR_PP 1
+#include "fft_long_lt_tr_pipe.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+#undef AB_LT_TR_PP
+
+// R5：resident 混合数据流原型——64x32 半 tile（16KiB/缓冲）使 in/out/tw
+// 全双缓冲落进 UB（6*16K + bIdx 16K + bSidx 4K = 116KiB <= 192KiB），
+// 稳态 MTE2(t+1) 与 vector(t) 重叠、vector(t+1) 与 MTE3(t) 重叠。
+#define AB_LT_TR_SUFFIX _t64x32_k256ri_pp2
+#define AB_LT_TR_H 64
+#define AB_LT_TR_W 32
+#define AB_LT_TR_K 256
+#define AB_LT_TR_RESIDENT 1
+#define AB_LT_TR_PP 2
+#include "fft_long_lt_tr_pipe.inc"
+#undef AB_LT_TR_SUFFIX
+#undef AB_LT_TR_H
+#undef AB_LT_TR_W
+#undef AB_LT_TR_K
+#undef AB_LT_TR_RESIDENT
+#undef AB_LT_TR_PP

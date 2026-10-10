@@ -4,10 +4,12 @@
 //   U,<core>,<min_log>,<max_log>,<ub>,<scope>,<multi_role>
 //   CASE,<name>,<SUPPORTED|UNSUPPORTED>,<reason>
 //   STRUCT,<name>,launches,<n>/gm_boundaries,<n>/host_assisted,<0|1>/on_chip,<0|1>
-//          /abstract,<0|1>/ub_peak,<bytes>/kinds,<k1|k2|...>
+//          /abstract,<0|1>/ub_peak,<bytes>/modeled_payload_gm,<bytes>
+//          /kinds,<k1|k2|...>
 // Build: g++ -std=c++17 -Iinclude tests/test_descriptors.cpp -o build/test_descriptors
 #include "butterfly/descriptors.hpp"
 #include <cstdio>
+#include <cstdlib>
 
 using namespace butterfly;
 
@@ -18,10 +20,11 @@ static void emit_case(const char* name, const LoweringResult& r){
 
 static void emit_struct(const char* name, const LoweringResult& r){
   printf("STRUCT,%s,launches,%d,gm_boundaries,%d,host_assisted,%d,on_chip,%d,"
-         "abstract,%d,ub_peak,%zu,kinds,",
+         "abstract,%d,ub_peak,%zu,modeled_payload_gm,%llu,kinds,",
          name, r.visible_launches, r.materialized_gm_boundaries,
          (int)r.host_assisted, (int)r.whole_transform_on_chip,
-         (int)r.abstract_feasible, r.plan_ub_bytes);
+         (int)r.abstract_feasible, r.plan_ub_bytes,
+         (unsigned long long)r.modeled_payload_gm_rw_bytes);
   for(size_t i=0;i<r.launch_manifest.size();i++)
     printf("%s%s", i?"|":"", launch_kind_name(r.launch_manifest[i].kind));
   printf("\n");
@@ -49,6 +52,11 @@ int main(){
     emit_case("default_8192", query_lowering({8192, 1}, m, unit, hw));
     emit_struct("default_8192", query_lowering({8192, 1}, m, unit, hw));
     emit_case("default_65536_b3", query_lowering({65536, 3}, default_long_mapping(256, 256, hw), unit, hw));
+    // R1.0：合法 K override 必须被接受（两个 stage 长度都满足 K*8<=len）
+    { const auto m2 = default_long_mapping(256, 256, hw);
+      auto mo = m2; mo.row_fft_plane_k = 32;
+      emit_case("plane_k_32_len256_accepted",
+                query_lowering(TransformSpec{65536, 1}, mo, unit, hw)); }
     emit_case("batch_4096_independent", query_lowering({8192, 4096}, m, unit, hw));
     emit_struct("batch_4096_independent", query_lowering({8192, 4096}, m, unit, hw));
     // DeviceGM home: the addendum §3 chain is executable and reports 6 launches.
@@ -56,6 +64,67 @@ int main(){
     dev.boundary_home = BoundaryHome::DeviceGM;
     emit_case("default_device_gm", query_lowering({8192, 1}, dev, unit, hw));
     emit_struct("default_device_gm", query_lowering({8192, 1}, dev, unit, hw));
+    // PR-B R1 fused chain: same tuple with boundary_impl=Fused -> 5 launches
+    // (twiddle record merged into transpose_boundary, boundary_edge stays 1).
+    { auto fdev = dev; fdev.boundary_impl = BoundaryImpl::Fused;
+      emit_case("fused_device_gm", query_lowering({8192, 1}, fdev, unit, hw));
+      emit_struct("fused_device_gm", query_lowering({8192, 1}, fdev, unit, hw));
+
+      // R2-A: AB_LT_TILE candidates.  Legal tiles reshape the transpose UB
+      // peak (single-source AB_FUSED_UB_BYTES_HWK); illegal tiles are loud
+      // rejections, never silent reshapes.
+      struct { const char* tile; bool supported; } ltcases[] = {
+        {"64x64",   true},    // stripe-legal, UB 4*8*64*64   = 131072
+        {"256x16",  true},    // stripe-legal, UB 4*8*256*16  = 131072
+        {"64x32",   false},   // stripe-illegal: 10K=5120 > 2HW=4096 at K=512
+        {"64x16",   false},   // stripe-illegal: 10K=5120 > 2HW=2048 at K=512
+        {"garbage", false},   // not HxW
+        {"128x64",  false},   // stripe-legal but UB 262144 > 192 KiB budget
+      };
+      for (const auto& tc : ltcases) {
+        setenv("AB_LT_TILE", tc.tile, 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        std::string cname = std::string("lt_tile_") + tc.tile +
+                            (tc.supported ? "_supported" : "_rejected");
+        emit_case(cname.c_str(), r);
+        if (tc.supported && r.supported)
+          emit_struct((cname + "_struct").c_str(), r);
+      }
+      unsetenv("AB_LT_TILE");
+      // R2-A Round 2: AB_LT_STRIPE_K candidates on the default tile.
+      { setenv("AB_LT_STRIPE_K", "256", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_stripe_k_256_supported", r);
+        unsetenv("AB_LT_STRIPE_K"); }
+      { setenv("AB_LT_STRIPE_K", "12", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_stripe_k_12_rejected", r);
+        unsetenv("AB_LT_STRIPE_K"); }
+      // Joint legality: a tile that is illegal at K=512 becomes legal at a
+      // smaller K (carve 10K<=2HW); the descriptor accepts it, the host
+      // rejects the uncompiled combo explicitly.
+      { setenv("AB_LT_TILE", "64x32", 1); setenv("AB_LT_STRIPE_K", "256", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_tile_64x32_k256_supported", r);
+        unsetenv("AB_LT_TILE"); unsetenv("AB_LT_STRIPE_K"); }
+      // R2-A Round 3: resident stripe index (AB_LT_IDX=resident) adds the
+      // 16*K index buffer to the peak and relaxes the carve to 3K<=HW.
+      { setenv("AB_LT_IDX", "resident", 1); setenv("AB_LT_STRIPE_K", "256", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_idx_resident_k256_supported", r);
+        emit_struct("lt_idx_resident_k256", r);
+        unsetenv("AB_LT_IDX"); unsetenv("AB_LT_STRIPE_K"); }
+      { setenv("AB_LT_IDX", "resident", 1); setenv("AB_LT_TILE", "64x16", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_idx_resident_tile_rejected", r);
+        unsetenv("AB_LT_IDX"); unsetenv("AB_LT_TILE"); }
+      { setenv("AB_LT_IDX", "bogus", 1);
+        auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_case("lt_idx_bogus_rejected", r);
+        unsetenv("AB_LT_IDX"); }
+      { auto r = query_lowering({8192, 1}, fdev, unit, hw);
+        emit_struct("fused_after_unset", r); }  // env must not leak
+    }
     emit_struct("default_host_memory", query_lowering({8192, 1}, m, unit, hw));
     // Resource-abstract feasible but the runtime does not implement the tuple.
     auto cell = m;
@@ -75,22 +144,23 @@ int main(){
     auto dev = default_long_mapping(64, 128, hw);
     dev.boundary_home = BoundaryHome::DeviceGM;
     const TransformSpec s{8192, 1};
-    // ub < 98304: device chain rejected naming the transpose peak,
-    // while the host chain (row FFTs only) still fits the same UB.
+    // ub < AB_FUSED_UB_BYTES (131072): device chain rejected naming the
+    // transpose peak, while the host chain (row FFTs only) still fits.
     { auto small = unit; small.ub_bytes = 80000;
       emit_case("ub_below_transpose_peak",
                 query_lowering(s, dev, small, hw));
       emit_case("ub_host_ok_at_80000",
                 query_lowering(s, default_long_mapping(64, 128, hw), small, hw)); }
-    // ub == transpose peak: transpose passes, row FFT and twiddle are
+    // ub == transpose peak (kfft_lt_tr is gated at AB_FUSED_UB_BYTES because
+    // bTw is statically reserved): transpose passes, row FFT and twiddle are
     // checked next (small stages fit => supported, peak recorded).
-    { auto exact = unit; exact.ub_bytes = (size_t)AB_TRANSPOSE_UB_BYTES;
+    { auto exact = unit; exact.ub_bytes = (size_t)AB_FUSED_UB_BYTES;
       const auto r = query_lowering(s, dev, exact, hw);
       emit_case("ub_exact_transpose_peak", r);
       emit_struct("ub_exact_transpose_peak", r); }
-    // ...but a 4096-point row FFT needs 191616 B > 98304 B: after the
+    // ...but a 4096-point row FFT needs 191616 B > 131072 B: after the
     // transpose threshold passes, the row-FFT check rejects.
-    { auto exact = unit; exact.ub_bytes = (size_t)AB_TRANSPOSE_UB_BYTES;
+    { auto exact = unit; exact.ub_bytes = (size_t)AB_FUSED_UB_BYTES;
       auto m2 = default_long_mapping(4096, 4096, hw);
       m2.boundary_home = BoundaryHome::DeviceGM;
       emit_case("ub_rowfft_checked_after_transpose",
@@ -99,7 +169,7 @@ int main(){
     // （descriptor 与 launch 解析同一 (D,K)）；强制 D=1024 使行 FFT 必然溢出。
     { auto mo = default_long_mapping(64, 128, hw);
       mo.row_fft_fold_d = 1024;
-      auto ub98 = unit; ub98.ub_bytes = (size_t)AB_TRANSPOSE_UB_BYTES;
+      auto ub98 = unit; ub98.ub_bytes = (size_t)AB_FUSED_UB_BYTES;
       emit_case("fold_d_override_rejected",
                 query_lowering(TransformSpec{8192, 1}, mo, ub98, hw)); }
   }
@@ -128,6 +198,16 @@ int main(){
       emit_case("stage_product_mismatch", query_lowering(s, m2, unit, hw)); }
     { auto bad = m; bad.boundary_layout = Layout::HalfSpectrumReal;
       emit_case("layout_real_on_c2c", query_lowering(s, bad, unit, hw)); }
+    // R1.0：非法 K 显式拒绝（kernel contract {8,16,32}，K | len，len/K >= 8）
+    { auto mo = m; mo.row_fft_plane_k = 12;
+      emit_case("plane_k_12_rejected",
+                query_lowering(s, mo, unit, hw)); }
+    { auto mo = m; mo.row_fft_plane_k = 24;
+      emit_case("plane_k_24_rejected",
+                query_lowering(s, mo, unit, hw)); }
+    { auto mo = m; mo.row_fft_plane_k = 32;              // 32*8=256 > len=64
+      emit_case("plane_k_32_len64_rejected",
+                query_lowering(s, mo, unit, hw)); }
     { auto small = unit; small.ub_bytes = 32768;
       const auto m2 = default_long_mapping(64, 2048, hw);        // ub_need 36864 > 32768
       emit_case("ub_overflow", query_lowering({131072, 1}, m2, small, hw)); }

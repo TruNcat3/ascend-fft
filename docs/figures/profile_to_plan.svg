@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#465466"/>
+    </marker>
+    <style>
+      .title { font: 700 22px Arial, sans-serif; fill: #1f2937; }
+      .label { font: 700 16px Arial, sans-serif; fill: #1f2937; }
+      .body { font: 14px Arial, sans-serif; fill: #334155; }
+      .box { fill: #e8f2ff; stroke: #3478c9; stroke-width: 2; }
+      .filter { fill: #f1eaff; stroke: #7856b8; stroke-width: 2; }
+      .measure { fill: #fff1df; stroke: #d9822b; stroke-width: 2; }
+      .plan { fill: #e8f6ee; stroke: #31805a; stroke-width: 2; }
+      .arrow { stroke: #465466; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1200" height="330" fill="#ffffff"/>
+  <text x="600" y="36" text-anchor="middle" class="title">Hardware-aware selection: profile to executable plan</text>
+  <rect x="28" y="105" width="160" height="112" rx="8" class="box"/>
+  <text x="108" y="136" text-anchor="middle" class="label">Hardware profile</text>
+  <text x="44" y="166" class="body">AIV / UB / GM</text><text x="44" y="188" class="body">alignment / MTE</text><text x="44" y="210" class="body">driver + CANN</text>
+  <line x1="188" y1="161" x2="230" y2="161" class="arrow"/>
+  <rect x="230" y="105" width="170" height="112" rx="8" class="filter"/>
+  <text x="315" y="136" text-anchor="middle" class="label">Legal filter</text>
+  <text x="246" y="166" class="body">UB / sync / layout</text><text x="246" y="188" class="body">capability + lowering</text><text x="246" y="210" class="body">reject invalid pairs</text>
+  <line x1="400" y1="161" x2="442" y2="161" class="arrow"/>
+  <rect x="442" y="105" width="178" height="112" rx="8" class="box"/>
+  <text x="531" y="136" text-anchor="middle" class="label">A x P candidates</text>
+  <text x="458" y="166" class="body">flow mapping A</text><text x="458" y="188" class="body">processing unit P</text><text x="458" y="210" class="body">shape / batch</text>
+  <line x1="620" y1="161" x2="662" y2="161" class="arrow"/>
+  <rect x="662" y="105" width="170" height="112" rx="8" class="measure"/>
+  <text x="747" y="136" text-anchor="middle" class="label">Model + measure</text>
+  <text x="678" y="166" class="body">traffic / ops / sync</text><text x="678" y="188" class="body">correctness gate</text><text x="678" y="210" class="body">held-out profile</text>
+  <line x1="832" y1="161" x2="874" y2="161" class="arrow"/>
+  <rect x="874" y="105" width="160" height="112" rx="8" class="plan"/>
+  <text x="954" y="136" text-anchor="middle" class="label">Executable Plan</text>
+  <text x="890" y="166" class="body">selected A/P</text><text x="890" y="188" class="body">buffers + launch</text><text x="890" y="210" class="body">fallback retained</text>
+  <text x="600" y="276" text-anchor="middle" class="body">The model ranks only legal candidates; profiling explains a result but does not replace timing.</text>
+</svg>

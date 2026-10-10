@@ -21,6 +21,10 @@ unit-tested in tests/test_collect_evidence.py):
     every raw rc==0, PASS/maxRel captured and under threshold, all timing
     fields finite, host and device scopes validated via scopes.validate_scopes,
     and stats are recomputed from raw (the cached block is output-only);
+  - PR-B impl contract: device chains report the impl-matched segment
+    decomposition (six spans separate / five fused, telescoping into
+    device_chain) plus a matching `boundary_impl:` self-report; host
+    chains report segments=NA and no boundary_impl line;
   - manifest: clean git tree is required (or --allow-dirty records a patch
     digest), sha256(build/fft_check), sha256 of the runtime kernel objects
     (fft_radix2.o / fft_long.o / fft_real.o), sha256 of config/*.json, build
@@ -37,6 +41,10 @@ unit-tested in tests/test_collect_evidence.py):
       # addendum §3 device-materialized 段边界（AB_BOUNDARY=device）：
       # 同一网格 + A/B/A，段边界不回宿主 => 期望 E2E boundary=0，
       # 证据写入 results/evidence/long-fft-device-boundary/。
+  python3 scripts/collect_long_fft_evidence.py --boundary device-fused
+      # PR-B R1：device 链 + AB_LONG_BOUNDARY_IMPL=fused（twiddle 并入段
+      # 边界转置，5 发射 5 段），证据写入
+      # results/evidence/long-fft-device-boundary-fused/（不覆盖旧档）。
   --allow-dirty       记录 patch digest 后继续（默认脏树直接拒绝发布证据）
   --allow-incomplete  driver/哈希不全时仍发布（status 保持 incomplete）
   --verify PATH       对已存 acceptance.json 跑归档级校验后退出
@@ -47,6 +55,7 @@ import json
 import math
 import os
 import re
+import shutil
 import statistics
 import subprocess
 import sys
@@ -63,17 +72,95 @@ THRESHOLD = 1e-4
 EXPECTED_SEQ = ("impulse", "random-seeded", "impulse")
 TRIALS = 5
 # 全部执行带 AB_E2E：逐点断言段边界传输契约——
-# host 模式 = 宿主中介链 boundary=2（行为锁定）；device 模式 = 不回宿主 boundary=0。
+# host 模式 = 宿主中介链 boundary=2（行为锁定）；device/device-fused 模式 =
+# 不回宿主 boundary=0，fused 额外锁定 AB_LONG_BOUNDARY_IMPL（mode_env 统一置）。
 BASE_ENV = {"AB_E2E": "1"}
-BOUNDARY_BY_MODE = {"host": "boundary=2", "device": "boundary=0"}
+BOUNDARY_BY_MODE = {"host": "boundary=2", "device": "boundary=0",
+                    "device-fused": "boundary=0"}
 OUT_BY_MODE = {"host": "long-fft-acceptance",
-               "device": "long-fft-device-boundary"}
+               "device": "long-fft-device-boundary",
+               "device-fused": "long-fft-device-boundary-fused"}
+# PR-B R1：每种采集模式对应的段边界发射形态（fused 只在 device-fused 出现）。
+IMPL_BY_MODE = {"host": "separate", "device": "separate",
+                "device-fused": "fused"}
 
 
 def run(args, env=None):
     proc = subprocess.run(args, cwd=ROOT, capture_output=True, text=True,
                           env=env, timeout=3600)
     return proc.returncode, proc.stdout + proc.stderr
+
+
+def env_monitor_snapshot():
+    """Best-effort host + NPU state snapshot (PR-B review R1.1).
+
+    Records what the machine actually exposes: loadavg, uptime, and
+    npu-smi power / temperature / AICore% / HBM per NPU and die.
+    Unavailable fields are the string 'unavailable' -- never estimated.
+    This is a variance-governance side channel for timing runs; profiler
+    runs stay separate from timing runs by design."""
+    snap = {"utc": datetime.now(timezone.utc).isoformat()}
+    try:
+        l1, l5, l15 = os.getloadavg()
+        snap["loadavg"] = {"1m": round(l1, 2), "5m": round(l5, 2),
+                           "15m": round(l15, 2)}
+    except (OSError, AttributeError):
+        snap["loadavg"] = "unavailable"
+    try:
+        with open("/proc/uptime", encoding="ascii") as fh:
+            snap["uptime_s"] = float(fh.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        snap["uptime_s"] = "unavailable"
+    smi = shutil.which("npu-smi")
+    if not smi:
+        snap["npu_smi"] = "unavailable"
+        return snap
+    try:
+        proc = subprocess.run([smi, "info"], capture_output=True,
+                              text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        snap["npu_smi"] = "unavailable"
+        return snap
+    if proc.returncode != 0:
+        snap["npu_smi"] = "unavailable"
+        return snap
+    npus, chips = [], []
+    for line in proc.stdout.splitlines():
+        if not line.startswith("|"):
+            continue
+        parts = [c.strip() for c in line.strip().strip("|").split("|")]
+        if not parts:
+            continue
+        head = parts[0].split()
+        if not head or not head[0].isdigit():
+            continue          # header rows ("NPU Name ...", "Chip Phy ...")
+        npu_id = int(head[0])
+        if len(parts) >= 3 and parts[1] in ("OK", "-"):
+            # NPU row: "idx NAME" | health | "power(W) temp(C) hugepages"
+            fields = parts[2].split()
+            power = fields[0] if fields else ""
+            temp = fields[1] if len(fields) > 1 else ""
+            npus.append({
+                "npu": npu_id,
+                "power_w": (float(power) if power not in ("", "-")
+                            else "unavailable"),
+                "temp_c": (int(temp) if temp not in ("", "-")
+                           else "unavailable"),
+            })
+        elif len(parts) >= 3 and ":" in parts[1]:
+            # chip row: "idx PHY" | bus-id | "aicore% memory" | hbm
+            aicore = parts[2].split()[0] if parts[2] else ""
+            chips.append({
+                "npu": npu_id,
+                "phy": (int(head[1]) if len(head) > 1
+                        and head[1].isdigit() else -1),
+                "aicore_pct": (float(aicore) if aicore not in ("", "-")
+                               else "unavailable"),
+                "hbm_usage": parts[3] if len(parts) > 3 else "unavailable",
+            })
+    snap["npu_smi"] = {"npus": npus, "chips": chips,
+                       "frequency": "unavailable"}
+    return snap
 
 
 def _finite(value):
@@ -121,6 +208,14 @@ def parse_trial(out):
                     "")
     sample["segments"] = (scopes.parse_segments(seg_line)
                           if seg_line else None)
+    # PR-B：device 链自报发射形态（5/6 段归属的运行时佐证）；宿主/短路径无此行。
+    bi_line = next((l for l in out.splitlines()
+                    if l.startswith("boundary_impl:")), "")
+    if bi_line:
+        scopes.parse_boundary_impl(bi_line)   # malformed => ValueError
+        sample["boundary_impl"] = bi_line.split(":", 1)[1].strip()
+    else:
+        sample["boundary_impl"] = None
     return sample
 
 
@@ -136,8 +231,14 @@ def compute_stats(values):
 
 
 # ---------- hard acceptance (pure; unit-tested) --------------------------
-def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True):
-    """Explicit problems for one long shape; [] == accepted."""
+def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True,
+                 impl="separate"):
+    """Explicit problems for one long shape; [] == accepted.
+
+    `impl` (PR-B) selects the segment contract: separate device chains
+    must report six spans, fused chains five (no twiddle), and every raw
+    device trial must self-report the matching `boundary_impl:` line.
+    """
     problems = []
     if p.get("rc") != 0:
         problems.append(f"rc={p.get('rc')} (want 0)")
@@ -238,23 +339,41 @@ def verify_point(p, expect_boundary, threshold=THRESHOLD, trials=True):
                         if isinstance(v, (int, float)) and not _finite(v):
                             problems.append(
                                 f"trial[{i}] scope {name} not finite: {v!r}")
-                # P0 six-segment instrumentation: device chains must report
-                # the full decomposition (telescoping into device_chain);
-                # host chains must keep the explicit NA.
+                # PR-B segment instrumentation: device chains must report
+                # the impl-matched decomposition (six spans separate, five
+                # fused, telescoping into device_chain) plus the matching
+                # boundary_impl self-report; host chains keep explicit NA
+                # and no boundary_impl line.
                 seg = s.get("segments", "unset")
+                bi = s.get("boundary_impl")
                 if expect_boundary == "boundary=0":
+                    want = "six" if impl == "separate" else "five"
                     if not fields or seg in (None, "unset"):
                         problems.append(
-                            f"trial[{i}] device chain missing six segments")
+                            f"trial[{i}] device chain missing {want} "
+                            f"segments ({impl})")
                     else:
                         problems += [
                             f"trial[{i}] {x}" for x in
                             scopes.validate_segments(seg, fields,
-                                                     "long_device")]
-                elif expect_boundary and seg not in (None,):
-                    problems.append(
-                        f"trial[{i}] host chain must report segments=NA, "
-                        f"got {seg!r}")
+                                                     "long_device",
+                                                     impl=impl)]
+                    # attest only when the trial actually carries the key:
+                    # parse_trial always records it for new collections
+                    # (None when the line was absent), while pre-PR-B
+                    # archives predate it entirely.
+                    if "boundary_impl" in s and bi != impl:
+                        problems.append(
+                            f"trial[{i}] boundary_impl {bi!r} != {impl!r}")
+                else:
+                    if expect_boundary and seg not in (None,):
+                        problems.append(
+                            f"trial[{i}] host chain must report "
+                            f"segments=NA, got {seg!r}")
+                    if bi is not None:
+                        problems.append(
+                            f"trial[{i}] host chain must not report "
+                            f"boundary_impl, got {bi!r}")
             # Stats are an output cache: recompute from raw so a tampered
             # median/min/mean/cv can never drift from the archived samples.
             recomputed = compute_stats([(s or {}).get("e2e_us")
@@ -320,22 +439,56 @@ def verify_document(doc, threshold=None):
         doc = json.loads(Path(doc).read_text(encoding="utf-8"))
     missing = [k for k in ("manifest", "points", "grid", "boundary",
                            "trials_per_shape", "short_control",
-                           "e2e_transfers", "status")
+                           "e2e_transfers", "status", "env_monitor")
                if k not in doc]
     if missing:
         return [f"missing top-level key {k!r}" for k in missing]
+
+    def _snap_problem(snap, where):
+        if not isinstance(snap, dict) or not isinstance(snap.get("utc"),
+                                                        str):
+            return [f"{where}: env_monitor snapshot missing utc"]
+        probs = []
+        if "npu_smi" not in snap:
+            probs.append(f"{where}: env_monitor snapshot missing npu_smi")
+        if "loadavg" not in snap:
+            probs.append(f"{where}: env_monitor snapshot missing loadavg")
+        return probs
+
+    problems = []
+    for where, snap in (("env_monitor.before",
+                         (doc.get("env_monitor") or {}).get("before")),
+                        ("env_monitor.after",
+                         (doc.get("env_monitor") or {}).get("after"))):
+        problems += _snap_problem(snap, where)
+
     boundary = doc["boundary"]
     expect = BOUNDARY_BY_MODE.get(boundary)
     if expect is None:
         return [f"unknown boundary {boundary!r}"]
+    # PR-B：impl 归属（无 impl 键的旧档 = separate，天然向后兼容）；档头
+    # boundary 与 impl 必须互相印证，防止单方面改键绕过段数契约。
+    impl = doc.get("impl", "separate")
+    if impl not in scopes.IMPLS:
+        return [f"unknown impl {impl!r} (expected one of {scopes.IMPLS})"]
+    want_impl = IMPL_BY_MODE.get(boundary)
+    if want_impl is not None and impl != want_impl:
+        problems.append(f"impl {impl!r} != {want_impl!r} for "
+                        f"boundary {boundary!r}")
     thr = doc.get("threshold", THRESHOLD) if threshold is None else threshold
     grid = doc.get("grid") or {}
-    problems = [f"grid: {x}" for x in
-                verify_grid(doc["points"], tuple(grid.get("ns") or ()),
-                            tuple(grid.get("bs") or ()))]
+    problems += [f"grid: {x}" for x in
+                 verify_grid(doc["points"], tuple(grid.get("ns") or ()),
+                             tuple(grid.get("bs") or ()))]
     for p in doc["points"]:
+        pem = p.get("env_monitor") or {}
+        for w in ("before", "after"):
+            problems += _snap_problem(
+                pem.get(w), f"point n={p.get('n')} b={p.get('b')} "
+                            f"env_monitor.{w}")
         problems += [f"point n={p.get('n')} b={p.get('b')}: {x}"
-                     for x in verify_point(p, expect, threshold=thr)]
+                     for x in verify_point(p, expect, threshold=thr,
+                                           impl=impl)]
     problems += [f"control: {x}" for x in
                  verify_control(doc["short_control"], threshold=thr)]
     problems += [f"e2e: {x}" for x in
@@ -547,33 +700,66 @@ def build_manifest(mode, allow_dirty):
 
 
 # ---------- collection ---------------------------------------------------
+def env_tags(mode):
+    """Env contract recorded next to each archived command argv."""
+    tags = []
+    if mode in ("device", "device-fused"):
+        tags.append("AB_BOUNDARY=device")
+    tags.append(f"AB_LONG_BOUNDARY_IMPL={IMPL_BY_MODE[mode]}")
+    # R2-A experiment overrides (ambient passthrough): record them so an
+    # archive never claims the default tile/blocks when a sweep set them.
+    for k in ("AB_LT_TILE", "AB_LT_BLOCKS", "AB_LT_STRIPE_K", "AB_LT_IDX"):
+        v = os.environ.get(k)
+        if v:
+            tags.append(f"{k}={v}")
+    return tags
+
+
+def control_env(mode, **extra):
+    """Env for the short-path control run (every mode).
+
+    The impl switch only exists for the long device chain; fft_check
+    rejects fused+short as a misconfig, and the control never runs that
+    chain -- pin the default for device-fused rather than stripping.
+    """
+    pin = ({"AB_LONG_BOUNDARY_IMPL": "separate"}
+           if mode == "device-fused" else {})
+    return mode_env(mode, AB_INPUT_SEQ="impulse,random-seeded,impulse",
+                    **pin, **extra)
+
+
 def mode_env(mode, **extra):
     env = dict(os.environ)
     env.update(BASE_ENV)
-    if mode == "device":
+    if mode in ("device", "device-fused"):
         env["AB_BOUNDARY"] = "device"
+    # pin the impl for every mode: host runs must not inherit a stray
+    # AB_LONG_BOUNDARY_IMPL=fused from the ambient environment (fft_check
+    # rejects fused+host), and each device mode gets its contracted shape.
+    env["AB_LONG_BOUNDARY_IMPL"] = IMPL_BY_MODE[mode]
     env.update(extra)
     return env
 
 
 def collect(mode, allow_dirty=False):
     expect_boundary = BOUNDARY_BY_MODE[mode]
+    impl = IMPL_BY_MODE[mode]
     binary = ROOT / "build" / "fft_check"
     if not binary.is_file():
         return None, ["build/fft_check missing; run scripts/build.sh check"]
     manifest = build_manifest(mode, allow_dirty)
     points, transcripts = [], []
     commands = []
+    env_before = env_monitor_snapshot()
     for n in NS:
         for b in BS:
+            point_env_before = env_monitor_snapshot()
             seq_cmd = ["./build/fft_check", str(n), str(b), "3"]
             if not commands:
                 commands.append({"kind": "aba_seq", "argv": seq_cmd,
                                  "env": [
                                      "AB_INPUT_SEQ=impulse,random-seeded,impulse",
-                                     "AB_E2E=1"] +
-                                    (["AB_BOUNDARY=device"]
-                                     if mode == "device" else []),
+                                     "AB_E2E=1"] + env_tags(mode),
                                  "reps": 3, "note": "first shape"})
             rc, out = run(seq_cmd, env=mode_env(
                 mode, AB_INPUT_SEQ="impulse,random-seeded,impulse"))
@@ -589,8 +775,7 @@ def collect(mode, allow_dirty=False):
                         commands[-1]["kind"] != "trial":
                     commands.append(
                         {"kind": "trial", "argv": trial_cmd,
-                         "env": ["AB_E2E=5"] + (["AB_BOUNDARY=device"]
-                                                if mode == "device" else []),
+                         "env": ["AB_E2E=5"] + env_tags(mode),
                          "reps": 5, "note": "repeated per shape"})
                 sample = parse_trial(outt)
                 sample["rc"] = rct
@@ -598,12 +783,13 @@ def collect(mode, allow_dirty=False):
             stats = compute_stats([s["e2e_us"] for s in samples])
             point["trials"] = {"count": TRIALS, "raw": samples,
                                "stats": stats}
+            point["env_monitor"] = {"before": point_env_before,
+                                    "after": env_monitor_snapshot()}
             points.append(point)
             transcripts.append(
                 f"===== long A/B/A n={n} b={b} rc={rc} =====\n{out}")
     rc, out = run(["./build/fft_check", "4096", "3", "3"],
-                  env=mode_env(mode,
-                               AB_INPUT_SEQ="impulse,random-seeded,impulse"))
+                  env=control_env(mode))
     control = {"n": 4096, "b": 3, "rc": rc, **parse_point(out),
                "path": "short"}
     transcripts.append(f"===== short A/B/A control rc={rc} =====\n{out}")
@@ -619,8 +805,7 @@ def collect(mode, allow_dirty=False):
            "line": (re.search(r"^(E2E n=.*)$", out, re.M).group(1)
                     if re.search(r"^E2E n=.*$", out, re.M) else "")}
     commands.append({"kind": "e2e", "argv": e2e_cmd,
-                     "env": ["AB_E2E=3"] + (["AB_BOUNDARY=device"]
-                                            if mode == "device" else []),
+                     "env": ["AB_E2E=3"] + env_tags(mode),
                      "reps": 3})
     transcripts.append(f"===== E2E transfer assertion rc={rc} =====\n{out}")
 
@@ -628,7 +813,7 @@ def collect(mode, allow_dirty=False):
     problems += [f"grid: {p}" for p in verify_grid(points)]
     for p in points:
         problems += [f"point n={p['n']} b={p['b']}: {x}"
-                     for x in verify_point(p, expect_boundary)]
+                     for x in verify_point(p, expect_boundary, impl=impl)]
     problems += [f"control: {x}" for x in verify_control(control)]
     problems += [f"e2e: {x}" for x in verify_e2e(e2e, expect_boundary)]
     incomplete = manifest_incomplete(manifest)
@@ -638,12 +823,17 @@ def collect(mode, allow_dirty=False):
         "manifest": manifest,
         "commands": commands,
         "command": "python3 scripts/collect_long_fft_evidence.py"
-                   + (" --boundary device" if mode == "device" else ""),
+                   + (f" --boundary {mode}" if mode != "host" else ""),
         "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
         "boundary": mode,
+        "impl": impl,
         "threshold": THRESHOLD,
         "grid": {"ns": list(NS), "bs": list(BS)},
         "trials_per_shape": TRIALS,
+        # R1.1 variance governance: host/NPU state around the whole
+        # collection (per-point before/after lives on each point).
+        "env_monitor": {"before": env_before,
+                        "after": env_monitor_snapshot()},
         "points": points,
         "short_control": control,
         "e2e_transfers": e2e,
@@ -657,7 +847,9 @@ def collect(mode, allow_dirty=False):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--boundary", choices=("host", "device"), default="host")
+    ap.add_argument("--boundary",
+                    choices=("host", "device", "device-fused"),
+                    default="host")
     ap.add_argument("--allow-dirty", action="store_true",
                     help="record a patch digest instead of refusing on a "
                          "dirty tree")

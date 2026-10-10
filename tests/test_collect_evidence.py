@@ -31,6 +31,11 @@ HOST_SCOPES = {"plan_setup": 1.0, "first_use": 2.0, "e2e_mean": 100.0,
 DEVICE_SEGMENTS = {"transpose_in": 10.0, "fft1": 8.0, "twiddle": 6.0,
                    "transpose_boundary": 7.0, "fft2": 6.0,
                    "transpose_out": 3.0}
+# PR-B R1 fused chain: five segments (twiddle 6.0 + boundary 7.0 merged into
+# transpose_boundary=13.0), same device_chain=40.0
+FUSED_SEGMENTS = {"transpose_in": 10.0, "fft1": 8.0,
+                  "transpose_boundary": 13.0, "fft2": 6.0,
+                  "transpose_out": 3.0}
 
 
 def good_point():
@@ -57,6 +62,18 @@ def to_device_trials(p):
     """Host-shaped trial samples -> realistic device-boundary samples."""
     for s in p["trials"]["raw"]:
         s["segments"] = dict(DEVICE_SEGMENTS)
+        s["boundary_impl"] = "separate"
+    return p
+
+
+def to_fused_trials(p):
+    """-> device-boundary samples under AB_LONG_BOUNDARY_IMPL=fused."""
+    p["e2e_transfers"] = "E2E transfers: in=1 out=1 boundary=0 " \
+                         "per_execution"
+    p["boundary_ok"] = True
+    for s in p["trials"]["raw"]:
+        s["segments"] = dict(FUSED_SEGMENTS)
+        s["boundary_impl"] = "fused"
     return p
 
 
@@ -157,6 +174,60 @@ class VerifyPointTest(unittest.TestCase):
         got = coll.verify_point(p, "boundary=2")
         self.assertTrue(any("trial[0]" in x and "segments=NA" in x
                             for x in got))
+
+    # ---- PR-B impl contract (5-seg fused vs 6-seg separate) ----
+    def test_fused_point_accepted(self):
+        p = to_fused_trials(good_point())
+        self.assertEqual(
+            coll.verify_point(p, "boundary=0", impl="fused"), [])
+
+    def test_fused_rejects_twiddle_segment(self):
+        p = to_fused_trials(good_point())
+        p["trials"]["raw"][0]["segments"]["twiddle"] = 6.0
+        got = coll.verify_point(p, "boundary=0", impl="fused")
+        self.assertTrue(any("twiddle" in x and "fused" in x for x in got))
+
+    def test_fused_missing_five_segments(self):
+        p = to_fused_trials(good_point())
+        p["trials"]["raw"][0]["segments"] = None
+        got = coll.verify_point(p, "boundary=0", impl="fused")
+        self.assertTrue(any("missing five segments" in x for x in got))
+
+    def test_separate_contract_rejects_five_segments(self):
+        p = to_fused_trials(good_point())
+        got = coll.verify_point(p, "boundary=0", impl="separate")
+        self.assertTrue(any("segment twiddle missing" in x for x in got))
+
+    def test_boundary_impl_mismatch_rejected(self):
+        p = to_fused_trials(good_point())
+        got = coll.verify_point(p, "boundary=0", impl="separate")
+        self.assertTrue(any("boundary_impl 'fused' != 'separate'" in x
+                            for x in got))
+        p = to_device_trials(good_point())
+        p["e2e_transfers"] = "E2E transfers: in=1 out=1 boundary=0 " \
+                             "per_execution"
+        p["boundary_ok"] = True
+        got = coll.verify_point(p, "boundary=0", impl="fused")
+        self.assertTrue(any("boundary_impl 'separate' != 'fused'" in x
+                            for x in got))
+
+    def test_host_trial_with_boundary_impl_rejected(self):
+        p = good_point()
+        p["trials"]["raw"][0]["boundary_impl"] = "separate"
+        got = coll.verify_point(p, "boundary=2")
+        self.assertTrue(any("must not report boundary_impl" in x
+                            for x in got))
+
+    def test_legacy_trial_without_boundary_impl_key_accepted(self):
+        # pre-PR-B archives carry no boundary_impl key at all: attest only
+        # what the contract had at the time.
+        p = to_device_trials(good_point())
+        p["e2e_transfers"] = "E2E transfers: in=1 out=1 boundary=0 " \
+                             "per_execution"
+        p["boundary_ok"] = True
+        for s in p["trials"]["raw"]:
+            del s["boundary_impl"]
+        self.assertEqual(coll.verify_point(p, "boundary=0"), [])
 
     def test_trials_count_enforced(self):
         def shrink(p):
@@ -279,6 +350,85 @@ class StatsAndParseTest(unittest.TestCase):
                "segments: NA\n")
         s = coll.parse_trial(out)
         self.assertIsNone(s["segments"])
+        self.assertIsNone(s["boundary_impl"])
+
+    def test_parse_trial_boundary_impl(self):
+        base = ("scopes: plan_setup=1.0 us first_use=2.0 us "
+                "host_end_to_end mean=100.0 min=95.0 us h2d=10.0 us "
+                "device_chain=40.0 us d2h=11.0 us reps=5\n")
+        s = coll.parse_trial(base + "boundary_impl: fused\n"
+                             "segments: transpose_in=10.0 us fft1=8.0 us "
+                             "transpose_boundary=13.0 us fft2=6.0 us "
+                             "transpose_out=3.0 us\n")
+        self.assertEqual(s["boundary_impl"], "fused")
+        self.assertAlmostEqual(sum(s["segments"].values()), 40.0)
+        s = coll.parse_trial(base + "boundary_impl: separate\n")
+        self.assertEqual(s["boundary_impl"], "separate")
+
+    def test_parse_trial_malformed_boundary_impl_rejected(self):
+        with self.assertRaises(ValueError):
+            coll.parse_trial("boundary_impl: maybe\n")
+
+
+class ModeContractTest(unittest.TestCase):
+    """PR-B mode table: device-fused maps to the same boundary=0 chain with
+    the fused impl and its own archive directory."""
+
+    def test_mode_tables(self):
+        self.assertEqual(coll.BOUNDARY_BY_MODE["device-fused"], "boundary=0")
+        self.assertEqual(coll.OUT_BY_MODE["device-fused"],
+                         "long-fft-device-boundary-fused")
+        self.assertEqual(coll.OUT_BY_MODE["device"],
+                         "long-fft-device-boundary")
+        self.assertNotEqual(coll.OUT_BY_MODE["device-fused"],
+                            coll.OUT_BY_MODE["device"])
+        self.assertEqual(coll.IMPL_BY_MODE,
+                         {"host": "separate", "device": "separate",
+                          "device-fused": "fused"})
+
+    def test_env_tags(self):
+        self.assertEqual(coll.env_tags("host"),
+                         ["AB_LONG_BOUNDARY_IMPL=separate"])
+        self.assertEqual(coll.env_tags("device"),
+                         ["AB_BOUNDARY=device",
+                          "AB_LONG_BOUNDARY_IMPL=separate"])
+        self.assertEqual(coll.env_tags("device-fused"),
+                         ["AB_BOUNDARY=device",
+                          "AB_LONG_BOUNDARY_IMPL=fused"])
+
+    def test_mode_env_pins_impl_against_ambient(self):
+        old = os.environ.get("AB_LONG_BOUNDARY_IMPL")
+        os.environ["AB_LONG_BOUNDARY_IMPL"] = "fused"
+        try:
+            self.assertEqual(
+                coll.mode_env("host")["AB_LONG_BOUNDARY_IMPL"], "separate")
+            self.assertEqual(
+                coll.mode_env("device")["AB_LONG_BOUNDARY_IMPL"], "separate")
+            self.assertEqual(
+                coll.mode_env("device")["AB_BOUNDARY"], "device")
+            self.assertEqual(
+                coll.mode_env("device-fused")["AB_LONG_BOUNDARY_IMPL"],
+                "fused")
+            self.assertEqual(
+                coll.mode_env("device-fused")["AB_BOUNDARY"], "device")
+            self.assertNotIn("AB_BOUNDARY", coll.mode_env("host"))
+        finally:
+            if old is None:
+                os.environ.pop("AB_LONG_BOUNDARY_IMPL", None)
+            else:
+                os.environ["AB_LONG_BOUNDARY_IMPL"] = old
+
+    def test_control_env_pins_default_impl(self):
+        # the short control never runs the long chain, and fft_check
+        # rejects fused+short; device-fused must still get a runnable
+        # control with the canonical default pinned.
+        for mode in ("host", "device", "device-fused"):
+            env = coll.control_env(mode)
+            self.assertEqual(env["AB_LONG_BOUNDARY_IMPL"], "separate", mode)
+            self.assertEqual(env["AB_E2E"], "1", mode)
+            self.assertEqual(env["AB_INPUT_SEQ"],
+                             "impulse,random-seeded,impulse", mode)
+        self.assertNotIn("AB_BOUNDARY", coll.control_env("host"))
 
 
 class ManifestTest(unittest.TestCase):
@@ -409,11 +559,14 @@ class DriverDetectionTest(unittest.TestCase):
 class VerifyDocumentTest(unittest.TestCase):
     ARCHIVES = [ROOT / "results" / "evidence" / d / "acceptance.json"
                 for d in ("long-fft-acceptance", "long-fft-device-boundary")]
+    FUSED = (ROOT / "results" / "evidence" /
+             "long-fft-device-boundary-fused" / "acceptance.json")
     HAVE = all(p.is_file() for p in ARCHIVES)
 
     @unittest.skipUnless(HAVE, "acceptance archives not present")
     def test_committed_archives_accepted(self):
-        for path in self.ARCHIVES:
+        for path in self.ARCHIVES + ([self.FUSED]
+                                     if self.FUSED.is_file() else []):
             self.assertEqual(coll.verify_document(path), [], str(path))
 
     @classmethod
@@ -448,6 +601,27 @@ class VerifyDocumentTest(unittest.TestCase):
         got = coll.verify_document(doc)
         self.assertTrue(any("missing top-level key 'points'" in x
                             for x in got))
+
+    @unittest.skipUnless(HAVE, "acceptance archives not present")
+    def test_impl_mismatch_rejected(self):
+        # device archive claims fused impl: boundary/impl cross-check fails
+        doc = self._load(1)
+        doc["impl"] = "fused"
+        got = coll.verify_document(doc)
+        self.assertTrue(any("impl 'fused' != 'separate'" in x for x in got))
+
+    @unittest.skipUnless(HAVE and FUSED.is_file(),
+                         "fused acceptance archive not present")
+    def test_fused_archive_attested(self):
+        self.assertEqual(coll.verify_document(self.FUSED), [],
+                         str(self.FUSED))
+        doc = json.loads(self.FUSED.read_text(encoding="utf-8"))
+        self.assertEqual(doc["boundary"], "device-fused")
+        self.assertEqual(doc["impl"], "fused")
+        for p in doc["points"]:
+            for s in p["trials"]["raw"]:
+                self.assertEqual(s.get("boundary_impl"), "fused")
+                self.assertNotIn("twiddle", s["segments"])
 
 
 if __name__ == "__main__":

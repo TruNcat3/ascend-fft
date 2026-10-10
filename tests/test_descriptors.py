@@ -8,7 +8,11 @@ CANN), runs its machine-readable case table, and checks
     back as `abstract-feasible-but-not-lowered`, never as supported),
   - the launch manifest matches the runtime: 6 device-boundary launches in
     transpose_in|row_fft|twiddle|transpose_boundary|row_fft|transpose_out
-    order, 2 host-boundary row_fft launches, 1 materialized GM boundary each,
+    order (PR-B: 5 launches with boundary_impl=Fused, twiddle merged into
+    transpose_boundary, boundary_edge unchanged), 2 host-boundary row_fft
+    launches, 1 materialized GM boundary each, and modeled payload GM bytes =
+    launches x 2 x n x batch x 8 (payload model only: no twiddle/index/coeff
+    traffic, not a profiler measurement),
   - the builtin H profile stays in sync with config/ascend910_93_profile.json,
   - batch only adds data-dimension work (identical lowering structure),
   - fft_check queries the lowering contract before any allocation or launch.
@@ -29,6 +33,7 @@ EXPECTED_CASES = {
     "default_65536_b3": (True, None),
     "batch_4096_independent": (True, None),
     "default_device_gm": (True, None),
+    "fused_device_gm": (True, None),
     "cell_resident_not_lowered": (False, NOT_LOWERED),
     "us2_not_lowered": (False, NOT_LOWERED),
     "td99_not_lowered": (False, NOT_LOWERED),
@@ -49,6 +54,25 @@ EXPECTED_CASES = {
     "layout_real_on_c2c": (False, "not supported by unit"),
     "ub_overflow": (False, "UB overflow"),
     "fold_d_override_rejected": (False, "UB overflow"),
+    "plane_k_32_len256_accepted": (True, None),
+    "plane_k_12_rejected": (False, "illegal row-FFT plan"),
+    "plane_k_24_rejected": (False, "illegal row-FFT plan"),
+    "plane_k_32_len64_rejected": (False, "illegal row-FFT plan"),
+    # R2-A transpose tile candidates (AB_LT_TILE=HxW)
+    "lt_tile_64x64_supported": (True, None),
+    "lt_tile_256x16_supported": (True, None),
+    "lt_tile_64x32_rejected": (False, "illegal transpose tile"),
+    "lt_tile_64x16_rejected": (False, "illegal transpose tile"),
+    "lt_tile_garbage_rejected": (False, "illegal transpose tile"),
+    "lt_tile_128x64_rejected": (False, "UB overflow"),
+    # R2-A Round 2 stripe K candidates (AB_LT_STRIPE_K)
+    "lt_stripe_k_256_supported": (True, None),
+    "lt_stripe_k_12_rejected": (False, "illegal transpose stripe"),
+    "lt_tile_64x32_k256_supported": (True, None),
+    # R2-A Round 3 resident stripe index (AB_LT_IDX=resident)
+    "lt_idx_resident_k256_supported": (True, None),
+    "lt_idx_resident_tile_rejected": (False, "illegal transpose tile"),
+    "lt_idx_bogus_rejected": (False, "illegal transpose index mode"),
     "block_resident_needs_multi_role": (False, "multi-role unit"),
     "onchip_without_block_residence": (False, "on-chip boundary"),
     "gm_guard_overflow": (False, "40 GiB guard"),
@@ -149,29 +173,54 @@ class DescriptorLegalityTests(unittest.TestCase):
         self.assertEqual(struct["host_assisted"], "0")
         self.assertEqual(struct["on_chip"], "0")
         self.assertEqual(struct["abstract"], "1")
+        # Modeled payload GM accounting (PR-B, R1.0 rename): 6 launches x
+        # 2 x n x batch x 8 bytes, 8192x1 tensor -> 6 * 2 * 65536 = 786432.
+        self.assertEqual(struct["modeled_payload_gm"], "786432")
+
+    def test_fused_device_chain_manifest_is_five_launches(self):
+        # PR-B R1: boundary_impl=Fused drops the twiddle record; the merged
+        # boundary transpose keeps the single GM edge, UB peak unchanged
+        # (bTw statically reserved in kfft_lt_tr), GM bytes lose one
+        # launch's full read+write.
+        struct = self.structs["fused_device_gm"]
+        self.assertEqual(struct["launches"], "5")
+        self.assertEqual(struct["kinds"],
+                         "transpose_in|row_fft|transpose_boundary|"
+                         "row_fft|transpose_out")
+        self.assertEqual(struct["gm_boundaries"], "1")
+        self.assertEqual(struct["host_assisted"], "0")
+        self.assertEqual(struct["on_chip"], "0")
+        self.assertEqual(struct["abstract"], "1")
+        self.assertEqual(struct["ub_peak"], "131072")
+        self.assertEqual(struct["modeled_payload_gm"], "655360")
+        self.assertEqual(int(struct["modeled_payload_gm"]) + 2 * 8192 * 8,
+                         int(self.structs["default_device_gm"]["modeled_payload_gm"]))
 
     def test_plan_ub_is_serial_peak_not_sum(self):
-        # device peak = transpose 3*128*32*8 = 98304 (twiddle/rowFFT smaller
-        # at these stages); host peak = row FFT AB_ROW_FFT_UB_BYTES with the
-        # launch's rows-aware D: len128/rows64 -> D=1,K=8 -> 6208 (R0.1,
-        # was 6080 under the stale 46.5n+128 macro).
-        self.assertEqual(self.structs["default_device_gm"]["ub_peak"], "98304")
+        # device peak = transpose 3*128*32*8 = 98304 plus the statically
+        # reserved twiddle tile 128*32*8 = 32768 -> AB_FUSED_UB_BYTES
+        # 131072 (PR-B; was 98304 before bTw). Host peak = row FFT
+        # AB_ROW_FFT_UB_BYTES with the launch's rows-aware D:
+        # len128/rows64 -> D=1,K=8 -> 6208 (R0.1, was 6080 under the stale
+        # 46.5n+128 macro).
+        self.assertEqual(self.structs["default_device_gm"]["ub_peak"],
+                         "131072")
         self.assertEqual(self.structs["default_host_memory"]["ub_peak"], "6208")
         self.assertEqual(self.structs["ub_exact_transpose_peak"]["ub_peak"],
-                         "98304")
+                         "131072")
 
     def test_ub_below_transpose_peak_rejects_device_not_host(self):
         # the discriminating boundary: same 80000 B UB, host chain fits,
-        # device chain must not (kfft_lt_tr peak 98304)
+        # device chain must not (kfft_lt_tr peak 131072)
         status, reason = self.cases["ub_below_transpose_peak"]
         self.assertEqual(status, "UNSUPPORTED")
         self.assertIn("UB overflow", reason)
         self.assertIn("kfft_lt_tr", reason)
-        self.assertIn("98304", reason)
+        self.assertIn("131072", reason)
         self.assertEqual(self.cases["ub_host_ok_at_80000"][0], "SUPPORTED")
 
     def test_rowfft_checked_after_transpose_threshold(self):
-        # ub == 98304: transpose passes, then kfft_fwd (191616 B) rejects
+        # ub == 131072: transpose passes, then kfft_fwd (191616 B) rejects
         status, reason = self.cases["ub_rowfft_checked_after_transpose"]
         self.assertEqual(status, "UNSUPPORTED")
         self.assertIn("UB overflow", reason)
@@ -190,12 +239,14 @@ class DescriptorLegalityTests(unittest.TestCase):
     def test_batch_is_data_dimension_not_architectural(self):
         # Since R0.1 the row-FFT resource is rows-aware (fold D depends on the
         # launch's row count), so ub_peak may grow with batch: 6208 (b=1) vs
-        # 17536 (b=4096, D=4).  The ARCHITECTURE -- launches, kinds, GM
-        # boundaries, feasibility -- must stay batch-independent.
+        # 17536 (b=4096, D=4), and modeled payload GM scales with the tensor.
+        # The ARCHITECTURE -- launches, kinds, GM boundaries, feasibility --
+        # must stay batch-independent.
         a = dict(self.structs["default_8192"])
         b = dict(self.structs["batch_4096_independent"])
         a.pop("ub_peak")
         b.pop("ub_peak")
+        gm_a, gm_b = a.pop("modeled_payload_gm"), b.pop("modeled_payload_gm")
         self.assertEqual(a, b,
                          "batch must not change the lowering structure")
         self.assertEqual(self.structs["default_8192"]["ub_peak"], "6208")
@@ -205,6 +256,8 @@ class DescriptorLegalityTests(unittest.TestCase):
             int(self.structs["batch_4096_independent"]["ub_peak"]),
             int(self.structs["default_8192"]["ub_peak"]),
             "larger batch -> larger fold D -> larger exact UB (documented)")
+        self.assertEqual(int(gm_b), 4096 * int(gm_a),
+                         "modeled payload GM bytes must scale linearly")
 
     def test_fft_check_queries_before_allocation_and_launch(self):
         src = (ROOT / "src" / "host" / "fft_check.cpp").read_text()
@@ -214,6 +267,115 @@ class DescriptorLegalityTests(unittest.TestCase):
                         "lowering must be queried before device allocation")
         self.assertLess(query, src.index("issuePass(d"),
                         "lowering must be queried before any launch")
+
+    def test_lt_tile_candidates_reshape_ub_peak(self):
+        # R2-A: AB_LT_TILE selects a compiled entry; the descriptor gates the
+        # exact four-tile peak of the selected shape (single-source macro).
+        self.assertEqual(
+            self.structs["lt_tile_64x64_supported_struct"]["ub_peak"],
+            str(4 * 8 * 64 * 64))
+        self.assertEqual(
+            self.structs["lt_tile_256x16_supported_struct"]["ub_peak"],
+            str(4 * 8 * 256 * 16))
+        # unsetenv must restore the default 128x32 peak (no env leakage).
+        self.assertEqual(self.structs["fused_after_unset"]["ub_peak"],
+                         str(4 * 8 * 128 * 32))
+
+    def test_lt_tile_illegal_rejected_loudly(self):
+        # K=512 trim: 10K=5120 must fit 2HW, so 64x32 (2HW=4096) and 64x16
+        # (2HW=2048) are stripe-illegal -- loud rejections, no silent reshape.
+        for name in ("lt_tile_64x32_rejected", "lt_tile_64x16_rejected"):
+            status, reason = self.cases[name]
+            self.assertEqual(status, "UNSUPPORTED")
+            self.assertIn("illegal transpose tile", reason)
+            self.assertIn("carve", reason)
+            self.assertIn("rebuild", reason)
+        status, reason = self.cases["lt_tile_garbage_rejected"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("illegal transpose tile", reason)
+        # 128x64 is stripe-legal but 4*8*128*64 = 262144 > the 192 KiB budget
+        status, reason = self.cases["lt_tile_128x64_rejected"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("UB overflow", reason)
+        self.assertIn("262144", reason)
+
+    def test_lt_idx_resident_peak_and_legality(self):
+        # R2-A Round 3: resident index adds 16*K bytes to the peak and
+        # relaxes the carve (3K<=HW), unlocking tiles like 64x32 at K=512.
+        self.assertEqual(self.structs["lt_idx_resident_k256"]["ub_peak"],
+                         str(4 * 8 * 128 * 32 + 16 * 256))
+        status, reason = self.cases["lt_idx_resident_tile_rejected"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("illegal transpose tile", reason)
+        self.assertIn("resident", reason)
+        status, reason = self.cases["lt_idx_bogus_rejected"]
+        self.assertEqual(status, "UNSUPPORTED")
+        self.assertIn("illegal transpose index mode", reason)
+
+    def test_lt_kernel_entries_cover_the_legal_ub_fitting_set(self):
+        # R2-A single source: every (H,W) that is stripe-legal at the default
+        # K=512 AND fits the fused UB budget has a compiled entry, and no
+        # other K=512 rebuild entry exists (the host would fail the symbol
+        # lookup).  R2-B/R5 pipeline entries (_k256ri_nb/_k256ri_pp at the
+        # default tile, _t64x32_k256ri_pp2 at the R5 half tile) carry their
+        # own K/resident and are checked separately below.
+        import re
+        src = (ROOT / "src" / "ascendc" / "fft_long.cpp").read_text()
+        all_entries = set()
+        for m in re.finditer(
+                r"#define AB_LT_TR_SUFFIX\s*(\S*)\s*\n"
+                r"#define AB_LT_TR_H (\d+)\s*\n"
+                r"#define AB_LT_TR_W (\d+)\s*\n"
+                r"#define AB_LT_TR_K (\S+)\s*\n"
+                r"#define AB_LT_TR_RESIDENT (\d+)", src):
+            all_entries.add((m.group(1), int(m.group(2)), int(m.group(3)),
+                             m.group(4), int(m.group(5))))
+        entries = {(h, w) for suf, h, w, k, r in all_entries
+                   if k == "AB_FUSE_STRIPE_K" and r == 0}
+
+        def legal(h, w, k=512):
+            if h not in (64, 128, 256) or w not in (16, 32, 64):
+                return False
+            if w % 4:
+                return False
+            if k > h * w or 10 * k > 2 * h * w:
+                return False
+            return 4 * 8 * h * w <= 196608      # fused UB budget
+
+        expect = {(h, w) for h in (64, 128, 256) for w in (16, 32, 64)
+                  if legal(h, w)}
+        self.assertEqual(entries, expect,
+                         "compiled kfft_lt_tr K=512 rebuild entries must "
+                         "match the legal UB-fitting candidate set")
+        # R2-B/R5 pipeline entries: resident index, K=256 only.
+        pipes = {(suf, h, w, k, r) for suf, h, w, k, r in all_entries
+                 if suf.startswith(("_k256ri_", "_t64x32_k256ri_"))}
+        self.assertEqual(pipes, {
+            ("_k256ri_nb", 128, 32, "256", 1),
+            ("_k256ri_pp", 128, 32, "256", 1),
+            ("_t64x32_k256ri_pp2", 64, 32, "256", 1),
+        }, "pipeline experiment entries must be exactly nb/pp at 128x32 "
+           "and the pp2 prototype at 64x32, all K=256 resident")
+        # Round 2: stripe-K variants exist for the DEFAULT tile only.
+        k_entries = set()
+        for m in re.finditer(
+                r"#define AB_LT_TR_SUFFIX\s*(\S+)\s*\n"
+                r"#define AB_LT_TR_H (\d+)\s*\n"
+                r"#define AB_LT_TR_W (\d+)\s*\n"
+                r"#define AB_LT_TR_K (\d+)\s*\n"
+                r"#define AB_LT_TR_RESIDENT (\d+)", src):
+            k_entries.add((m.group(1), int(m.group(2)), int(m.group(3)),
+                           int(m.group(4)), int(m.group(5))))
+        rebuild_k = {(h, w, k) for suf, h, w, k, r in k_entries
+                     if suf.startswith("_k") and r == 0}
+        self.assertEqual(rebuild_k, {(128, 32, 256), (128, 32, 128)},
+                         "stripe-K variants must exist for the default 128x32 tile")
+        # Round 3: resident entries = default tile at K=256 (k256_ri, the
+        # nb/pp pipeline entries) plus the R5 pp2 prototype at 64x32.
+        resident = {(h, w, k) for suf, h, w, k, r in k_entries if r == 1}
+        self.assertEqual(resident, {(128, 32, 256), (64, 32, 256)},
+                         "resident entries must be the 128x32 K=256 family "
+                         "and the 64x32 K=256 pp2 prototype")
 
 
 if __name__ == "__main__":
