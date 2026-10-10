@@ -805,6 +805,11 @@ int main(int argc, char** argv){
     const int* segSlot = fusedImpl ? kSlotFus : kSlotSep;
     double chainSpanMs=-1, h2dSpanMs=-1, d2hSpanMs=-1;
     double segMs[6]={-1,-1,-1,-1,-1,-1}; bool segOk=false;
+    // R3：device 链内嵌的 H2D/D2H 指针上提——E2E 分配了 pinned 主机缓冲
+    // （AB_E2E=1）时指向 pinned，否则保持 pageable hIn/hOut（纯链计时口径
+    // 不变：chain 事件跨度不含传输）。
+    const float* h2dPtr = hIn.data();
+    float*       d2hPtr = hOut.data();
     // 一次 launch = 整条方向链（多内核在同一流上串行），末尾一次同步 => 计的是整链 device 时间
     auto launch=[&](){
         aclError e=ACL_SUCCESS;
@@ -816,7 +821,7 @@ int main(int argc, char** argv){
             //   行FFT(N2) -> 自然序写出 lt_tr(n1,n2) -> D2H(逻辑输出)。
             // 每次执行都从当前 hIn 上传（动态输入契约）；段边界不回宿主 => boundary=0。
             aclError e=aclrtRecordEvent(evIn, s);
-            if(!e) e=aclrtMemcpyAsync(dIn, inElems*4u, hIn.data(), inElems*4u,
+            if(!e) e=aclrtMemcpyAsync(dIn, inElems*4u, h2dPtr, inElems*4u,
                                       ACL_MEMCPY_HOST_TO_DEVICE, s);
             if(!e) e=aclrtRecordEvent(ev0, s);        // chain 起点：H2D 完成之后
             if(!e) e=issueLt(fLtTr, dA, dIn, nullptr, longN1, longN2);
@@ -840,7 +845,7 @@ int main(int argc, char** argv){
             if(!e) e=aclrtRecordEvent(fusedImpl ? evSeg[3] : evSeg[4], s); // fft2 |
             if(!e) e=issueLt(fLtTr, dOut, dIn, nullptr, longN1, longN2);
             if(!e) e=aclrtRecordEvent(ev1, s);        // chain 止点：末次转置之后、D2H 之前
-            if(!e) e=aclrtMemcpyAsync(hOut.data(), outElems*4u, dOut, outElems*4u,
+            if(!e) e=aclrtMemcpyAsync(d2hPtr, outElems*4u, dOut, outElems*4u,
                                       ACL_MEMCPY_DEVICE_TO_HOST, s);
             if(!e) e=aclrtRecordEvent(evOut, s);
             if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
@@ -981,7 +986,10 @@ int main(int argc, char** argv){
         const char* hostMode = getenv("AB_E2E_HOST");
         const bool wantPinned = !(hostMode && strcmp(hostMode,"pageable")==0);
         float* pIn = nullptr; float* pOut = nullptr;
-        if(wantPinned && !isLong){
+        // R3：长链同样分配 pinned（此前 !isLong 跳过 => device 链 E2E 的
+        // H2D/D2H 一直走 pageable，带宽随 loadavg 摆 2~4×，把主机拷贝路径
+        // 的账记到链上）。分配成功后 launch 内嵌传输切到 pinned。
+        if(wantPinned){
             void *a=nullptr, *b=nullptr;
             const size_t nbi=inElems*4u, nbo=outElems*4u;
             const int ei=aclrtMallocHost(&a, nbi), eo=aclrtMallocHost(&b, nbo);
@@ -994,9 +1002,10 @@ int main(int argc, char** argv){
                 printf("E2E host=pinned alloc failed (%d/%d) -> pageable\n", ei, eo);
             }
         }
+        if(pIn){ h2dPtr = pIn; d2hPtr = pOut; }
         const float* src = pIn ? pIn : hIn.data();
         float*       dst = pOut ? pOut : hOut.data();
-        const char*  hostTag = isLong ? "chain" : (pIn ? "pinned" : "pageable");
+        const char*  hostTag = pIn ? "pinned" : "pageable";
         double sumE=0, minE=0, firstE=0;
         const auto t0e=std::chrono::steady_clock::now();
         for(int i=0;i<ereps;i++){
