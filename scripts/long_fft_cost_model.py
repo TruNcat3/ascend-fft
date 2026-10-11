@@ -87,7 +87,14 @@ def load_samples():
         d = json.load(open(path))
         if d.get("problems") or d.get("incomplete"):
             continue
-        cfg = config_of(d["manifest"].get("env", {}))
+        env = d["manifest"].get("env", {})
+        cfg = config_of(env)
+        # R4 模型的标定域 = R2-A/R2-B 配置空间（128x32 族 + tile/K/blocks 实验）。
+        # R5 pp2 原型（64x32 半 tile + 全双缓冲）是另一个数据流族，其段级
+        # 行为（双缓冲重叠）不在本模型特征空间内——混入会污染 OLS 拟合
+        # （实测 topk 从 2/2 掉到 1/2）。pp2 归档保留但显式排除。
+        if cfg["pipe"] == "pp2":
+            continue
         key = config_key(cfg)
         for p in d["points"]:
             st = p.get("stats", {})
