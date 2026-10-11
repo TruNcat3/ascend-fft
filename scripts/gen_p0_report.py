@@ -337,9 +337,10 @@ def render():
     a(f"- **自研长链 E2E 的 {_pct0(min(shares_all))}%–"
       f"{_pct0(max(shares_all))}% 是 H2D+D2H**"
       f"（b=47 达 {_pct0(min(shares_b47))}%–{_pct0(max(shares_b47))}%），"
-      "且当前长路径从 `std::vector` 发起"
-      "（`fft_check.cpp` 的 pinned 分配仅覆盖短路径），为 pageable 口径；"
-      "下一节基线的 E2E 差距必须先扣除此项再谈 kernel。")
+      "归档采集时长路径从 `std::vector` 发起（pageable 口径）；"
+      "R3 之后 `fft_check.cpp` 的 pinned 分配已覆盖长路径"
+      "（`AB_E2E_HOST` 默认 pinned，alloc 失败回退 pageable），"
+      "当前实现的 E2E 差距应小于归档值。")
     a("- host 链的 E2E 主体是宿主标量段（四步转置/twiddle/重排的 CPU 循环），"
       "不是 kernel 慢，比较口径不同。")
     a("")

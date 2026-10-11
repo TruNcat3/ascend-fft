@@ -2913,9 +2913,71 @@
   ],
   "regressing_points": [],
   "fallback_separate": false,
-  "promoted": true
+  "promoted": true,
+  "scope": "device-chain"
  },
  "problems": [],
  "incomplete": [],
- "status": "pass"
+ "status": "pass",
+ "chain_gate": {
+  "min_not_slower_pairs": 4,
+  "improve_pct_required": 5.0,
+  "regress_pct_fallback": 3.0,
+  "candidates": [
+   "16384x47",
+   "32768x47",
+   "65536x47",
+   "8192x1"
+  ],
+  "regressing_points": [],
+  "fallback_separate": false,
+  "promoted": true,
+  "scope": "device-chain"
+ },
+ "e2e_gate": {
+  "scope": "end-to-end",
+  "host_mode": "pageable",
+  "status": "diagnostic",
+  "production_ready": false,
+  "supported_shapes": [
+   {
+    "shape": [
+     8192,
+     1
+    ],
+    "verdict": "regress",
+    "median_delta_e2e_pct": 4.057450628366252,
+    "not_slower_pairs": 2
+   },
+   {
+    "shape": [
+     16384,
+     47
+    ],
+    "verdict": "hold",
+    "median_delta_e2e_pct": -1.0246248278195438,
+    "not_slower_pairs": 3
+   },
+   {
+    "shape": [
+     32768,
+     47
+    ],
+    "verdict": "hold",
+    "median_delta_e2e_pct": -4.4296471466799385,
+    "not_slower_pairs": 5
+   },
+   {
+    "shape": [
+     65536,
+     47
+    ],
+    "verdict": "hold",
+    "median_delta_e2e_pct": -4.9274889528159225,
+    "not_slower_pairs": 4
+   }
+  ],
+  "unsupported_shapes": [],
+  "note": "pageable E2E is diagnostic only; production default remains pinned"
+ }
 }

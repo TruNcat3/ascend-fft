@@ -65,7 +65,7 @@ OUT_DIR = ROOT / "results" / "evidence" / "long-fft-boundary-attribution"
 UB_HEADER = ROOT / "include" / "butterfly" / "long_fft_ub.h"
 
 
-def ub_peak_bytes(path=UB_HEADER):
+def ub_peak_bytes(path=UB_HEADER, env=None):
     """kfft_lt_tr peak UB for the selected configuration.
 
     Rebuild mode (default): 4 * LT_H * LT_W * 8 (bIn+bOut+bIdx+bTw).
@@ -74,13 +74,20 @@ def ub_peak_bytes(path=UB_HEADER):
     4*H*W*8 product only when H*W is unchanged -- the default-shape macros
     are the contract for the default configuration, and the R2-A candidates
     all keep H*W=4096.
+
+    env: mapping of AB_LT_* overrides used for the resident/stripe
+    decision.  ``None`` (collection path) reads the ambient
+    ``os.environ``; verification must always pass an explicit mapping
+    (the archive's ``manifest.env``) so the recomputed peak is
+    independent of the verifier's shell.
     """
     text = Path(path).read_text(encoding="utf-8")
     h = int(re.search(r"#define AB_LT_H (\d+)u", text).group(1))
     w = int(re.search(r"#define AB_LT_W (\d+)u", text).group(1))
     peak = 4 * h * w * 8
-    if os.environ.get("AB_LT_IDX") == "resident":
-        k = int(os.environ.get("AB_LT_STRIPE_K")
+    source = os.environ if env is None else env
+    if source.get("AB_LT_IDX") == "resident":
+        k = int(source.get("AB_LT_STRIPE_K")
                 or re.search(r"#define AB_FUSE_STRIPE_K (\d+)u", text).group(1))
         peak += 16 * k
     return peak
@@ -209,11 +216,12 @@ def point_verdict(stats, trials=TRIALS):
 
 
 def evaluate_gate(verdicts):
-    """verdicts: {point_key: verdict} -> plan-level gate (pure)."""
+    """verdicts: {point_key: verdict} -> plan-level gate (pure; device chain)."""
     keys = sorted(verdicts)
     regress = [k for k in keys if verdicts[k] == "regress"]
     candidates = [k for k in keys if verdicts[k] == "candidate"]
     return {
+        "scope": "device-chain",
         "min_not_slower_pairs": min_not_slower(),
         "improve_pct_required": IMPROVE_PCT,
         "regress_pct_fallback": REGRESS_PCT,
@@ -221,6 +229,77 @@ def evaluate_gate(verdicts):
         "regressing_points": regress,
         "fallback_separate": bool(regress),
         "promoted": (len(candidates) == len(keys) and not regress),
+    }
+
+
+# Driver IOMMU defect (R5 diagnosis, 2026-10-11): pinned aclrtMallocHost
+# E2E buffers at 65536x47 (and larger batches at 65536) fail with
+# "pciedma addr convert failed" on all cards under the current driver.
+# This is a *known-issue note* for fresh pinned collections, not a
+# retroactive veto: an archive that already holds clean pinned pairs for
+# a shape keeps that shape in supported_shapes (the measurement happened).
+PINNED_E2E_KNOWN_DRIVER_ISSUE = "unsupported-driver-IOMMU"
+
+
+def evaluate_e2e_gate(pairs_by_point, host_mode):
+    """E2E gate, separate from the device-chain gate (PR#4 review P1).
+
+    pairs_by_point: {(n, b): [pair, ...]} -- the same clean pairs used
+    for the chain gate.  host_mode: "pinned" | "pageable" from the
+    archive's recorded AB_E2E_HOST (unset defaults to pinned, the
+    production protocol).
+
+    pageable collections are diagnostic only: status is always
+    "diagnostic" so they can never be misread as a production pass.
+    A pinned shape with no clean pairs is recorded as an unsupported
+    shape (driver/workspace failure), never silently dropped.
+    """
+    if host_mode not in ("pinned", "pageable"):
+        host_mode = "pinned"
+    verdicts, supported, unsupported = {}, [], []
+    for key in sorted(pairs_by_point):
+        pairs = pairs_by_point[key]
+        if not pairs:
+            unsupported.append({
+                "shape": list(key),
+                "reason": (PINNED_E2E_KNOWN_DRIVER_ISSUE
+                           if host_mode == "pinned"
+                           else "no-clean-pairs")})
+            verdicts[f"{key[0]}x{key[1]}"] = "unsupported"
+            continue
+        de = [p["delta_e2e_pct"] for p in pairs]
+        not_slower = sum(1 for d in de if d <= 0.0)
+        med = statistics.median(de)
+        if med > REGRESS_PCT:
+            v = "regress"
+        elif not_slower >= min_not_slower(len(pairs)) and med <= -IMPROVE_PCT:
+            v = "candidate"
+        else:
+            v = "hold"
+        verdicts[f"{key[0]}x{key[1]}"] = v
+        supported.append({"shape": list(key), "verdict": v,
+                          "median_delta_e2e_pct": med,
+                          "not_slower_pairs": not_slower})
+    if host_mode == "pageable":
+        status = "diagnostic"
+    elif any(v == "regress" for v in verdicts.values()):
+        status = "fail"
+    elif unsupported and all(u["reason"] == PINNED_E2E_KNOWN_DRIVER_ISSUE
+                             for u in unsupported):
+        status = "unsupported-driver"
+    elif verdicts and all(v == "candidate" for v in verdicts.values()):
+        status = "pass"
+    else:
+        status = "fail"
+    return {
+        "scope": "end-to-end",
+        "host_mode": host_mode,
+        "status": status,
+        "production_ready": (host_mode == "pinned" and status == "pass"),
+        "supported_shapes": supported,
+        "unsupported_shapes": unsupported,
+        "note": ("pageable E2E is diagnostic only; production default "
+                 "remains pinned" if host_mode == "pageable" else ""),
     }
 
 
@@ -293,9 +372,18 @@ def verify_attribution(doc, threshold=None):
         problems.append(f"trials_per_point {trials} < 5 (plan floor)")
     if doc.get("reps") != REPS:
         problems.append(f"reps {doc.get('reps')!r} != {REPS}")
-    if doc.get("ub_peak_bytes") != ub_peak_bytes():
+    # P0 (PR#4 review): recompute UB from the archive's recorded env only.
+    # Ambient shell must never influence verification; a missing env
+    # mapping is a schema failure, not a silent fallback to defaults.
+    archive_env = (doc.get("manifest") or {}).get("env")
+    if not isinstance(archive_env, dict):
+        problems.append("manifest.env missing or not a mapping "
+                        "(schema requires the recorded AB_LT_* configuration)")
+        archive_env = {}
+    expected_ub = ub_peak_bytes(env=archive_env)
+    if doc.get("ub_peak_bytes") != expected_ub:
         problems.append(f"ub_peak_bytes {doc.get('ub_peak_bytes')!r} != "
-                        f"{ub_peak_bytes()}")
+                        f"{expected_ub}")
     kc = doc.get("kernel_counts")
     if kc != KERNEL_COUNT:
         problems.append(f"kernel_counts {kc!r} != {KERNEL_COUNT!r}")
@@ -336,9 +424,9 @@ def verify_attribution(doc, threshold=None):
         if p.get("kernel_counts") != KERNEL_COUNT:
             problems.append(f"{where}: kernel_counts "
                             f"{p.get('kernel_counts')!r} != {KERNEL_COUNT!r}")
-        if p.get("ub_peak_bytes") != ub_peak_bytes():
+        if p.get("ub_peak_bytes") != expected_ub:
             problems.append(f"{where}: ub_peak_bytes "
-                            f"{p.get('ub_peak_bytes')!r} != {ub_peak_bytes()}")
+                            f"{p.get('ub_peak_bytes')!r} != {expected_ub}")
         lbs = p.get("launch_blocks") or {}
         for impl in IMPLS:
             v = lbs.get(impl)
@@ -449,9 +537,28 @@ def verify_attribution(doc, threshold=None):
         if missing:
             problems.append(f"points missing from grid: {missing!r}")
     if sorted(verdicts) == sorted(f"{n}x{b}" for n, b in expected):
-        gate = evaluate_gate(verdicts)
-        if doc.get("gate") != gate:
-            problems.append(f"gate {doc.get('gate')!r} != recomputed {gate!r}")
+        chain_gate = evaluate_gate(verdicts)
+        # P1: new archives carry chain_gate + e2e_gate; legacy archives
+        # only carry the single "gate" key (device-chain, pre-split).
+        if "chain_gate" in doc:
+            if doc.get("chain_gate") != chain_gate:
+                problems.append(f"chain_gate {doc.get('chain_gate')!r} "
+                                f"!= recomputed {chain_gate!r}")
+            if doc.get("gate") != chain_gate:
+                problems.append(f"gate {doc.get('gate')!r} != chain_gate "
+                                f"{chain_gate!r}")
+            pairs_by_point = {(p.get("n"), p.get("b")): p.get("pairs", [])
+                              for p in raw_points}
+            host_mode = ((doc.get("manifest") or {}).get("env") or {}
+                         ).get("AB_E2E_HOST") or "pinned"
+            e2e_gate = evaluate_e2e_gate(pairs_by_point, host_mode)
+            if doc.get("e2e_gate") != e2e_gate:
+                problems.append(f"e2e_gate {doc.get('e2e_gate')!r} "
+                                f"!= recomputed {e2e_gate!r}")
+        else:
+            if doc.get("gate") != chain_gate:
+                problems.append(f"gate {doc.get('gate')!r} != recomputed "
+                                f"{chain_gate!r}")
     else:
         problems.append("points do not cover the full attribution grid")
     problems += [f"manifest: {x}" for x in
@@ -537,10 +644,18 @@ def collect(trials=TRIALS, allow_dirty=False, points=None):
         points_out.append(point)
     verdicts = {f"{p['n']}x{p['b']}": p["verdict"]
                 for p in points_out if "verdict" in p}
-    gate = (evaluate_gate(verdicts) if len(verdicts) == len(selected)
-            else {"error": "incomplete verdicts"})
-    problems += [f"gate: {x}" for x in
-                 ([] if "error" not in gate else [gate.pop("error")])]
+    chain_gate = (evaluate_gate(verdicts) if len(verdicts) == len(selected)
+                  else {"error": "incomplete verdicts"})
+    problems += [f"chain_gate: {x}" for x in
+                 ([] if "error" not in chain_gate
+                  else [chain_gate.pop("error")])]
+    # P1 (PR#4 review): E2E gate is separate from the device-chain gate.
+    # AB_E2E_HOST unset defaults to pinned (the production protocol);
+    # pageable is diagnostic only and can never set production_ready.
+    host_mode = manifest.get("env", {}).get("AB_E2E_HOST") or "pinned"
+    pairs_by_point = {(p["n"], p["b"]): p.get("pairs", [])
+                      for p in points_out}
+    e2e_gate = evaluate_e2e_gate(pairs_by_point, host_mode)
     incomplete = coll.manifest_incomplete(manifest)
     document = {
         "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -558,7 +673,11 @@ def collect(trials=TRIALS, allow_dirty=False, points=None):
         "env_monitor": {"before": env_before_doc,
                         "after": coll.env_monitor_snapshot()},
         "points": points_out,
-        "gate": gate,
+        "chain_gate": chain_gate,
+        "e2e_gate": e2e_gate,
+        # legacy alias: pre-P1 archives used a single "gate" key for the
+        # device-chain verdict; keep it in sync so old consumers work.
+        "gate": chain_gate,
         "problems": problems,
         "incomplete": incomplete,
         "status": ("fail" if problems else
@@ -646,10 +765,16 @@ def main(argv=None):
                   f"({st['median_delta_chain_pct']:+.1f}%), "
                   f"not_slower {st['not_slower_pairs']}/{args.trials}, "
                   f"verdict={p['verdict']}")
-    print(f"gate: candidates={document['gate'].get('candidates')} "
-          f"fallback_separate={document['gate'].get('fallback_separate')} "
-          f"promoted={document['gate'].get('promoted')} -> "
-          f"{document['status']} -> {out_dir}")
+    cg = document.get("chain_gate", document.get("gate", {}))
+    eg = document.get("e2e_gate", {})
+    print(f"chain_gate: candidates={cg.get('candidates')} "
+          f"fallback_separate={cg.get('fallback_separate')} "
+          f"promoted={cg.get('promoted')}")
+    if eg:
+        print(f"e2e_gate: host_mode={eg.get('host_mode')} "
+              f"status={eg.get('status')} "
+              f"production_ready={eg.get('production_ready')}")
+    print(f"-> {document['status']} -> {out_dir}")
     if problems:
         for p in problems:
             print(f"  problem: {p}", file=sys.stderr)

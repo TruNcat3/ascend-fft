@@ -3,7 +3,7 @@
 本页由 `python3 scripts/bench_long_baseline.py --check` 从归档 `results/evidence/long-fft-baseline/baseline.json` 渲染校验；请勿手改。
 
 - 基线：`torch.fft.fft`（torch_npu op-plugin，复->复）同网格同语义，device-only 取 `bench_native_npu.py` 的 min，E2E 取其 pinned 口径 min。
-- 自研：device 边界链 5-trial 归档的 `device_chain` / E2E 中位数（`segments:` 六段之和即 chain）。自研长链 E2E 当前从 `std::vector` 发起（`fft_check.cpp` 的 pinned 分配仅覆盖短路径），传输为 pageable 口径；E2E 列的差距包含此项，与 device-only 列要分开解读。
+- 自研：device 边界链 5-trial 归档的 `device_chain` / E2E 中位数（`segments:` 六段之和即 chain）。**本表 E2E 列为历史协议（historical protocol）**：归档采集时自研长链从 `std::vector` 发起，传输为 pageable 口径；R3 之后 `fft_check.cpp` 的 pinned 分配已覆盖长路径（`AB_E2E_HOST` 默认 pinned，alloc 失败回退 pageable），当前实现的 E2E 差距应小于本表。device-only 列不受主机缓冲影响，与当前实现口径一致。
 - `speedup = native_min / ours_median`，>1 表示自研更快；误差门槛 `maxRel ≤ 0.0001`。
 
 | N | B | native dev min (us) | ours chain median (us) | dev speedup | native E2E min (us) | ours E2E median (us) | E2E speedup | ours maxRel | status |

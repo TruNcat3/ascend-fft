@@ -78,7 +78,7 @@ msprof 列数据源：`results/evidence/long-fft-p0/msprof-task-time.json`（`su
 数据源：`results/evidence/long-fft-acceptance/acceptance.json`（host 链 E2E 中位数）与 `results/evidence/long-fft-device-boundary/acceptance.json`（device 链 E2E/h2d/d2h 中位数）。
 
 - 设备段边界链在 12/12 个形状上降低 E2E（最高 4.19×），无持平/回退形状。
-- **自研长链 E2E 的 32%–76% 是 H2D+D2H**（b=47 达 68%–76%），且当前长路径从 `std::vector` 发起（`fft_check.cpp` 的 pinned 分配仅覆盖短路径），为 pageable 口径；下一节基线的 E2E 差距必须先扣除此项再谈 kernel。
+- **自研长链 E2E 的 32%–76% 是 H2D+D2H**（b=47 达 68%–76%），归档采集时长路径从 `std::vector` 发起（pageable 口径）；R3 之后 `fft_check.cpp` 的 pinned 分配已覆盖长路径（`AB_E2E_HOST` 默认 pinned，alloc 失败回退 pageable），当前实现的 E2E 差距应小于归档值。
 - host 链的 E2E 主体是宿主标量段（四步转置/twiddle/重排的 CPU 循环），不是 kernel 慢，比较口径不同。
 
 ## 6. 波动性

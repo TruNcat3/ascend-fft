@@ -10,6 +10,7 @@ archive.
 
 import copy
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -55,7 +56,7 @@ def _pairs(delta_pct=-10.0, trials=5):
     return pairs
 
 
-def _manifest():
+def _manifest(env=None):
     return {"git_sha": "0" * 40, "git_dirty": False,
             "binary": "build/fft_check", "binary_sha256": "a" * 64,
             "kernel_objects": {"fft_radix2.o": "b" * 64,
@@ -65,7 +66,7 @@ def _manifest():
             "build": {"script": "s", "recipe": "r"},
             "soc": "Ascend910_9382", "cann_version": "9.0.0",
             "driver_version": "1", "driver_source": "env:AB_DRIVER_VERSION",
-            "python": "3.11", "env": {}, "boundary": "device",
+            "python": "3.11", "env": dict(env or {}), "boundary": "device",
             "allow_dirty": False}
 
 
@@ -77,11 +78,11 @@ def _snap():
                         "frequency": "unavailable"}}
 
 
-def _point(n, b, delta_pct=-10.0):
+def _point(n, b, delta_pct=-10.0, env=None):
     pairs = _pairs(delta_pct)
     stats = aff.pair_stats(pairs)
     return {"n": n, "b": b, "kernel_counts": dict(aff.KERNEL_COUNT),
-            "ub_peak_bytes": aff.ub_peak_bytes(),
+            "ub_peak_bytes": aff.ub_peak_bytes(env=env),
             "separate_modeled_payload_gm_rw_bytes":
                 aff.modeled_payload_gm_rw("separate", n, b),
             "fused_modeled_payload_gm_rw_bytes":
@@ -92,13 +93,13 @@ def _point(n, b, delta_pct=-10.0):
             "verdict": aff.point_verdict(stats)}
 
 
-def _doc(delta_pct=-10.0, selected=None):
+def _doc(delta_pct=-10.0, selected=None, env=None):
     selected = tuple(selected or aff.POINTS)
-    points = [_point(n, b, delta_pct) for n, b in selected]
+    points = [_point(n, b, delta_pct, env=env) for n, b in selected]
     verdicts = {f"{p['n']}x{p['b']}": p["verdict"] for p in points}
     doc = {
         "generated_utc": "2026-10-09T00:00:00+00:00",
-        "manifest": _manifest(),
+        "manifest": _manifest(env),
         "command": "python3 scripts/collect_boundary_attribution.py",
         "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
         "boundary": "device",
@@ -108,7 +109,7 @@ def _doc(delta_pct=-10.0, selected=None):
         "reps": aff.REPS,
         "threshold": aff.THRESHOLD,
         "kernel_counts": dict(aff.KERNEL_COUNT),
-        "ub_peak_bytes": aff.ub_peak_bytes(),
+        "ub_peak_bytes": aff.ub_peak_bytes(env=env),
         "env_monitor": {"before": _snap(), "after": _snap()},
         "points": points,
         "gate": aff.evaluate_gate(verdicts),
@@ -506,6 +507,161 @@ class VerifyAttributionTest(unittest.TestCase):
         got = aff.verify_attribution(doc)
         self.assertTrue(any("grid mismatch" in x for x in got))
         self.assertTrue(any("2 points != 4" in x for x in got))
+
+
+PP2_ENV = {"AB_LT_IDX": "resident", "AB_LT_STRIPE_K": "256",
+           "AB_LT_TILE": "64x32", "AB_LT_PIPE": "pp2"}
+
+
+class ManifestEnvDeterminismTest(unittest.TestCase):
+    """P0 (PR#4 review): verifier recomputes UB from archive manifest.env
+    only -- ambient shell must never influence verification."""
+
+    def test_pp2_fixture_verified_in_empty_ambient_env(self):
+        doc = _doc(env=PP2_ENV)
+        # archive records the resident peak (128*32*4*8 + 16*256 = 135168)
+        self.assertEqual(doc["ub_peak_bytes"], 135168)
+        saved = {k: os.environ.pop(k, None)
+                 for k in ("AB_LT_IDX", "AB_LT_STRIPE_K",
+                           "AB_LT_TILE", "AB_LT_PIPE")}
+        try:
+            self.assertEqual(aff.verify_attribution(doc), [])
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v
+
+    def test_ambient_env_conflict_ignored_manifest_wins(self):
+        doc = _doc(env=PP2_ENV)
+        # ambient shell claims the rebuild default; archive says resident
+        os.environ["AB_LT_IDX"] = "rebuild"
+        os.environ["AB_LT_STRIPE_K"] = "512"
+        try:
+            self.assertEqual(aff.verify_attribution(doc), [])
+        finally:
+            del os.environ["AB_LT_IDX"]
+            del os.environ["AB_LT_STRIPE_K"]
+
+    def test_missing_manifest_env_rejected(self):
+        doc = _doc(env=PP2_ENV)
+        doc["manifest"].pop("env")
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("manifest.env missing" in x for x in got))
+
+    def test_non_mapping_manifest_env_rejected(self):
+        doc = _doc(env=PP2_ENV)
+        doc["manifest"]["env"] = "resident"
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("manifest.env missing or not a mapping" in x
+                            for x in got))
+
+    def test_stale_ub_with_resident_env_rejected(self):
+        # archive claims resident peak but stores the rebuild peak
+        doc = _doc(env=PP2_ENV)
+        doc["ub_peak_bytes"] = 131072
+        for p in doc["points"]:
+            p["ub_peak_bytes"] = 131072
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("ub_peak_bytes 131072 != 135168" in x
+                            for x in got))
+
+    def test_ub_peak_bytes_env_parameter(self):
+        self.assertEqual(aff.ub_peak_bytes(env={}), 131072)
+        self.assertEqual(aff.ub_peak_bytes(env=PP2_ENV), 135168)
+        # missing STRIPE_K falls back to the header default (512)
+        self.assertEqual(
+            aff.ub_peak_bytes(env={"AB_LT_IDX": "resident"}),
+            4 * 128 * 32 * 8 + 16 * 512)
+
+
+def _e2e_pairs(delta_pct=-8.0, trials=5):
+    """Pairs whose delta_e2e_pct equals delta_pct (for e2e-gate tests)."""
+    pairs = _pairs(0.0, trials)          # chain-neutral baseline
+    for i, p in enumerate(pairs):
+        sep_e = 1000.0 + i
+        fus_e = sep_e * (1.0 + delta_pct / 100.0)
+        p["separate"]["e2e"] = sep_e
+        p["fused"]["e2e"] = fus_e
+        p["delta_e2e_pct"] = (fus_e - sep_e) / sep_e * 100.0
+    return pairs
+
+
+class E2EGateTest(unittest.TestCase):
+    """P1 (PR#4 review): E2E gate is separate from the device-chain gate."""
+
+    def test_pageable_is_always_diagnostic(self):
+        gate = aff.evaluate_e2e_gate(
+            {(8192, 1): _e2e_pairs(-20.0)}, "pageable")
+        self.assertEqual(gate["status"], "diagnostic")
+        self.assertFalse(gate["production_ready"])
+        self.assertIn("diagnostic only", gate["note"])
+
+    def test_pinned_all_candidates_pass(self):
+        gate = aff.evaluate_e2e_gate(
+            {(8192, 1): _e2e_pairs(-20.0),
+             (16384, 47): _e2e_pairs(-15.0)}, "pinned")
+        self.assertEqual(gate["status"], "pass")
+        self.assertTrue(gate["production_ready"])
+        self.assertEqual(gate["host_mode"], "pinned")
+
+    def test_pinned_with_hold_is_fail(self):
+        gate = aff.evaluate_e2e_gate(
+            {(8192, 1): _e2e_pairs(-20.0),
+             (16384, 47): _e2e_pairs(-1.0)}, "pinned")
+        self.assertEqual(gate["status"], "fail")
+        self.assertFalse(gate["production_ready"])
+
+    def test_pinned_regress_is_fail(self):
+        gate = aff.evaluate_e2e_gate(
+            {(8192, 1): _e2e_pairs(+10.0)}, "pinned")
+        self.assertEqual(gate["status"], "fail")
+
+    def test_empty_pairs_pinned_unsupported_driver(self):
+        gate = aff.evaluate_e2e_gate({(65536, 47): []}, "pinned")
+        self.assertEqual(gate["status"], "unsupported-driver")
+        self.assertEqual(gate["unsupported_shapes"],
+                         [{"shape": [65536, 47],
+                         "reason": "unsupported-driver-IOMMU"}])
+        self.assertFalse(gate["production_ready"])
+
+    def test_empty_pairs_pageable_no_clean(self):
+        gate = aff.evaluate_e2e_gate({(65536, 47): []}, "pageable")
+        self.assertEqual(gate["unsupported_shapes"][0]["reason"],
+                         "no-clean-pairs")
+
+    def test_unknown_host_mode_defaults_pinned(self):
+        gate = aff.evaluate_e2e_gate(
+            {(8192, 1): _e2e_pairs(-20.0)}, "gpu")
+        self.assertEqual(gate["host_mode"], "pinned")
+
+    def test_chain_gate_carries_scope_field(self):
+        gate = aff.evaluate_gate({"8192x1": "candidate"})
+        self.assertEqual(gate["scope"], "device-chain")
+        self.assertTrue(gate["promoted"])
+
+    def test_doc_with_split_gates_verified(self):
+        env = dict(PP2_ENV, AB_E2E_HOST="pageable")
+        doc = _doc(env=env)
+        doc["chain_gate"] = dict(doc["gate"])
+        doc["chain_gate"]["scope"] = "device-chain"
+        doc["e2e_gate"] = aff.evaluate_e2e_gate(
+            {(p["n"], p["b"]): p["pairs"] for p in doc["points"]},
+            "pageable")
+        doc["gate"] = doc["chain_gate"]
+        self.assertEqual(aff.verify_attribution(doc), [])
+
+    def test_doc_with_wrong_e2e_gate_rejected(self):
+        env = dict(PP2_ENV, AB_E2E_HOST="pageable")
+        doc = _doc(env=env)
+        doc["chain_gate"] = dict(doc["gate"])
+        doc["chain_gate"]["scope"] = "device-chain"
+        doc["e2e_gate"] = aff.evaluate_e2e_gate(
+            {(p["n"], p["b"]): p["pairs"] for p in doc["points"]},
+            "pageable")
+        doc["e2e_gate"]["status"] = "pass"     # tamper
+        doc["gate"] = doc["chain_gate"]
+        got = aff.verify_attribution(doc)
+        self.assertTrue(any("e2e_gate" in x for x in got))
 
 
 class ParsePointsTest(unittest.TestCase):
