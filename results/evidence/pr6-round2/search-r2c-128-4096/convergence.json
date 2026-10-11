@@ -1,0 +1,201 @@
+{
+  "candidates": [
+    {
+      "id": "incumbent",
+      "overrides": {}
+    },
+    {
+      "id": "foldD8",
+      "overrides": {
+        "foldD": "8"
+      }
+    },
+    {
+      "id": "foldD4",
+      "overrides": {
+        "foldD": "4"
+      }
+    },
+    {
+      "id": "foldD32",
+      "overrides": {
+        "foldD": "32"
+      }
+    }
+  ],
+  "protocol": {
+    "c2c_rounds": 3,
+    "c2c_stat": "min-of-means over rounds (matrix_test paired protocol)",
+    "promote_ratio": 0.02,
+    "real_stat": "median over 5 warmup+timed trials (bench_r2c_c2r)",
+    "reps_policy": "c2c:20; real: nB<=4096:50, nB<=2^20:30, else 10",
+    "threshold_max_rel": 0.0001,
+    "trials": 5
+  },
+  "provenance": {
+    "binary_sha256": "e99ac2f2c78d97bc8eb872321ee9fc7761d9f2ecf2b390aa266a6ec92935a8ba",
+    "cann": "/usr/local/Ascend/cann-9.0.0",
+    "generated_utc": "2026-10-11T16:33:17.384907+00:00",
+    "git_dirty": false,
+    "git_sha": "719850f92b1eb35436c10c9922d8884aeca2d7ed",
+    "python": "/usr/local/python3.11.15/bin/python3",
+    "soc": "Ascend910_9382",
+    "source_snapshot": "ascend910_9382-revalidation-20261010"
+  },
+  "targets": [
+    {
+      "baseline": {
+        "cv": 2.966348001810651,
+        "median": 106.00399999999999,
+        "n_ok": 5,
+        "n_total": 5,
+        "p10": 96.65650000000001,
+        "p90": 109.3045
+      },
+      "baseline_raw_us": [
+        99.1845,
+        108.4445,
+        105.50450000000001,
+        106.2945,
+        106.00399999999999
+      ],
+      "batch": 4096,
+      "candidates": [
+        {
+          "binary_sha256": "e99ac2f2c78d97bc8eb872321ee9fc7761d9f2ecf2b390aa266a6ec92935a8ba",
+          "candidate_id": "incumbent",
+          "mapping": {
+            "fold_d": 16,
+            "inner_n": 64,
+            "plane_k": 8
+          },
+          "processing_unit": "AIV",
+          "raw_us": [
+            222.5,
+            226.9,
+            226.8,
+            228.8,
+            230.7
+          ],
+          "selection_reason": "incumbent (baseline fallback)",
+          "stats": {
+            "cv": 1.1997632289005513,
+            "median": 226.9,
+            "n_ok": 5,
+            "n_total": 5,
+            "p10": 220.78000000000003,
+            "p90": 231.45999999999995
+          }
+        },
+        {
+          "binary_sha256": "e99ac2f2c78d97bc8eb872321ee9fc7761d9f2ecf2b390aa266a6ec92935a8ba",
+          "candidate_id": "foldD8",
+          "mapping": {
+            "fold_d": 8,
+            "inner_n": 64,
+            "plane_k": 8
+          },
+          "processing_unit": "AIV",
+          "raw_us": [
+            203.0,
+            206.2,
+            217.3,
+            226.9,
+            233.2
+          ],
+          "selection_reason": "promoted: 4.2% faster than incumbent (>= 2% gate)",
+          "stats": {
+            "cv": 5.337227136547923,
+            "median": 217.3,
+            "n_ok": 5,
+            "n_total": 5,
+            "p10": 201.72,
+            "p90": 235.71999999999997
+          }
+        },
+        {
+          "binary_sha256": "e99ac2f2c78d97bc8eb872321ee9fc7761d9f2ecf2b390aa266a6ec92935a8ba",
+          "candidate_id": "foldD4",
+          "mapping": {
+            "fold_d": 4,
+            "inner_n": 64,
+            "plane_k": 8
+          },
+          "processing_unit": "AIV",
+          "raw_us": [
+            230.3,
+            233.9,
+            230.8,
+            232.5,
+            206.9
+          ],
+          "selection_reason": "retained incumbent: only -1.7% (< 2% gate)",
+          "stats": {
+            "cv": 4.438922669656112,
+            "median": 230.8,
+            "n_ok": 5,
+            "n_total": 5,
+            "p10": 197.54,
+            "p90": 234.45999999999998
+          }
+        },
+        {
+          "binary_sha256": "e99ac2f2c78d97bc8eb872321ee9fc7761d9f2ecf2b390aa266a6ec92935a8ba",
+          "candidate_id": "foldD32",
+          "mapping": {
+            "fold_d": 32,
+            "inner_n": 64,
+            "plane_k": 8
+          },
+          "processing_unit": "AIV",
+          "raw_us": [
+            236.9,
+            235.1,
+            221.2,
+            210.4,
+            235.2
+          ],
+          "selection_reason": "retained incumbent: only -3.6% (< 2% gate)",
+          "stats": {
+            "cv": 4.5508678789003625,
+            "median": 235.1,
+            "n_ok": 5,
+            "n_total": 5,
+            "p10": 206.08,
+            "p90": 237.58
+          }
+        }
+      ],
+      "incumbent": {
+        "cv": 1.1997632289005513,
+        "median": 226.9,
+        "n_ok": 5,
+        "n_total": 5,
+        "p10": 220.78000000000003,
+        "p90": 231.45999999999995
+      },
+      "n": 128,
+      "priority": "P1",
+      "reproduced_speedup": 0.48782328578002754,
+      "selected": {
+        "candidate_id": "foldD8",
+        "mapping": {
+          "fold_d": 8,
+          "inner_n": 64,
+          "plane_k": 8
+        },
+        "selection_reason": "promoted: 4.2% faster than incumbent (>= 2% gate)",
+        "stats": {
+          "cv": 5.337227136547923,
+          "median": 217.3,
+          "n_ok": 5,
+          "n_total": 5,
+          "p10": 201.72,
+          "p90": 235.71999999999997
+        }
+      },
+      "source_speedup": 0.4329485307926146,
+      "transform": "r2c"
+    }
+  ]
+}
