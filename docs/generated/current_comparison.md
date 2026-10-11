@@ -3,7 +3,7 @@
 > **当前发布快照**：`ascend910_9382-revalidation-20261010`。本页用于展开同卡 CANN 基线和
 > 其他上下文基线；CPU 或不同变换语义的列不参与 C2C 主胜负。
 
-> **复现脚本**：[`scripts/gen_stdlib_doc.py`](https://github.com/TruNcat3/ascend-fft/blob/47b2e96/scripts/gen_stdlib_doc.py)（本文是它的输出）· [`scripts/bench_stdlib.py`](https://github.com/TruNcat3/ascend-fft/blob/47b2e96/scripts/bench_stdlib.py) · [`scripts/bench_native_npu.py`](https://github.com/TruNcat3/ascend-fft/blob/47b2e96/scripts/bench_native_npu.py) · [`scripts/repro.sh sixway`](https://github.com/TruNcat3/ascend-fft/blob/47b2e96/scripts/repro.sh)。
+> **复现脚本**：[`scripts/gen_stdlib_doc.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/gen_stdlib_doc.py)（本文是它的输出）· [`scripts/bench_stdlib.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/bench_stdlib.py) · [`scripts/bench_native_npu.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/bench_native_npu.py) · [`scripts/repro.sh sixway`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/repro.sh)。
 
 > **NPU = Ascend910_9382（48 AIV）**；numpy/torch 跑在 x86 CPU 上（`numpy 1.26.4`, `torch 2.10.0+cpu`）。所有时间单位 µs，**reps=20**。
 

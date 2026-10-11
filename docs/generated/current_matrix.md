@@ -3,7 +3,7 @@
 > **当前发布快照**：`ascend910_9382-revalidation-20261010`。49 个点全部通过正确性门禁，
 > 48/49 点严格领先 CANN；`N=1024,batch=4096` 的 0.96x 回退保留在表中。
 
-> **复现脚本**：[`scripts/matrix_test.py`](https://github.com/TruNcat3/ascend-fft/blob/7302a49/scripts/matrix_test.py)（本文是它的输出）· [`scripts/one_click_test.sh`](https://github.com/TruNcat3/ascend-fft/blob/7302a49/scripts/one_click_test.sh)（编译+门禁+矩阵一键）· [`scripts/calib_eta.py`](https://github.com/TruNcat3/ascend-fft/blob/7302a49/scripts/calib_eta.py)（η 列）。
+> **复现脚本**：[`scripts/matrix_test.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/matrix_test.py)（本文是它的输出）· [`scripts/one_click_test.sh`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/one_click_test.sh)（编译+门禁+矩阵一键）· [`scripts/calib_eta.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/calib_eta.py)（η 列）。
 
 > 硬件 Ascend910_9382（48 AIV）；reps=20；`自研 mean` 与 `原生 mean` 同口径、`自研 min` 与 `原生 min` 同口径。
 
