@@ -15,6 +15,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
 from abenv import root, work  # noqa: E402
+REPO_SLUG = "TruNcat3/ascend-fft"
+
+
+def _short_commit():
+    r = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"],
+                       cwd=ROOT, capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else "master"
+
+
+def _blob(path):
+    return f"https://github.com/{REPO_SLUG}/blob/{_short_commit()}/{path}"
 PY = abenv.python_bin()
 NS = [64, 128, 256, 512, 1024, 2048, 4096]
 BS = [1, 4, 16, 64, 256, 1024, 4096]
@@ -133,10 +144,14 @@ def main():
     L = []
     A = L.append
     A("# 性能对比：标准库 vs CANN 原生算子 vs 自研 kernel（全网格 49 点）\n")
-    A("> **复现脚本**：[`scripts/gen_stdlib_doc.py`](../scripts/gen_stdlib_doc.py)"
-      "（本文是它的输出）· [`scripts/bench_stdlib.py`](../scripts/bench_stdlib.py) "
-      "· [`scripts/bench_native_npu.py`](../scripts/bench_native_npu.py) "
-      "· [`scripts/repro.sh sixway`](../scripts/repro.sh)。\n")
+    A("> **复现脚本**：[`scripts/gen_stdlib_doc.py`]("
+      f"{_blob('scripts/gen_stdlib_doc.py')})"
+      "（本文是它的输出）· [`scripts/bench_stdlib.py`]("
+      f"{_blob('scripts/bench_stdlib.py')}) "
+      "· [`scripts/bench_native_npu.py`]("
+      f"{_blob('scripts/bench_native_npu.py')}) "
+      "· [`scripts/repro.sh sixway`]("
+      f"{_blob('scripts/repro.sh')})。\n")
     A("> **NPU = Ascend910_9382（48 AIV）**；numpy/torch 跑在 x86 CPU 上"
       "（`numpy 1.26.4`, `torch 2.10.0+cpu`）。所有时间单位 µs，**reps=20**。\n")
     A("> * **numpy / torch(CPU)**、**`aclRfft1D`**、**自研 v1** 三列本轮同场实测："

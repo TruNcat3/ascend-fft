@@ -1,0 +1,185 @@
+{
+  "build_artifact_sha256": {
+    "build/baseline_rfft": "78158ac9ef6615d161442a70da54ceec4cc524a1b3256ed58cef9aae97e8ccae",
+    "build/bw_probe": "85de620e2ed2ac5945cc91651efb20ded0f9578b1881a52b002d539ac8b6c4f9",
+    "build/fft_check": "b3577742f8495f12f8f37e85e54486aabdce5b5e62dfee527388cc9867ecb9a2",
+    "build/fft_radix2.o": "d7c20c72bccaa70f64b547061d9e5e8d77d0ef57b9fc10b08a74ed8e3fcb1d50",
+    "build/fft_radix2_v1.o": "2e3c9041d0e3337d26cd7c3d65f22c33953a8c7f924d1af4a9a2b87c58db9bb1",
+    "build/fft_radix2_v2.o": "d7a0a72185eab7adea6f834249e3c4ca615b622e1a233a473b3c5adaca045e2d",
+    "build/fft_real.o": "5fc46ac998ef12c6458b70a76ab1077c7621431d38d59cbf34d3c993849c4100",
+    "build/gather_probe": "8bbb990056b7eaf9ea22d76ef2153cda0e3c575284601f0bb4b434bee2f8be1d",
+    "build/gather_probe.o": "394d60085dd76bea92a4a1834130038f14173194b3b5b3fad11d5b51844b0027",
+    "build/launch": "5ce02b2fa4024f49422cccd101352f3ea34367ca1f48f72f5197b3e653fb0ff2",
+    "build/probe_hw.o": "808a6f9919efe70910dbc29bf1202a44425fb2ac993699727fddbf72cde44be2",
+    "build/stride_probe": "194f5a8023efeece1da6ab3f8bd09a9b103209530c6999a1d1422ff0fdf542d6",
+    "build/stride_probe.o": "92f2811b35b1f3e5b8d5f78c33f9339e9079c908b36662ba30839666f2fe3781",
+    "build/test_framework": "296cb69983e12814d87ef637a811f75da8c70b77f87ee3b94ad3cf7eb49fb3b1",
+    "build/test_limits": "8eedcd7f52ac50ae595c79d0fbb9e98674f5a9168290cfc410b756013dc52cf3"
+  },
+  "cann_path": "/usr/local/Ascend/cann-9.0.0",
+  "cann_version": "9.0.0",
+  "commit": "47b2e965fc252cd606df1e06bb10d0f5f3de485f",
+  "compiler_target": "Ascend910_9382",
+  "created_utc": "2026-10-11T03:06:22.700638+00:00",
+  "derived_artifact_hashes": {
+    "generated/comparison.md": "8b6daf99bafa2819b8f899c1317041b9d3d0f80bbecad04ccd23cb6e8bba9612",
+    "generated/matrix.md": "bf369dcf8b5c6190cc9370a92de1a101bb4bf2ad4eba380f492ea2eef57cf00e",
+    "matrix.csv": "bbc5ef8daa4d4e808da70adbf1f3428862de978bb98d1c0e708dfd9d8b571457"
+  },
+  "dirty": false,
+  "ended_utc": "2026-10-11T06:58:40.313497+00:00",
+  "experiments": [
+    {
+      "command": "python3 scripts/matrix_test.py --reps 20 --rounds 3 --out /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/matrix.md",
+      "ended_utc": "2026-10-11T03:20:27.337420+00:00",
+      "exit_code": 0,
+      "name": "matrix",
+      "started_utc": "2026-10-11T03:06:22.700638+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/gen_stdlib_doc.py --out /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/sixway.md --matrix /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/matrix.md",
+      "ended_utc": "2026-10-11T03:36:23.508150+00:00",
+      "exit_code": 0,
+      "name": "sixway",
+      "started_utc": "2026-10-11T03:20:33.334269+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --reps 10 --rounds 3 --out /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/e2e.md --json /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/e2e.json",
+      "ended_utc": "2026-10-11T04:04:31.853627+00:00",
+      "exit_code": 0,
+      "name": "e2e",
+      "started_utc": "2026-10-11T03:36:29.511118+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --app all --reps 10 --rounds 3 --out /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/e2e_app.md --json /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/e2e_app.json",
+      "ended_utc": "2026-10-11T04:08:37.913638+00:00",
+      "exit_code": 0,
+      "name": "e2e-app",
+      "started_utc": "2026-10-11T04:04:37.853145+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/bench_r2c_c2r.py --out /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/r2c_c2r.json",
+      "ended_utc": "2026-10-11T05:16:30.637476+00:00",
+      "exit_code": 0,
+      "name": "r2c-c2r",
+      "started_utc": "2026-10-11T04:08:43.724032+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "scripts/profile_test.sh --out /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/profiles",
+      "ended_utc": "2026-10-11T05:17:25.004716+00:00",
+      "exit_code": 0,
+      "name": "profile",
+      "started_utc": "2026-10-11T05:16:36.654489+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --app all --reps 10 --rounds 3 --out /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/e2e_app.md --json /root/ascend-pr5/results/runs/ascend910_9382-pr-revalidation/e2e_app.json",
+      "ended_utc": "2026-10-11T06:58:40.313497+00:00",
+      "exit_code": 0,
+      "name": "e2e-app",
+      "started_utc": "2026-10-11T06:54:40.551562+00:00",
+      "status": "complete"
+    }
+  ],
+  "hardware_id": "2bb203072e12",
+  "npu_smi": "+------------------------------------------------------------------------------------------------------------------+\n| npu-smi 26.1.1                              Version: 26.1.1                                                      |\n+---------------------------+---------------+----------------------------------------------------------------------+\n| NPU   Name                | Health        | Power(W)             Temp(C)                 Hugepages-Usage(page)   |\n| Chip  Phy-ID              | Bus-Id        | AICore(%)            Memory-Usage(MB)        HBM-Usage(MB)           |\n+==============",
+  "profile_mismatch_override": false,
+  "protocol": {
+    "c2c_matrix": {
+      "correctness": "every trial PASS and maxRel <= 1e-4 against CPU reference",
+      "direction": "forward",
+      "operator": "fft",
+      "placement": "out-of-place",
+      "precision": "fp32",
+      "raw_trials": "trials.csv",
+      "reps": 20,
+      "rounds": 3,
+      "runner_order_seed": 0,
+      "runner_orders": [
+        [
+          "native",
+          "self"
+        ],
+        [
+          "native",
+          "self"
+        ],
+        [
+          "self",
+          "native"
+        ]
+      ],
+      "runners": [
+        "ascend-fft",
+        "cann-native"
+      ],
+      "shape_grid": {
+        "batch": [
+          1,
+          4,
+          16,
+          64,
+          256,
+          1024,
+          4096
+        ],
+        "n": [
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096
+        ]
+      },
+      "statistic": "minimum of per-trial means; per-trial minimum retained separately",
+      "timing": "device-only synchronized execution",
+      "transform": "c2c"
+    }
+  },
+  "published_artifacts": {
+    "e2e.json": "67c37d6b0a5fe304630f4db1dca844967eeddd6b5836a6004cd975191e1ef92a",
+    "e2e_app.json": "40bdbe2640e682804d1fb0bb1caaa8e793098b55104f45a62badc8347a9e5c5f",
+    "matrix.csv": "bbc5ef8daa4d4e808da70adbf1f3428862de978bb98d1c0e708dfd9d8b571457",
+    "matrix.md": "8f90ac65efd58178b0dfa8ddbb63556d6fa5cffee69cbd6c3cc218823a8fa158",
+    "protocol.json": "0e64a717105e7b9126cd7d7197b066d1b72c8c7ceef577d5f8c36e5a3efac1e6",
+    "r2c_c2r.json": "3eb5a0b67924f7086b0cdadec27ad91fca9435b5a7a8cc93b60ed4dcf18bdab3",
+    "r2c_c2r.raw_trials.csv": "1734ef826be4d345a54f07f2d5bb9f2c96759d6713470fc8f9786c245f003418",
+    "r2c_c2r.raw_trials.json": "f036b43766462d2c809641b7c148b94e6f5d4fda5a8f03bd61647cbe9b0837c1",
+    "sixway.md": "f82f1cdae0f49212b975bc26f5103ad7ba2d33e51dc6879578e633a4b443d079",
+    "summary.json": "c1c9f8471c9886ec1c7ea04807f05935f5782777fefa3b5a955ac15ddc6b892a",
+    "trials.csv": "cf794d7e3ddc7d1540449d0ac38a20e45a42b02b64f9a5a7e704acff5996ae12"
+  },
+  "raw_artifact_hashes": {
+    "e2e.json": "67c37d6b0a5fe304630f4db1dca844967eeddd6b5836a6004cd975191e1ef92a",
+    "e2e_app.json": "40bdbe2640e682804d1fb0bb1caaa8e793098b55104f45a62badc8347a9e5c5f",
+    "matrix.md": "8f90ac65efd58178b0dfa8ddbb63556d6fa5cffee69cbd6c3cc218823a8fa158",
+    "protocol.json": "0e64a717105e7b9126cd7d7197b066d1b72c8c7ceef577d5f8c36e5a3efac1e6",
+    "r2c_c2r.json": "3eb5a0b67924f7086b0cdadec27ad91fca9435b5a7a8cc93b60ed4dcf18bdab3",
+    "r2c_c2r.raw_trials.csv": "1734ef826be4d345a54f07f2d5bb9f2c96759d6713470fc8f9786c245f003418",
+    "r2c_c2r.raw_trials.json": "f036b43766462d2c809641b7c148b94e6f5d4fda5a8f03bd61647cbe9b0837c1",
+    "sixway.md": "f82f1cdae0f49212b975bc26f5103ad7ba2d33e51dc6879578e633a4b443d079",
+    "summary.json": "c1c9f8471c9886ec1c7ea04807f05935f5782777fefa3b5a955ac15ddc6b892a",
+    "trials.csv": "cf794d7e3ddc7d1540449d0ac38a20e45a42b02b64f9a5a7e704acff5996ae12"
+  },
+  "schema_version": 3,
+  "selected_profile": {
+    "path": "config/ascend910_93_profile.json",
+    "sha256": "42768522dcdd2d3088dfe5ffbaf7d73a5c1041a8199b4f6c5a1fef27a4ee006f",
+    "soc": "Ascend910_9382"
+  },
+  "soc": "Ascend910_9382",
+  "started_utc": "2026-10-11T03:06:22.700638+00:00",
+  "updated_utc": "2026-10-11T06:58:40.313497+00:00",
+  "versions": {
+    "cann": "9.0.0",
+    "ccec": "2026-04-25T15:46:25+08:00 clang version 15.0.5 (clang-5c68a1cb1231 flang-5c68a1cb1231)",
+    "python": "3.11.15"
+  }
+}
