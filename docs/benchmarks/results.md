@@ -1,130 +1,105 @@
 # 当前实验结果
 
-> **发布快照**：Ascend910_9382（48 AIV），CANN 9.0.0，fp32，前向 C2C。
-> 下列数字来自历史发布快照；完整协议见[测量方法](methodology.md)。
-> **待重新验证**：仓库 review 发现旧误差指标可能漏判 NaN/全零参考错误，且快照 manifest
-> 记录 dirty 源状态和未知硬件身份。数字保留用于审计，不视为加固门禁下的最终性能结论。
-> 修复后需在昇腾设备重验正确性，并发布干净源码、完整硬件身份的新快照。
+> **当前发布快照**：`ascend910_9382-revalidation-20261010` · Ascend910_9382 · CANN 9.0.0 ·
+> fp32。快照目录位于 [GitHub results snapshot](https://github.com/TruNcat3/ascend-fft/tree/f1e97da/results/published/ascend910_9382-revalidation-20261010)。
+> 本页只引用这一份加固后的快照；旧的 `cann9.0.0-v2` 数字保留在历史提交中，不再参与现行结论。
+
+本仓库是 cuButterfly 的 Ascend 迁移实例。实验的交付目标是：在**预先声明的长度、batch、
+精度和变换语义范围内**完成正确性门禁、同语义基线和可复现实测，并证明迁移后的计算流有收益。
+这不是对所有 Ascend SoC、所有尺寸或所有计算核心的全局最优承诺。
+
+## 一眼看结果
 
 ![Ascend-FFT performance overview](../figures/overview_performance.png)
 
-| 实验问题 | 严格基线 | 覆盖 | 几何均值 | 胜出点 |
-|---|---|---:|---:|---:|
-| kernel/device 区间是否更快 | CANN 原生 C2C（`torch_npu`） | 49 | **3.01x** | **49/49** |
-| 收益能否传到 host-to-host 路径 | 同上，pinned H2D + FFT + D2H | 49 | **1.66x** | **46/49** |
-| 代表应用 shape 是否保持趋势 | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.70x** | **12/12** |
+速度比定义为 `基线耗时 / Ascend-FFT 耗时`，大于 1 表示自研更快。几何均值在同一快照、同一
+计时口径和同一工作负载集合内计算，不能与旧快照拼接。
 
-这里的 speedup 统一定义为 `CANN native latency / Ascend-FFT latency`，大于 1 表示
-Ascend-FFT 更快。结果说明当前 C2C kernel 优势覆盖整个发布网格，但端到端收益受设备区间之外的
-时间限制。下面按实验目的展开，不用原始长表承担主要叙事。
+| 实验 | 严格基线 | 点数 | 几何均值 speedup | 覆盖结论 |
+|---|---|---:|---:|---|
+| C2C device-only | CANN 原生复数 FFT（`torch_npu`） | 49 | **1.62x** | 48/49 点严格领先；最低 0.96x，最高 2.50x |
+| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.36x** | 48/49 点严格领先；最低 0.997x |
+| 应用 shape end-to-end | OFDM / 雷达 / DL 频域层 | 12 | **1.42x** | 12/12 点领先 |
+| R2C device-only | `torch.fft.rfft`（同卡同语义） | 49 | **1.18x** | 胜/平/负 = 34/5/10 |
+| C2R device-only | `torch.fft.irfft`（同卡同语义） | 49 | **1.78x** | 胜/平/负 = 46/2/1 |
 
-## 1. 优势覆盖哪些长度与 batch
+所有 C2C 点均通过 correctness gate（最大相对误差小于 `1e-4`，实际约为 `1e-7`）；R2C/C2R
+采用对称 5-trial 协议，失败行不会进入 timing 汇总。这里的“平”使用 `0.95x..1.05x`
+区间，胜负统计与几何均值是两个不同维度。
+
+## C2C 网格
+
+矩阵为 `N ∈ {64,128,256,512,1024,2048,4096}` 与
+`batch ∈ {1,4,16,64,256,1024,4096}` 的 49 个组合，每点 3 轮、每轮 20 次稳态执行，
+自研与 CANN 原生 runner 交错执行。完整数值见[发布矩阵](../generated/matrix.md)，原始 CSV
+和协议见快照目录。
 
 ![C2C device-only speedup heatmap](../figures/fig1_speedup_heatmap.png)
 
-49 个 `(N, batch)` 点全部超过 1，范围为 **1.04x..6.86x**。优势最大的区域是中小长度与
-尚未饱和的 batch；最接近持平的点是 `N=1024, batch=4096`。因此 `3.01x` 是固定网格的几何
-均值，不代表每个点都有三倍收益，也没有通过追加有利 shape 改写平均值。
+大多数点位的收益来自阶段/数据二维映射、UB 内复用和硬件相关的 lowering；随着 batch 增大，
+两条路径都接近持续吞吐区，倍率自然收窄。当前唯一严格回退点是 `N=1024,batch=4096`
+（约 `0.96x`），它已列为下一轮的定向优化项，而不是从矩阵中删除。
 
-绝对延迟图补充了 speedup 图看不到的量级：
-
-![C2C absolute latency heatmaps](../figures/fig2_latency_heatmap.png)
-
-## 2. 收益如何随规模变化
-
-![Speedup and latency scaling](../figures/fig3_speedup_curve.png)
-
-小 batch 时，CANN 原生路径的固定调度成本占比更高，Ascend-FFT 的优势更明显；batch 增长后，
-双方都进入持续吞吐区，倍率通常收窄。即使如此，本快照中所有 C2C device-only 点仍保持领先。
-这张图用于识别拐点，不能单独证明跨硬件或超出发布长度的泛化。
-
-## 3. Kernel 收益能否成为端到端收益
+## 端到端与应用 shape
 
 ![Device-only and end-to-end heatmaps](../figures/fig6_end_to_end.png)
 
-端到端路径包括 pinned H2D、一次前向 C2C 和 D2H。**46/49** 个点领先，三个回退点为：
-
-| N | Batch | E2E speedup |
-|---:|---:|---:|
-| 1024 | 4096 | 0.954x |
-| 2048 | 4096 | 0.990x |
-| 4096 | 1024 | 0.978x |
-
-第三个面板的 `1 - device/end-to-end` 在全网格约为 **61.8%..83.1%**。它表示独立计时中
-设备区间之外的总份额，包含搬运与同步，不能进一步解释为精确的 H2D/D2H 分项，也不是 overlap
-测量。它说明 kernel 加速不会按原倍率直接传到 host-to-host 应用路径。
-
-## 4. 代表应用 shape 是否改变结论
+端到端计时包括 pinned H2D、一次前向 C2C 和 D2H，因此不会把 kernel 倍率直接等同于应用
+倍率。49 点的 E2E 几何均值为 **1.36x**；最低点仍接近持平，说明搬运与同步已经成为主要
+限制之一。
 
 ![Application-shaped FFT workloads](../figures/fig9_application_workloads.png)
 
-三类 shape 都保持端到端领先：OFDM、雷达和深度学习频域层的 E2E 几何均值分别为
-**1.68x、1.50x、1.96x**。这些分组按 `scripts/e2e_test.py` 中公开的 shape 集合从旧格式 JSON
-恢复，因为该 JSON 没有逐行保存 `app` 名称；12 个 shape 与发布 manifest 一致。
+12 个代表 shape 全部领先，按应用标签分组的 E2E 几何均值为：
 
-这仍然是**代表应用输入上的 FFT 路径**，不等价于完整通信、雷达或神经网络应用加速；应用前后处理
-不在计时区内。
+| 应用组 | 点数 | 几何均值 |
+|---|---:|---:|
+| OFDM | 4 | 1.43x |
+| Radar | 4 | 1.37x |
+| DL frequency-domain layer | 4 | 1.46x |
 
-## 5. 成本模型在哪些区域偏离
+这些是公开脚本中定义的代表输入，不等价于完整通信、雷达或深度学习应用端到端加速。
 
-![Cost-model estimate and residual map](../figures/fig5_eta_scatter.png)
+## R2C / C2R
 
-在现有 49 点校准网格上，平均绝对偏差为 **7.7%**，**43/49** 个点位于 +/-15% 内。右侧残差图
-显示高估和低估集中在哪些 `(N, batch)` 区域，比单一平均误差更适合指导下一轮补点。
+![R2C/C2R win-tie-loss heatmap](../figures/fig10_real_speedup_heatmap.png)
 
-这项结果是**校准网格一致性检查**，不是独立留出集、LOO 或跨硬件泛化证据。模型用于候选预排序，
-最终 Plan 仍需要实测回填；独立验证集已列入[未来计划](../roadmap.md)。
+R2C 和 C2R 使用同样的 5-trial 对称协议：每个 trial 先执行一次丢弃的 warmup，再对稳态
+样本取 median；逐 trial correctness、`maxAbs`、`maxRel` 和状态全部保留在 raw 文件中。
 
-## 6. 其他基线提供什么信息
+| 实验 | 点数 | 几何均值 | 胜 / 平 / 负（±5% parity band） |
+|---|---:|---:|---:|
+| R2C vs `torch.fft.rfft` | 49 | **1.18x** | **34 / 5 / 10** |
+| C2R vs `torch.fft.irfft` | 49 | **1.78x** | **46 / 2 / 1** |
 
-![Representative multi-baseline context](../figures/fig4_sixway_bars.png)
+R2C 的负点主要集中在小长度、大 batch；这属于当前实验范围内的已知边界，后续优先检查
+batch 折叠、搬运占比和 CANN 原生路径的调用开销。C2R 的单个负点同样保留在 raw 数据中。
 
-多基线图用于解释量级，不用于生成一个混合“总排名”：
+## 设计点与实验范围
 
-- CANN 原生 C2C 是同设备、同精度、同变换语义的严格基线。
-- NumPy / PyTorch CPU 结果受不同硬件与共享宿主负载影响，只提供系统上下文。
-- `aclRfft1D` 是 R2C，不具备与 C2C 相同的语义和搬运量，只作调用路径参照。
-- `v1` 展示项目内部演进，不是外部专业库。
+本轮已经完成“迁移实例”所需的主要闭环：
 
-## 7. 实数变换 R2C/C2R 的发布证据
+1. 用 Ascend910_9382 profile 约束 UB、AIV、对齐和数据通路；
+2. 在声明矩阵上运行参数化候选并回填实测结果；
+3. 将 C2C、E2E、应用 shape、R2C/C2R 分开报告，避免混合语义；
+4. 发布正确性、协议、源码 commit、硬件身份和产物哈希。
 
-R2C/C2R 已按 **P1-B 对称协议** 在新快照 `ascend910_9382-cann9.0.0-v2` 重采：每个点
-5 个独立 trial，每个 trial 先做一次丢弃的 warmup 执行再计时，trial 值取该 trial 样本的
-median；自研侧逐 trial 正确性门禁（`maxRel <= 1e-4` 且 PASS 才准入 timing，`maxAbs`/
-`maxRel`/status 逐行留存进 `raw_trials`），torch 侧同 reps 政策、同 trial 结构。汇总只由
-有效 raw 行派生（median / p10 / p90 / CV），失败与不支持的行保留在 raw 中。网格为
-R2C `N=128..8192`、C2R `N=64..4096`，`B=1..4096`，各 49 点：
+因此本版本可以收敛为一个可复现的迁移实例。仍需改进但不阻塞本版本发布的项目包括：
 
-![R2C/C2R win-tie-loss heatmap vs torch_npu](../figures/fig10_real_speedup_heatmap.png)
+- C2C 的一个高 batch 边界点和 R2C 的若干负点；
+- profile 原始附件、cube probe 和 `msprof` 计数器归档；
+- pp2 实验路径的自动晋升与 UB 峰值模型一致性；
+- 逆向 C2C、更多精度、非二次幂、2D/stride 和其他 Ascend SoC。
 
-| 实验 | 点数 | vs torch_npu 几何均值 | 胜 / 平 / 负 | 参照 |
-|---|---:|---:|---:|---|
-| R2C vs `torch.fft.rfft` | 49 | **1.10x** | **29 / 7 / 13** | vs `aclRfft1D` 1.85x（42 个有裸基线的配对点） |
-| C2R vs `torch.fft.irfft` | 49 | **1.69x** | **44 / 3 / 2** | CANN 无 c2r，无同语义裸基线 |
-
-胜 `>1.05x`、平 `0.95x..1.05x`、负 `<0.95x`；胜负是实验结果，不是 correctness 门禁。
-**与旧的 min 口径快照（1.91x/3.35x）不可比**：旧汇总对自研取单进程 `min(reps)`、对
-torch 取跨轮 min-of-medians，聚合协议不对称；本节全部数字按对称 trial 协议重算，
-旧 aggregate 不再支撑任何公开表述。负点如实呈现：R2C 慢于 torch 的 13 点为
-`N=128: B=1024/4096 (0.82x/0.40x)`、`N=256: B=1024/4096 (0.94x/0.50x)`、
-`N=512: B=1024/4096 (0.79x/0.62x)`、`N=1024: B=1024/4096 (0.93x/0.64x)`、
-`N=8192: B=1/16/64/256/1024 (0.89x/0.95x/0.78x/0.83x/0.74x)`；C2R 负点为
-`N=1024, B=4096 (0.87x)` 与 `N=4096, B=1024 (0.89x)`。这些行不与 C2C
-几何均值混合——变换语义与基线不同，但同属这份 correctness-gated 快照。
+这些项目进入[未来计划](../roadmap.md)，不会被写成当前已支持或已达到全局最优的能力。
 
 ## 原始数据与复现
 
-- [C2C 49 点矩阵](../generated/matrix.md)
-- [多基线完整明细](../generated/comparison.md)
-- [R2C/C2R 发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/r2c_c2r.json)
-- [R2C/C2R 逐 trial raw（json）](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/r2c_c2r.raw_trials.json)
-- [R2C/C2R 逐 trial raw（csv）](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/r2c_c2r.raw_trials.csv)
-- [端到端发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/e2e.json)
-- [应用 shape 发布数据](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/e2e_app.json)
-- [发布 manifest（含协议、raw/derived 哈希与 UTC 起止）](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-cann9.0.0-v2/manifest.json)
-- [759/759 原始证据](https://github.com/TruNcat3/ascend-fft/blob/master/results/evidence/publication-759/summary.json) · [294/294 原始证据](https://github.com/TruNcat3/ascend-fft/blob/master/results/evidence/matrix-294/summary.json)
-- [压力 / OOM 探针证据](https://github.com/TruNcat3/ascend-fft/tree/master/results/evidence) · [长 FFT 动态输入验收](https://github.com/TruNcat3/ascend-fft/blob/master/results/evidence/long-fft-acceptance/acceptance.json)
-- [图表生成器](https://github.com/TruNcat3/ascend-fft/blob/master/scripts/plot_results.py)
+- [当前发布快照](https://github.com/TruNcat3/ascend-fft/tree/f1e97da/results/published/ascend910_9382-revalidation-20261010)
+- [C2C 发布矩阵](../generated/matrix.md)
+- [多基线明细](../generated/comparison.md)
+- [测量方法](methodology.md)
+- [复现实验命令](reproducibility.md)
+- [图表生成器](https://github.com/TruNcat3/ascend-fft/blob/f1e97da/scripts/plot_results.py)
 
-图、摘要和原始数据必须来自同一发布快照；禁止从不同日期、硬件或协议的文件拼接结论。
-legacy 快照 `ascend910_9382-cann9.0.0` 保留原样作历史对照，不再被任何图或结论引用。
+图、摘要和 raw 数据必须来自同一发布快照；禁止从不同日期、硬件或计时协议拼接结论。

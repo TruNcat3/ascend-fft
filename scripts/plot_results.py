@@ -32,7 +32,7 @@ PALE = plt.get_cmap("tab20")
 apply_publication_style()
 
 
-PUBLISHED = "results/published/ascend910_9382-cann9.0.0-v2"
+PUBLISHED = "results/published/ascend910_9382-revalidation-20261010"
 
 
 def num(s):

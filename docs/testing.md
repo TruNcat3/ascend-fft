@@ -133,10 +133,10 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   P1-A：长 FFT 动态输入契约通过——G1 全包络 12/12 点（N=8192..65536 × B=1/3/47）
   A/B/A 文件序列无重建重执行、无 STALE，E2E 每次执行恰 1 次逻辑输入 + 1 次输出
   （`E2E transfers: in=1 out=1 boundary=2`），证据归档
-  `results/evidence/long-fft-acceptance/`。P1-B：R2C/C2R 已按 5-trial 对称协议重采
-  56/56 行，发布进新不可变快照 `ascend910_9382-cann9.0.0-v2`（含 `raw_trials`、协议、
-  raw/derived 哈希与 UTC 起止），新汇总见[当前结果 · 实数变换](benchmarks/results.md)；
-  旧 min 口径的 1.91x/3.35x 不再被引用。独立模型验证仍待完成。
+  `results/evidence/long-fft-acceptance/`。P1-B：C2C、E2E、应用 shape 与 R2C/C2R 已在
+  `ascend910_9382-revalidation-20261010` 中按加固门禁重采；R2C/C2R 使用 5-trial 对称协议，
+  快照包含逐 trial raw、协议、raw/derived 哈希与 UTC 起止。新汇总见
+  [当前结果](benchmarks/results.md)；旧 min 口径和旧快照倍率不再被引用。独立模型验证仍待完成。
 - P2：分段长 FFT 后端（G1）已实现（宿主四步 Cooley-Tukey + 设备行 FFT，8192..65536
   验收抽样与动态输入证据见 `results/evidence/long-fft-acceptance/` 与长 FFT 计划的
   G0/G1 落地记录）；多 AIV/G2 可搜索映射、E01..E08 采集与长卷积代理仍待做，

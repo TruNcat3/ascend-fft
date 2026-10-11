@@ -6,9 +6,10 @@
 [![Hardware](https://img.shields.io/badge/SoC-Ascend910__9382-8A2BE2.svg)](docs/reference/support.md)
 [![Method](https://img.shields.io/badge/method-cuButterfly-2F80ED.svg)](https://github.com/TruNcat3/cuButterfly)
 
-**Ascend-FFT 是面向华为昇腾 NPU 的高性能 FFT 算子库与跨平台方法实践。** 项目目标是在统一
-Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件，并用硬件 profile、参数化设计空间、
-成本模型和实测回填为每个工作负载选择执行计划，而不是固化一组尺寸或一种计算核心。
+**Ascend-FFT 是 cuButterfly 在华为昇腾 NPU 上的迁移实例。** 本仓库的首要目标是把混合
+空间-时间数据流方法落到另一类硬件，并在一个公开、可复现的实验范围内证明它带来实际收益。
+我们用硬件 profile、参数化设计空间、成本模型和实测回填选择执行计划；当前版本不宣称覆盖
+所有 SoC、长度或精度的全局最优。
 
 <p align="center">
   <a href="https://www.ustc.edu.cn/">
@@ -50,7 +51,7 @@ cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个
 
 ## 当前能力
 
-下表是当前实现的支持契约，不是项目的最终能力边界；历史性能快照仍待用加固后的门禁重验。
+下表是当前实现的支持契约，也是本次迁移实例的实验范围；范围外能力不应从当前结果外推。
 
 | 变换 | 精度 | 长度 | 布局 | 状态 |
 |---|---|---|---|---|
@@ -69,20 +70,22 @@ cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个
 
 | 工作负载 | 严格基线 | 点数 | 几何均值 speedup |
 |---|---|---:|---:|
-| C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **3.01x** |
-| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.66x** |
-| 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.70x** |
-| R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | 49 | **1.10x** |
-| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | 49 | **1.69x** |
+| C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **1.62x** |
+| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.36x** |
+| 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.42x** |
+| R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | 49 | **1.18x** |
+| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | 49 | **1.78x** |
 
 <!-- END GENERATED: benchmark-summary -->
 
-数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照 `ascend910_9382-cann9.0.0-v2`。
-**待重验**：review 发现旧数值门禁和快照来源记录存在缺口；本节保留历史数据，不代表
-加固门禁后的最终结论。需在昇腾设备重新验证并更新快照，详见[实验结果](docs/benchmarks/results.md)。
-C2C device-only 为 49/49 点胜出；end-to-end 为 46/49 点胜出。R2C/C2R 按 5-trial
-对称协议各 49 点分别 29 / 44 点胜出（胜/平/负 R2C 29/7/13、C2R 44/3/2；负点如实列出，
-见[胜/平/负热图](docs/figures/fig10_real_speedup_heatmap.png)，逐 trial raw 随快照发布）。
+数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照
+[`ascend910_9382-revalidation-20261010`](results/published/ascend910_9382-revalidation-20261010/)。
+当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；C2C device-only 有 48/49 个点严格
+快于 CANN，唯一回退点为 `N=1024,batch=4096`（0.96x）。C2C E2E 的几何均值为 1.36x，
+应用 shape 为 1.42x 且 12/12 点领先。R2C/C2R 的对称 5-trial 结果分别为 1.18x 和 1.78x；
+其中 R2C 的胜/平/负为 34/5/10，C2R 为 46/2/1，负点保留在热图和 raw 数据中。
+因此，本版本已经证明迁移方法在声明的实验范围内有稳定总体收益，但尚未把每一个边界点都
+优化到严格大于 1；该单点回退是下一轮的明确优化目标，而不是被隐藏的平均值。
 每根柱子都标注自己的同语义基线，跨 GPU 数据不参与几何均值。查看[实验结果](docs/benchmarks/results.md)、
 [测量协议](docs/benchmarks/methodology.md)和[完整矩阵](docs/generated/matrix.md)。
 

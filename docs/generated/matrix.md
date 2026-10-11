@@ -2,6 +2,10 @@
 
 > Device-only latency in microseconds. Speedup > 1 favors Ascend-FFT.
 
+> Source: `ascend910_9382-revalidation-20261010` on Ascend910_9382 / CANN 9.0.0.
+> All 49 points pass correctness; 48/49 are strictly faster than CANN native. The
+> `N=1024, batch=4096` 0.96x point is retained as the current boundary regression.
+
 | N | Batch | Ascend-FFT (us) | CANN native (us) | Speedup |
 | ---: | ---: | ---: | ---: | ---: |
 | 64 | 1 | 18.900 | 81.100 | 4.291x |

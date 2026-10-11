@@ -2,7 +2,7 @@
 """生成 docs/generated/comparison-detail.md，不覆盖手写分析页。
 
 数据全部来自已有产物，不重复测量：
-  results/published/ascend910_9382-cann9.0.0/ 下的矩阵、六基线和端到端数据
+  results/published/ascend910_9382-revalidation-20261010/ 下的矩阵、六基线和端到端数据
   docs/figures/*.png            对比图（scripts/plot_results.py）
 
   python3 scripts/gen_compare_doc.py [--matrix PATH] [--out PATH]
@@ -69,7 +69,7 @@ def geo(xs):
 
 def main():
     ap = argparse.ArgumentParser()
-    published = "results/published/ascend910_9382-cann9.0.0"
+    published = "results/published/ascend910_9382-revalidation-20261010"
     ap.add_argument("--matrix", default=f"{published}/matrix.md")
     ap.add_argument("--std", default=f"{published}/sixway.md")
     ap.add_argument("--e2e", default=f"{published}/e2e.json")
@@ -438,7 +438,7 @@ def main():
               f"device-only **{sum(1 for x in _drs if x > 1)}/{len(_drs)}**、"
               f"几何均值 **{geo(_drs):.2f}×**，端到端 **"
               f"{sum(1 for x in _ers if x > 1)}/{len(_ers)}**、几何均值 "
-              f"**{geo(_ers):.2f}×** —— 与网格口径（§6.1 的 46/49、1.66×）同量级，"
+              f"**{geo(_ers):.2f}×** —— 与网格口径同量级，"
               "说明**换成应用形状的输入与代表性 (n, batch) 不改变结论**。")
             if app_meta.get("reps"):
                 A(f"- 口径：`--reps {app_meta['reps']}`、`--rounds "

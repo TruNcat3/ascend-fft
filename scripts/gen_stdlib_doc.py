@@ -108,7 +108,10 @@ def bench_v1():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--matrix", default="results/published/ascend910_9382-cann9.0.0/matrix.md")
+    ap.add_argument(
+        "--matrix",
+        default="results/published/ascend910_9382-revalidation-20261010/matrix.md",
+    )
     ap.add_argument("--out", default="docs/generated/sixway.md")
     a = ap.parse_args()
     mx = parse_matrix(os.path.join(ROOT, a.matrix))
@@ -157,8 +160,10 @@ def main():
     A("> * **numpy / torch(CPU)**、**`aclRfft1D`**、**自研 v1** 三列本轮同场实测："
       "`scripts/bench_stdlib.py perf`、`build/baseline_rfft <n> <b> 1`（内部 reps=50）、"
       "`AB_FFT_O=build/fft_radix2_v1.o ./build/fft_check <n> <b> 20`（3 轮取 min-of-means）。")
+    native_wins = sum(r["cur"] <= r["nat"] for r in rows)
     A("> * **CANN 原生复数 FFT**（`torch.fft.fft` 走 torch_npu）与 **自研当前** 取自 "
-      f"`{a.matrix}`（同网格、同 reps=20、3 轮 min-of-means，**49:0**）。")
+      f"`{a.matrix}`（同网格、同 reps=20、3 轮 min-of-means，"
+      f"**{native_wins}:{len(rows) - native_wins}**）。")
     A("> * **`aclRfft1D`** 是实->复 rfft（`norm=1` 唯一合法），变换不同，**仅作参照**，"
       "不参与胜负统计。")
     A("> * ⚠️ 主机共享、`nproc=1` 且 `loadavg≈24`：CPU 两列有 **±15% 的轮间抖动**，"
