@@ -28,6 +28,47 @@
   max-width: min(100%, 29rem);
 }
 
+.doc-diagram {
+  background: #f8fafc;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.45rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  padding: 0.65rem;
+}
+
+.doc-diagram a {
+  display: block;
+}
+
+.doc-diagram img {
+  display: block;
+  height: auto;
+  max-width: none;
+  min-width: 48rem;
+  width: 100%;
+}
+
+.doc-diagram figcaption {
+  color: var(--md-default-fg-color--light);
+  font-size: 0.72rem;
+  line-height: 1.55;
+  margin: 0.7rem 0.25rem 0.1rem;
+}
+
+.doc-diagram__links {
+  white-space: nowrap;
+}
+
+.doc-diagram__links a {
+  display: inline;
+}
+
+.doc-diagram--compact img {
+  max-width: 68rem;
+  min-width: 0;
+}
+
 @media screen and (max-width: 44rem) {
   .project-affiliation {
     align-items: flex-start;
@@ -38,5 +79,14 @@
   .project-affiliation__logo {
     flex-basis: auto;
     max-width: 22rem;
+  }
+
+  .doc-diagram {
+    margin-inline: -0.4rem;
+    padding: 0.4rem;
+  }
+
+  .doc-diagram img {
+    min-width: 46rem;
   }
 }

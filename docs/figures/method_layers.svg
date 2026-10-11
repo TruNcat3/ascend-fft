@@ -1,48 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="360" viewBox="0 0 1100 360">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="690" viewBox="0 0 1200 690" role="img" aria-labelledby="title desc">
+  <title id="title">Ascend-FFT method overview</title>
+  <desc id="desc">An FFT dependency graph is mapped through the cuButterfly four-factor space-time method, filtered by Ascend hardware constraints, lowered to AIV, UB, MTE and GM, and closed by measurement-driven plan selection.</desc>
   <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#465466"/>
-    </marker>
-    <style>
-      .title { font: 700 22px Arial, sans-serif; fill: #1f2937; }
-      .label { font: 700 17px Arial, sans-serif; fill: #1f2937; }
-      .body { font: 15px Arial, sans-serif; fill: #334155; }
-      .note { font: 14px Arial, sans-serif; fill: #475569; }
-      .flow { fill: #e8f2ff; stroke: #3478c9; stroke-width: 2; }
-      .core { fill: #fff1df; stroke: #d9822b; stroke-width: 2; }
-      .lower { fill: #f1eaff; stroke: #7856b8; stroke-width: 2; }
-      .evidence { fill: #e8f6ee; stroke: #31805a; stroke-width: 2; }
-      .arrow { stroke: #465466; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
-    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#425466"/></marker>
+    <style>.t{font:700 28px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.h{font:700 18px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.b{font:14px Inter,Segoe UI,Arial,sans-serif;fill:#334155}.s{font:12px Inter,Segoe UI,Arial,sans-serif;fill:#52606d}.box{stroke-width:2}.edge{stroke:#425466;stroke-width:2;fill:none;marker-end:url(#arrow)}.thin{stroke:#6b7c93;stroke-width:1.4;fill:none}.node{fill:#fff;stroke:#2374ab;stroke-width:2}.tag{font:700 12px Inter,Segoe UI,Arial,sans-serif}</style>
   </defs>
-  <rect width="1100" height="360" fill="#ffffff"/>
-  <text x="550" y="38" text-anchor="middle" class="title">Method scope: from cuButterfly analysis to Ascend execution</text>
-  <rect x="35" y="90" width="225" height="160" rx="8" class="flow"/>
-  <text x="147" y="122" text-anchor="middle" class="label">Method analysis</text>
-  <text x="55" y="154" class="body">Roofline + dependency limits</text>
-  <text x="55" y="180" class="body">stage/data mapping</text>
-  <text x="55" y="206" class="body">space-time reuse / boundary</text>
-  <text x="55" y="232" class="note">Source: cuButterfly</text>
-  <line x1="260" y1="170" x2="330" y2="170" class="arrow"/>
-  <rect x="330" y="90" width="225" height="160" rx="8" class="core"/>
-  <text x="442" y="122" text-anchor="middle" class="label">Processing unit</text>
-  <text x="350" y="158" class="body">radix-2 / radix-4</text>
-  <text x="350" y="184" class="body">vector / Cube / FFT core</text>
-  <text x="350" y="214" class="body">local arithmetic cost</text>
-  <text x="350" y="238" class="note">replaceable option</text>
-  <line x1="555" y1="170" x2="625" y2="170" class="arrow"/>
-  <rect x="625" y="90" width="225" height="160" rx="8" class="lower"/>
-  <text x="737" y="122" text-anchor="middle" class="label">Lowering contract</text>
-  <text x="645" y="158" class="body">UB / GM / alignment</text>
-  <text x="645" y="184" class="body">instruction + sync legality</text>
-  <text x="645" y="214" class="body">AIV / MTE / layout</text>
-  <text x="645" y="238" class="note">invalid pairs abstain</text>
-  <line x1="850" y1="170" x2="920" y2="170" class="arrow"/>
-  <rect x="920" y="90" width="145" height="160" rx="8" class="evidence"/>
-  <text x="992" y="122" text-anchor="middle" class="label">Evidence</text>
-  <text x="935" y="158" class="body">model</text>
-  <text x="935" y="184" class="body">correctness</text>
-  <text x="935" y="210" class="body">profile</text>
-  <text x="935" y="236" class="body">Plan</text>
-  <text x="550" y="310" text-anchor="middle" class="note">The method analysis is attributed to cuButterfly; Ascend-FFT contributes the platform lowering and evidence.</text>
+  <rect width="1200" height="690" rx="16" fill="#f8fafc"/>
+  <text x="54" y="50" class="t">From an FFT graph to a hardware-selected Ascend plan</text>
+  <text x="54" y="77" class="b">Method inherited from cuButterfly; physical lowering, profiling and evidence are rebuilt for Ascend.</text>
+  <rect x="45" y="110" width="245" height="420" rx="12" fill="#eaf3fb" stroke="#2374ab" class="box"/>
+  <text x="65" y="145" class="h">1  Logical FFT graph</text><text x="65" y="169" class="b">ordered stages · independent butterflies</text>
+  <text x="67" y="207" class="s">data groups</text><text x="112" y="198" class="s">s0</text><text x="177" y="198" class="s">s1</text><text x="242" y="198" class="s">s2</text>
+  <g><path d="M105 220L170 220M105 248L170 276M105 276L170 248M105 304L170 304M105 332L170 332M105 360L170 388M105 388L170 360M105 416L170 416" class="thin"/><path d="M170 220L235 220M170 248L235 304M170 276L235 276M170 304L235 248M170 332L235 332M170 360L235 416M170 388L235 388M170 416L235 360" class="thin"/>
+    <g class="node"><circle cx="105" cy="220" r="5"/><circle cx="105" cy="248" r="5"/><circle cx="105" cy="276" r="5"/><circle cx="105" cy="304" r="5"/><circle cx="105" cy="332" r="5"/><circle cx="105" cy="360" r="5"/><circle cx="105" cy="388" r="5"/><circle cx="105" cy="416" r="5"/><circle cx="170" cy="220" r="5"/><circle cx="170" cy="248" r="5"/><circle cx="170" cy="276" r="5"/><circle cx="170" cy="304" r="5"/><circle cx="170" cy="332" r="5"/><circle cx="170" cy="360" r="5"/><circle cx="170" cy="388" r="5"/><circle cx="170" cy="416" r="5"/><circle cx="235" cy="220" r="5"/><circle cx="235" cy="248" r="5"/><circle cx="235" cy="276" r="5"/><circle cx="235" cy="304" r="5"/><circle cx="235" cy="332" r="5"/><circle cx="235" cy="360" r="5"/><circle cx="235" cy="388" r="5"/><circle cx="235" cy="416" r="5"/></g></g>
+  <rect x="67" y="454" width="200" height="53" rx="7" fill="#fff" stroke="#8bb5d5"/><text x="80" y="476" class="b">within stage: independent</text><text x="80" y="496" class="b">across stages: dependent</text>
+  <path d="M300 320H338" class="edge"/>
+  <rect x="345" y="110" width="285" height="420" rx="12" fill="#edf7ed" stroke="#3b7d44" class="box"/>
+  <text x="365" y="145" class="h">2  Space-time mapping A</text><text x="365" y="169" class="b">two dimensions × two unfoldings</text>
+  <rect x="367" y="205" width="112" height="88" rx="8" fill="#fff" stroke="#3b7d44"/><text x="383" y="231" class="h">Ud</text><text x="383" y="253" class="b">data space</text><text x="383" y="274" class="s">parallel groups</text>
+  <rect x="495" y="205" width="112" height="88" rx="8" fill="#fff" stroke="#3b7d44"/><text x="511" y="231" class="h">Td</text><text x="511" y="253" class="b">data time</text><text x="511" y="274" class="s">worker reuse</text>
+  <rect x="367" y="309" width="112" height="88" rx="8" fill="#fff" stroke="#3b7d44"/><text x="383" y="335" class="h">Us</text><text x="383" y="357" class="b">stage space</text><text x="383" y="378" class="s">service roles</text>
+  <rect x="495" y="309" width="112" height="88" rx="8" fill="#fff" stroke="#3b7d44"/><text x="511" y="335" class="h">Ts</text><text x="511" y="357" class="b">stage time</text><text x="511" y="378" class="s">resident reuse</text>
+  <text x="367" y="433" class="b">plus layout · residence · boundary</text><text x="367" y="456" class="b">pipeline · ownership · processing unit P</text>
+  <rect x="367" y="474" width="240" height="34" rx="17" fill="#d9efe0"/><text x="382" y="496" class="tag" fill="#235c2c">not a fixed tile, radix or segment count</text>
+  <path d="M640 320H678" class="edge"/>
+  <rect x="685" y="110" width="245" height="420" rx="12" fill="#fff4df" stroke="#9a6a16" class="box"/>
+  <text x="705" y="145" class="h">3  Ascend lowering</text><text x="705" y="169" class="b">legality before performance</text>
+  <rect x="708" y="202" width="199" height="52" rx="7" fill="#fff" stroke="#d6a13c"/><text x="724" y="225" class="b">AIV ownership + batch space</text><text x="724" y="244" class="s">independent transforms</text>
+  <path d="M807 254V275" class="edge"/><rect x="708" y="282" width="199" height="72" rx="7" fill="#fff" stroke="#d6a13c"/><text x="724" y="306" class="b">private UB residence</text><text x="724" y="326" class="s">Gather · K-plane · stage loop</text><text x="724" y="346" class="s">replaceable radix-2/4 slot</text>
+  <path d="M807 354V375" class="edge"/><rect x="708" y="382" width="199" height="60" rx="7" fill="#fff" stroke="#d6a13c"/><text x="724" y="407" class="b">MTE / GM boundary</text><text x="724" y="428" class="s">when ownership requires it</text>
+  <rect x="708" y="466" width="199" height="42" rx="7" fill="#fbe8e8" stroke="#b34a4a"/><text x="724" y="492" class="tag" fill="#8a3030">UB · 32B alignment · sync contract</text>
+  <path d="M940 320H978" class="edge"/>
+  <rect x="985" y="110" width="170" height="420" rx="12" fill="#f2ecf8" stroke="#7750a3" class="box"/>
+  <text x="1005" y="145" class="h">4  Select a Plan</text>
+  <rect x="1007" y="194" width="126" height="58" rx="7" fill="#fff" stroke="#9a78bd"/><text x="1024" y="219" class="b">hardware profile</text><text x="1024" y="239" class="s">capacity + rates</text><path d="M1070 252V276" class="edge"/>
+  <rect x="1007" y="283" width="126" height="58" rx="7" fill="#fff" stroke="#9a78bd"/><text x="1024" y="308" class="b">model shortlist</text><text x="1024" y="328" class="s">structure counts</text><path d="M1070 341V365" class="edge"/>
+  <rect x="1007" y="372" width="126" height="58" rx="7" fill="#fff" stroke="#9a78bd"/><text x="1024" y="397" class="b">verify + measure</text><text x="1024" y="417" class="s">same protocol</text><path d="M1070 430V454" class="edge"/>
+  <rect x="1007" y="461" width="126" height="47" rx="7" fill="#e8f0fb" stroke="#2374ab"/><text x="1031" y="490" class="h">cached Plan</text>
+  <rect x="45" y="560" width="1110" height="88" rx="12" fill="#fff" stroke="#cbd5e1"/>
+  <text x="65" y="591" class="h">Claim boundary</text><text x="225" y="590" class="b">cuButterfly contributes the mapping analysis and vocabulary.</text><text x="225" y="616" class="b">Ascend-FFT contributes platform lowering, implementation, profiling, selection and reproducible evidence.</text>
+  <rect x="947" y="579" width="181" height="38" rx="19" fill="#e7f6ee"/><text x="970" y="603" class="tag" fill="#21663d">core and flow are composable</text>
 </svg>

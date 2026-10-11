@@ -4,6 +4,34 @@ Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实�
 
 它是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 混合空间-时间映射方法的 Ascend 迁移实例：继承架构范式，但针对 AIV、UB、MTE 和 GM 独立实现物理 lowering，不复用 CUDA kernel。
 
+<figure class="doc-diagram">
+  <a href="figures/method_layers.svg">
+    <img src="figures/method_layers.svg" loading="eager"
+         alt="从八点 FFT 依赖图，经 cuButterfly 的 Ud、Td、Us、Ts 映射和 Ascend lowering，到硬件 profile、模型、验证与缓存 Plan 的完整方法流程">
+  </a>
+  <figcaption>
+    阅读顺序：FFT 依赖图 → 二维空间/时间映射 → Ascend AIV/UB/MTE/GM lowering →
+    profile、模型与实测共同选择 Plan。点击可查看可编辑 SVG；
+    <span class="doc-diagram__links"><a href="figures/method_layers.pdf">PDF</a> ·
+    <a href="design/motivation.md">设计动机</a> ·
+    <a href="design/architecture.md">架构细化</a></span>。
+  </figcaption>
+</figure>
+
+图示的二维展开和反馈闭环借鉴 [cuButterfly 的概念图与设计总览](https://github.com/TruNcat3/cuButterfly/blob/master/figures/cubutterfly_concept.svg)，
+但本页节点已特例化为 FFT、AIV、UB、MTE、GM 和 Ascend 的 lowering 状态；图中标注的生产、探针和未来状态以本仓库代码与证据为准。
+
+<figure class="doc-diagram doc-diagram--compact">
+  <a href="figures/overview_performance.png">
+    <img src="figures/overview_performance.png" loading="lazy"
+         alt="Ascend-FFT 在 Ascend910_9382 上相对 CANN 原生基线的 C2C device-only、C2C end-to-end 和应用 end-to-end 几何均值 speedup 柱状图">
+  </a>
+  <figcaption>
+    当前发布快照的性能摘要；完整点数、协议、胜平负和限制见
+    <a href="benchmarks/results.md">实验结果</a>。这张图是测量结果，不代表跨硬件或未验证长度的保证。
+  </figcaption>
+</figure>
+
 <div class="project-affiliation">
   <a class="project-affiliation__logo" href="https://www.ustc.edu.cn/">
     <img src="assets/ustc-logo.png" alt="University of Science and Technology of China">

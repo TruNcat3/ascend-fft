@@ -33,16 +33,24 @@ cuButterfly 的主贡献放在第二部分，是因为第一部分通常已有�
       -- correctness 后实测回填
 ```
 
-![Detailed Ascend data path and local processing unit](../figures/ascend_data_path_detail.svg)
-
-这里的 processing unit 只是流框架中的局部算术位置；替换它不会自动改变阶段交接、数据复用或
-GM 边界，反之亦然。
-
 ## 为什么同时使用 plane 与 planar
 
 小配对距离的蝶形直接映射到 UB 时，会产生不满足 32 B 对齐的访问。K-plane 布局把这些配对转换成对齐矢量访问；完成局部阶段后再 Gather 到 planar 布局，后续阶段可以利用较大的连续配对距离。
 
 K 增大并不总能减少成本：平面级指令数、后续组数、行切片和批折叠条件都会变化。当前 K 候选为 8/16/32，通过共享的 [fft_k.hpp](https://github.com/TruNcat3/ascend-fft/blob/master/include/butterfly/fft_k.hpp) 规则选择；host 索引、kernel 和模型必须使用同一规则。这个集合是当前实现 envelope，不是方法规定的固定尺寸。
+
+<figure class="doc-diagram">
+  <a href="../../figures/kplane_layout_example.svg">
+    <img src="../../figures/kplane_layout_example.svg" loading="lazy"
+         alt="交错复数输入通过 Gather 转为对齐的 K-plane 局部组，经过可替换 radix 核心后再转成 planar 布局继续后续阶段">
+  </a>
+  <figcaption>
+    图中使用 `K=4` 仅为排列示例；生产候选仍是当前合法集合。布局与 Gather 属于计算流，radix 属于
+    局部核心，二者共同影响性能但需要分别归因。
+    <span class="doc-diagram__links"><a href="../../figures/kplane_layout_example.svg">SVG</a> ·
+    <a href="../../figures/kplane_layout_example.pdf">PDF</a></span>
+  </figcaption>
+</figure>
 
 ## 已实现的核心与组织
 
@@ -55,6 +63,20 @@ K 增大并不总能减少成本：平面级指令数、后续组数、行切片
 | Gather 索引生成 | 位反转、转置、交错输出 | 索引由 host 生成并上传；不是每个数据点运行标量索引计算 |
 
 `AB_PLANE_K` 与 `AB_FOLD_D` 是消融钩子，用于固定布局和折叠策略；用户使用路径应优先使用 Plan 的合法候选，而不是绕过约束强制参数。核心代码见 [fft_radix2.cpp](https://github.com/TruNcat3/ascend-fft/blob/master/src/ascendc/fft_radix2.cpp)。
+
+## 长 FFT 边界融合与流水实验不是新算术核心
+
+长链继续使用同一 `kfft_fwd` 行 FFT。`src/ascendc/fft_long.cpp` 的 fused 转置入口在 UB
+内执行段间 twiddle 后转置，区别于 separate 的独立点乘发射；它改变的是段边界组织，而非
+行 FFT 的 radix。应固定局部核心与形状进行配对消融，见 [长路径架构](architecture.md)。
+
+`AB_LT_PIPE=nb|pp|pp2` 是转置数据流实验入口：`nb` 为窄屏障组织，`pp` 为输入 ping-pong；
+`pp2` 是 `64×32` 半 tile、resident `K=256` 与完整双缓冲的独立原型
+（`kfft_lt_tr_t64x32_k256ri_pp2`），不能与 `128×32` 的 `nb/pp` 当作同一模型族。
+入口仍受 tile、索引、K 和 UB 合法性约束，不应通过强制环境变量绕过失败原因。
+`pp2` 保持显式 opt-in：两次独立 session 的 device-chain 门禁只决定候选资格；其归档为
+pageable E2E，当前驱动上 `65536×47` 的 pinned E2E 存在 IOMMU 失败，不能宣布生产放行。
+静态候选说明由 `scripts/long_fft_pp2_dispatch.py` 提供，不是 runtime 自动切换或学习模型。
 
 ## Cube：基础能力已证实，FFT 收益未证实
 

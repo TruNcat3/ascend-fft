@@ -6,10 +6,18 @@
 
 `estimate()` 根据长度、batch、核数、K-plane、折叠和融合路径，统计矢量算子发射数 `#op` 与元素访问数 `#elem`。概念成本为：
 
-![Profile to executable plan](../figures/profile_to_plan.svg)
-
-模型只对通过硬件和 lowering 合约的 `A × P` 候选排序；profile 用于校准和解释，最终 Plan 仍
-必须通过正确性与实测门禁。
+<figure class="doc-diagram">
+  <a href="../../figures/profile_to_plan.svg">
+    <img src="../../figures/profile_to_plan.svg" loading="lazy"
+         alt="工作负载和硬件 profile 生成候选，UB 超限与未对齐候选先被淘汰，可行候选再经过模型、正确性和同协议实测形成缓存 Plan">
+  </a>
+  <figcaption>
+    候选例子说明顺序：capability/lowering 先排除非法点，模型只负责缩小实测集合，最终 Plan 仍由
+    正确性和同协议计时决定。图中具体 `K/D` 仅为示例，不是固定参数。
+    <span class="doc-diagram__links"><a href="../../figures/profile_to_plan.svg">SVG</a> ·
+    <a href="../../figures/profile_to_plan.pdf">PDF</a></span>
+  </figcaption>
+</figure>
 
 ```text
 eta_us = launch_us
@@ -44,6 +52,24 @@ scripts/repro.sh matrix
 ```
 
 实现见 [butterfly.cpp](https://github.com/TruNcat3/ascend-fft/blob/master/src/framework/butterfly.cpp)，候选状态见 [enumerate.hpp](https://github.com/TruNcat3/ascend-fft/blob/master/include/butterfly/enumerate.hpp)。复现实验使用仓库 [统一入口](https://github.com/TruNcat3/ascend-fft/blob/master/scripts/repro.sh)，实际性能结论见 [实验结果](../benchmarks/results.md)，计时边界见 [测试方法](../benchmarks/methodology.md)。
+
+## 长 FFT 成本模型与 pp2 证据分层
+
+长链配对消融固定行 FFT 核心，分别记录 separate/fused 的 device-chain、段级跨度与
+host E2E；五次或六次发射、GM 物化边界数和 modeled payload GM 读写由真实 manifest
+派生。payload 模型不包括索引/系数流量及所有缓存行为，不能当作硬件带宽计数器；
+pageable 与 pinned E2E 也不能混合计算 speedup。
+
+`scripts/long_fft_cost_model.py` 的 R4 校准使用归档中的 `128×32`、`nb/pp` 数据流族；
+`64×32` 完整双缓冲的 R5 `pp2` 归档被显式排除，避免将不同流水特征混入同一拟合。
+原始配对 trial 保存在 `results/evidence/long-fft-boundary-attribution*/attribution.json`，
+模型输出在 `results/evidence/long-fft-cost-model/model.json`，应分别报告留出排序与实测最佳，
+不能把离线模型写成 runtime 已完成的自动选型。
+
+`scripts/long_fft_pp2_dispatch.py` 目前仅提供按形状的静态候选表：需两次独立 session 的
+chain 门禁确认，且 pp2 仍为 opt-in。归档的 pageable E2E 与当前驱动上未完成/受阻的
+pinned E2E 门禁分列，`production_ready` 仍为 false；生产默认不自动切换到 pp2。
+独立 R5 学习模型是后续工作，不是已有结论。
 
 ## 当前限制
 

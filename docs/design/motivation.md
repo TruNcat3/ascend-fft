@@ -44,10 +44,18 @@ cuButterfly 不把计算核心本身作为主贡献，原因不是核心优化�
 所以“计算流优化”和“计算核心优化”不互斥：理想实现应在同一架构映射下选择更好的核心，
 也应在同一核心下比较不同的数据流；只有这样才能说明收益来自哪一层。
 
-![Method layers and contribution boundary](../figures/method_layers.svg)
-
-图中方法分析、局部核心、lowering 和证据是连续但可区分的层次；其中方法分析框架归属于
-cuButterfly，Ascend-FFT 负责其在 Ascend 平台上的具体 lowering、实现和验证。
+<figure class="doc-diagram">
+  <a href="../../figures/method_layers.svg">
+    <img src="../../figures/method_layers.svg" loading="lazy"
+         alt="从 FFT 依赖图、四因素映射、Ascend lowering 到实测 Plan 的分层方法总览">
+  </a>
+  <figcaption>
+    图中方法分析、局部核心、lowering 和证据连续但可区分。方法分析框架归属于 cuButterfly；
+    Ascend-FFT 负责平台 lowering、实现和验证。
+    <span class="doc-diagram__links"><a href="../../figures/method_layers.svg">SVG</a> ·
+    <a href="../../figures/method_layers.pdf">PDF</a></span>
+  </figcaption>
+</figure>
 
 ## 1. Roofline 是上界，不是充分的优化策略
 
@@ -88,13 +96,32 @@ a = (Us, Ts, Ud, Td, layout, residence, pipeline, processing_unit)
 
 这些是方法层的概念，不是对当前 C++ 字段数值的重新定义。硬件资源决定哪些组合可行；依赖和布局决定交接是否局部；缓冲容量决定能否驻留；流水与负载量决定是否值得重叠。分块大小和计算核心都可变，不应把某个 K 或 radix 当作范式本身。
 
+<figure class="doc-diagram">
+  <a href="../../figures/fft_space_time_example.svg">
+    <img src="../../figures/fft_space_time_example.svg" loading="lazy"
+         alt="以八点 FFT 为例，分别说明数据空间 Ud、数据时间 Td、阶段空间 Us 和阶段时间 Ts 如何映射同一依赖图">
+  </a>
+  <figcaption>
+    八点 FFT 只是帮助阅读参数含义的最小实例，不是固定设计点。当前生产路径已经实现数据空间/时间映射
+    和单 AIV 的 UB 驻留阶段时间复用；跨 AIV 的阶段角色流水仍需真实传输与同步 lowering。
+    <span class="doc-diagram__links"><a href="../../figures/fft_space_time_example.svg">SVG</a> ·
+    <a href="../../figures/fft_space_time_example.pdf">PDF</a></span>
+  </figcaption>
+</figure>
+
 这个分析适用于具有分层蝶形依赖的计算，但不意味着所有算子的数值语义、重排和核心成本相同，也不意味着任何硬件上混合流水必然优于成熟库。相关工作已有多种融合、分块和流水技术；本仓库的主张是把这些选择放入统一、可约束和可测量的映射空间，而不是宣称此前没有任何相关分析。
 
 ## 6. Ascend 映射：保留范式，重建物理实现
 
 当前验证设备的 AIV 使用显式矢量指令、私有 UB 与 MTE 搬运，不具备本仓 CUDA 路径所依赖的 warp shuffle 语义。因此不能直接移植 warp 子图；要使用对齐的 K-plane 布局、Gather 索引与 Level-0 repeat 组织同一批蝶形。
 
-当前生产路径把单个 transform 的阶段留在一个 AIV 的 UB 中，多个 AIV 分担 batch，单核再时间遍历剩余批次。对合适的小长度，多个 batch 被折入同一 repeat 组织，减少重复指令发射。它实现了片上阶段时间复用与数据展开/复用，但尚不是独立阶段角色同时驻留的跨核流水。详见 [架构页中的实现边界](architecture.md)。
+当前短 FFT 生产路径把单个 transform 的阶段留在一个 AIV 的 UB 中，多个 AIV 分担 batch，单核再时间遍历剩余批次。对合适的小长度，多个 batch 被折入同一 repeat 组织，减少重复指令发射。它实现了片上阶段时间复用与数据展开/复用，但尚不是独立阶段角色同时驻留的跨核流水。详见 [架构页中的实现边界](architecture.md)。
+
+超过单 AIV 容量时，前向长 FFT 验收路径以分段行 FFT 与 GM 交接延续这一映射方法。
+宿主/设备边界、separate/fused twiddle-转置以及合法缓冲组织，是固定局部核心下的流编排
+对照，而非新算术核心的收益。长链已有实现和归档不等于任意长度、独立阶段角色流水或
+自动搜索已经完成；尤其 `pp2` 的 device-chain 候选与 pinned E2E 放行必须分开。
+实验合同与限制见 [长 FFT 实验计划](../benchmarks/long-fft-plan.md)。
 
 ## 7. 核心选型与模型搜索负责找到硬件设计点
 

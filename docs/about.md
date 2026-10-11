@@ -2,7 +2,7 @@
 
 <p class="institution-mark">
   <a href="https://www.ustc.edu.cn/">
-    <img src="assets/ustc-logo.png" alt="University of Science and Technology of China">
+    <img src="../assets/ustc-logo.png" alt="University of Science and Technology of China">
   </a>
 </p>
 

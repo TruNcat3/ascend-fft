@@ -52,10 +52,22 @@ Ascend lowering：AIV 矢量指令 / 私有 UB / MTE 搬运
 边界、分段和设备交接属于 `A` 轴。后续加入更快的局部核心不会取代这套架构，反而可以作为同一
 流编排中的新候选进行比较。
 
-![Flow organization and processing-unit design space](../figures/flow_core_space.svg)
+<figure class="doc-diagram">
+  <a href="../../figures/flow_core_space.svg">
+    <img src="../../figures/flow_core_space.svg" loading="lazy"
+         alt="Ascend FFT 流组织与 radix、Cube 和专用核心的 capability 矩阵，区分生产、探针、未 lowering 和未来候选">
+  </a>
+  <figcaption>
+    `A × P` 交点必须经过 lowering contract。图中特别把向量指令、布局和所有权列为 lowering 属性，
+    不再把 vector 与 radix 错画成同一级算术核心。
+    <span class="doc-diagram__links"><a href="../../figures/flow_core_space.svg">SVG</a> ·
+    <a href="../../figures/flow_core_space.pdf">PDF</a></span>
+  </figcaption>
+</figure>
 
-这张图是上方总览中 `A × P` 交点的放大版：绿色交点表示可以进入 lowering 和实测的候选，
-灰色交点只表示抽象上可讨论，不能据此宣称已有生产实现。
+图的组织方式承接 [cuButterfly 概念图](https://github.com/TruNcat3/cuButterfly/blob/master/figures/cubutterfly_concept.svg)
+和其 `D × S → Ud/Td/Us/Ts → hardware realization` 设计总览；这里把 GPU 的 grid/CTA/warp
+节点替换为 Ascend 的 AIV/UB/MTE/GM，并把未实现的跨 AIV 阶段角色明确标为 `NOT LOWERED`。
 
 ## 当前生产数据通路
 
@@ -70,12 +82,38 @@ GM 交错复数输入
    → DataCopy 回 GM
 ```
 
-整个 c2c transform 的中间值在单个 AIV 的 UB 中，不是每一级都写回 GM。多个 AIV 分配独立 batch；单个 AIV 按组循环处理其余批次。满足 repeat、步长和并发约束时，D 个 batch 可共同形成矢量指令工作组。D 的作用是减少重复发射，而不是证明 MTE 与全部计算已经流水重叠。
+上述短 C2C 路径中，整个 transform 的中间值在单个 AIV 的 UB 中，不是每一级都写回 GM。多个 AIV 分配独立 batch；单个 AIV 按组循环处理其余批次。满足 repeat、步长和并发约束时，D 个 batch 可共同形成矢量指令工作组。D 的作用是减少重复发射，而不是证明 MTE 与全部计算已经流水重叠。
 
-![Detailed Ascend data path](../figures/ascend_data_path_detail.svg)
+<figure class="doc-diagram">
+  <a href="../../figures/ascend_data_path_detail.svg">
+    <img src="../../figures/ascend_data_path_detail.svg" loading="lazy"
+         alt="当前 Ascend FFT 在单 AIV 私有 UB 中连续执行阶段，与每阶段写回 GM 的反例对照；Td 包围完整变换服务，Ts 包围阶段循环">
+  </a>
+  <figcaption>
+    当前实现不是“核心计算结束后再做时间复用”：`Ts` 包围 UB 内的依赖阶段循环，`Td` 包围完整
+    transform 服务，局部 radix 只是循环内部的可替换位置。右侧逐级写回仅为说明代价的反例。
+    <span class="doc-diagram__links"><a href="../../figures/ascend_data_path_detail.svg">SVG</a> ·
+    <a href="../../figures/ascend_data_path_detail.pdf">PDF</a></span>
+  </figcaption>
+</figure>
 
-该图放大了当前已实现路径：流组织负责 GM、UB、重排和时间复用，局部 radix 单元位于中间的
-processing-unit 方框内，二者不是同一个优化层次。
+## 长 FFT：复用局部核心，改变段边界
+
+`fft_check` 的前向长 C2C 验收路径覆盖 `N=8192..65536`，以 `N=N1×N2` 的四步
+Cooley-Tukey 分段复用现有 `kfft_fwd` 行 FFT；它不表示公开短 C2C 支持范围已经扩展。
+`AB_BOUNDARY=device` 将转置、段间 twiddle 和自然序输出重排放到设备，段间数据仍在 GM
+物化；这不是多个 AIV 阶段角色同时驻留的生产者/消费者流水。
+
+同一行 FFT 核心下，`AB_LONG_BOUNDARY_IMPL=separate` 发射六个内核
+（转置入、FFT1、twiddle、段间转置、FFT2、转置出）；`fused` 将 twiddle 并入段间转置，
+降为五次发射。两者都保留一个 GM 物化段边界，device 链每次执行的逻辑传输仍为
+`in=1 out=1 boundary=0`。融合减少一次发射和独立点乘的 payload GM 读写，不能据此声称
+消除了全部 GM 交接或已经证明跨核重叠。
+
+lowering 在分配/启动前校验 manifest 与各物理内核的 UB 峰值；未实际消费的角色/驻留组合
+仍返回 `not-lowered`。实现与验收口径见 [长 FFT 实验计划](../benchmarks/long-fft-plan.md)，
+宿主/设备边界对照见 [验收证据](../generated/long-fft-evidence.md)；融合验收另归档于
+`results/evidence/long-fft-device-boundary-fused/acceptance.json`，不与短 FFT 发布均值混算。
 
 ## 框架对象不是七套独立算法
 
