@@ -1,7 +1,7 @@
 # 性能对比：标准库 vs CANN 原生算子 vs 自研 kernel（全网格 49 点）
 
 > **历史存档提示**：本文保留早期快照的展开表，不是当前发布结论。当前请阅读
-> [实验结果](benchmarks/results.md) 和 [发布矩阵](generated/matrix.md)，它们统一引用
+> [实验结果](benchmarks/results.md) 和 [发布矩阵](generated/current_matrix.md)，它们统一引用
 > `ascend910_9382-revalidation-20261010`。
 
 > **复现脚本**：[`scripts/gen_stdlib_doc.py`](../scripts/gen_stdlib_doc.py)（本文是它的输出）· [`scripts/bench_stdlib.py`](../scripts/bench_stdlib.py) · [`scripts/bench_native_npu.py`](../scripts/bench_native_npu.py) · [`scripts/repro.sh sixway`](../scripts/repro.sh)。

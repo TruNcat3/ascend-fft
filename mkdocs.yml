@@ -58,8 +58,8 @@ nav:
       - 当前结果: benchmarks/results.md
       - 复现实验: benchmarks/reproducibility.md
       - 相关工作与基线: benchmarks/related-work.md
-      - C2C 发布矩阵: generated/matrix.md
-      - 多基线发布明细: generated/comparison.md
+      - C2C 发布矩阵: generated/current_matrix.md
+      - 多基线发布明细: generated/current_comparison.md
   - 开发指南:
       - 工程结构: development/repository-layout.md
       - 性能诊断: development/profiling.md

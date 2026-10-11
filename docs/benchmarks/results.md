@@ -31,7 +31,7 @@
 
 矩阵为 `N ∈ {64,128,256,512,1024,2048,4096}` 与
 `batch ∈ {1,4,16,64,256,1024,4096}` 的 49 个组合，每点 3 轮、每轮 20 次稳态执行，
-自研与 CANN 原生 runner 交错执行。完整数值见[发布矩阵](../generated/matrix.md)，原始 CSV
+自研与 CANN 原生 runner 交错执行。完整数值见[发布矩阵](../generated/current_matrix.md)，原始 CSV
 和协议见快照目录。
 
 ![C2C device-only speedup heatmap](../figures/fig1_speedup_heatmap.png)
@@ -96,8 +96,8 @@ batch 折叠、搬运占比和 CANN 原生路径的调用开销。C2R 的单个�
 ## 原始数据与复现
 
 - [当前发布快照](https://github.com/TruNcat3/ascend-fft/tree/f1e97da/results/published/ascend910_9382-revalidation-20261010)
-- [C2C 发布矩阵](../generated/matrix.md)
-- [多基线明细](../generated/comparison.md)
+- [C2C 发布矩阵](../generated/current_matrix.md)
+- [多基线明细](../generated/current_comparison.md)
 - [测量方法](methodology.md)
 - [复现实验命令](reproducibility.md)
 - [图表生成器](https://github.com/TruNcat3/ascend-fft/blob/f1e97da/scripts/plot_results.py)

@@ -87,7 +87,7 @@ cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个
 因此，本版本已经证明迁移方法在声明的实验范围内有稳定总体收益，但尚未把每一个边界点都
 优化到严格大于 1；该单点回退是下一轮的明确优化目标，而不是被隐藏的平均值。
 每根柱子都标注自己的同语义基线，跨 GPU 数据不参与几何均值。查看[实验结果](docs/benchmarks/results.md)、
-[测量协议](docs/benchmarks/methodology.md)和[完整矩阵](docs/generated/matrix.md)。
+[测量协议](docs/benchmarks/methodology.md)和[完整矩阵](docs/generated/current_matrix.md)。
 
 ## 为什么这样设计
 
