@@ -88,13 +88,20 @@ int main(){
       const auto r = query_lowering(s, dev, exact, hw);
       emit_case("ub_exact_transpose_peak", r);
       emit_struct("ub_exact_transpose_peak", r); }
-    // ...but a 4096-point row FFT needs 190464 B > 98304 B: after the
+    // ...but a 4096-point row FFT needs 191616 B > 98304 B: after the
     // transpose threshold passes, the row-FFT check rejects.
     { auto exact = unit; exact.ub_bytes = (size_t)AB_TRANSPOSE_UB_BYTES;
       auto m2 = default_long_mapping(4096, 4096, hw);
       m2.boundary_home = BoundaryHome::DeviceGM;
       emit_case("ub_rowfft_checked_after_transpose",
                 query_lowering({16777216u, 1}, m2, exact, hw)); }
+    // R0.1 override 穿透：mapping.row_fft_fold_d 必须进入 UB 门禁
+    // （descriptor 与 launch 解析同一 (D,K)）；强制 D=1024 使行 FFT 必然溢出。
+    { auto mo = default_long_mapping(64, 128, hw);
+      mo.row_fft_fold_d = 1024;
+      auto ub98 = unit; ub98.ub_bytes = (size_t)AB_TRANSPOSE_UB_BYTES;
+      emit_case("fold_d_override_rejected",
+                query_lowering(TransformSpec{8192, 1}, mo, ub98, hw)); }
   }
 
   // --- unsupported: explicit reasons, one per legality rule ---

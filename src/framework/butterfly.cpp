@@ -1,5 +1,6 @@
 #include "butterfly/plan.hpp"
 #include "butterfly/reference.hpp"
+#include "butterfly/long_fft_ub.h"
 
 #include <acl/acl.h>
 
@@ -220,23 +221,13 @@ bool Mapping::validate(const Hardware& hw, std::string* why) const {
 // plane 布局要求 tiles=n/8 是 8 的倍数 => n >= 64。
 // 注意：旧公式 44n + 128 少算了 idx 4n 字节与 rows 项，n=4096 上虚报 15 KB 余量。
 size_t StagePlan::ubBytes(uint32_t n) const {
-    const size_t f = sizeof(float);
     // 静态可行性检查用 D 的**结构上界**（foldDFor 默认 batch/nblk 不施加并发约束），
     // 对所有 batch 都保守成立；实际运行时 D 由 Plan::prepare 按 (n,batch) 取更小值。
-    const size_t D    = bfly::foldDFor(n);
-    const size_t K    = planeKFor(n);
-    const size_t hmax = n >> 1;
-    const size_t rows = n / K;
-    // 与内核 InitBuffer 同式：tmpF = 2*hmax*D + max(hmax, rows*D) + 3*rows*D
-    const size_t t2sz = (hmax > rows * D) ? hmax : (rows * D);
-    const size_t tmpF = 2ull * hmax * D + t2sz + 3ull * rows * D;
-    const size_t plan  = 2ull * n * D * f;
-    const size_t plane = 2ull * n * D * f;
-    const size_t idx   = 2ull * n * D * sizeof(uint32_t)   // idxO
-                       + 2ull * n * sizeof(uint32_t);      // idxB + idxT
-    const size_t tw    = 2ull * (n + 16) * f;
-    const size_t temps = tmpF * f;
-    return plan + plane + idx + tw + temps;
+    // 公式与内核 InitBuffer 清单单一来源：AB_ROW_FFT_UB_BYTES(n,D,K)
+    // （include/butterfly/long_fft_ub.h，R0.1）。
+    const uint32_t D = bfly::foldDFor(n);
+    const uint32_t K = planeKFor(n);
+    return (size_t)AB_ROW_FFT_UB_BYTES(n, D, K);
 }
 
 // ================================================================== η 估算器

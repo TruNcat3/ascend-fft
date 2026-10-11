@@ -15,6 +15,8 @@ comparison in CI.
 """
 import argparse
 import json
+import math
+import statistics
 import sys
 from pathlib import Path
 
@@ -35,18 +37,35 @@ def load_mode(path):
 
 
 def _stats(block):
-    """Trials stats dict or None on the pre-trial archive schema."""
+    """Trial stats recomputed from raw samples (cached block is output only).
+
+    Returns None when the archive carries no raw trial samples
+    (pre-trial schema), preserving the historical fallback shape.
+    """
     if not block:
         return None
-    stats = (block.get("trials") or {}).get("stats")
-    if not stats or stats.get("median") is None:
+    raw = ((block.get("trials") or {}).get("raw") or [])
+    vals = [s["e2e_us"] for s in raw
+            if isinstance((s or {}).get("e2e_us"), (int, float))
+            and math.isfinite(s["e2e_us"])]
+    if not vals:
         return None
-    return {k: stats[k] for k in ("median", "min", "mean", "cv")}
+    mean = statistics.fmean(vals)
+    return {"median": statistics.median(vals), "min": min(vals),
+            "mean": mean,
+            "cv": (statistics.pstdev(vals) / mean) if mean else None}
 
 
 def _seq_worst(point):
     values = [s.get("max_rel") for s in (point.get("seq") or [])
               if isinstance(s.get("max_rel"), (int, float))]
+    return max(values) if values else None
+
+
+def _shape_worst(point):
+    """Per-shape worst maxRel: union of the overall and A/B/A-seq口径."""
+    values = [v for v in (point.get("max_rel"), _seq_worst(point))
+              if isinstance(v, (int, float))]
     return max(values) if values else None
 
 
@@ -63,6 +82,7 @@ def build_summary():
                 "n": p.get("n"), "b": p.get("b"),
                 "max_rel": p.get("max_rel"),
                 "seq_worst_max_rel": _seq_worst(p),
+                "worst_max_rel": _shape_worst(p),
                 "e2e_us": _stats(p),
                 "device_chain_us": None,
             })
@@ -71,7 +91,6 @@ def build_summary():
                       for s in raw]
             chains = [c for c in chains if isinstance(c, (int, float))]
             if chains:
-                import statistics
                 mean = statistics.fmean(chains)
                 shapes[-1]["device_chain_us"] = {
                     "median": statistics.median(chains),
@@ -149,8 +168,8 @@ def render_markdown(summary):
             f"| {s['n']} | {s['b']} | "
             f"{_fmt((s.get('e2e_us') or {}).get('median'))} | "
             f"{_fmt((d.get('e2e_us') or {}).get('median'))} | {speed} | "
-            f"{_fmt(s.get('max_rel'), '{:.2e}')} | "
-            f"{_fmt(d.get('max_rel'), '{:.2e}')} |")
+            f"{_fmt(s.get('worst_max_rel'), '{:.2e}')} | "
+            f"{_fmt(d.get('worst_max_rel'), '{:.2e}')} |")
     lines += [
         "",
         "数据源：`results/evidence/long-fft-acceptance/`（host）与 "
