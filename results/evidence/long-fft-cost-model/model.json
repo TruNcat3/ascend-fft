@@ -1,0 +1,403 @@
+{
+  "calib_rmse_us": 17.013,
+  "coefficients": {
+    "blocks": 1.584454,
+    "fft_probe_us": 26.164155,
+    "gm_gb": -72213.074009,
+    "heavy_barrier_m": 5337.044026,
+    "intercept": -287.640244,
+    "pp": -15.031673,
+    "rebuild_m": -61409.21882,
+    "stripes_m": -6341.106692,
+    "tiles_m": 150043.841272
+  },
+  "mean_regret_pct": 3.023,
+  "problems": [],
+  "protocol": {
+    "calib_shapes": [
+      "8192x1",
+      "16384x47"
+    ],
+    "features": [
+      "intercept",
+      "gm_gb",
+      "tiles_m",
+      "stripes_m",
+      "rebuild_m",
+      "heavy_barrier_m",
+      "pp",
+      "blocks",
+      "fft_probe_us"
+    ],
+    "n_calib": 20,
+    "n_test_points": 2,
+    "test_shapes": [
+      "32768x47",
+      "65536x47"
+    ],
+    "topk": 2
+  },
+  "session2_stability": [
+    {
+      "b": 1,
+      "config": [
+        "t128x32",
+        "k256",
+        "ri",
+        "nb",
+        "b48"
+      ],
+      "fused_chain_us": 160.7,
+      "n": 8192
+    },
+    {
+      "b": 47,
+      "config": [
+        "t128x32",
+        "k256",
+        "ri",
+        "nb",
+        "b48"
+      ],
+      "fused_chain_us": 364.3,
+      "n": 16384
+    },
+    {
+      "b": 47,
+      "config": [
+        "t128x32",
+        "k256",
+        "ri",
+        "nb",
+        "b48"
+      ],
+      "fused_chain_us": 594.9,
+      "n": 32768
+    },
+    {
+      "b": 47,
+      "config": [
+        "t128x32",
+        "k256",
+        "ri",
+        "nb",
+        "b48"
+      ],
+      "fused_chain_us": 1199.2,
+      "n": 65536
+    },
+    {
+      "b": 47,
+      "config": [
+        "t128x32",
+        "k512",
+        "rb",
+        "-",
+        "b48"
+      ],
+      "fused_chain_us": 1610.2,
+      "n": 65536
+    }
+  ],
+  "test_report": [
+    {
+      "pred_best": [
+        "t128x32",
+        "k256",
+        "ri",
+        "pp",
+        "b48"
+      ],
+      "pred_best_measured_us": 591.7,
+      "ranking": [
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "pp",
+            "b48"
+          ],
+          "measured_us": 591.7,
+          "pred_us": -409.9
+        },
+        {
+          "config": [
+            "t128x32",
+            "k128",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 653.1,
+          "pred_us": -401.6
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "nb",
+            "b48"
+          ],
+          "measured_us": 595.5,
+          "pred_us": -389.6
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 642.4,
+          "pred_us": -357.3
+        },
+        {
+          "config": [
+            "t128x32",
+            "k512",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 657.5,
+          "pred_us": -332.6
+        },
+        {
+          "config": [
+            "t64x64",
+            "k512",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 706.3,
+          "pred_us": -332.6
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "-",
+            "b48"
+          ],
+          "measured_us": 621.1,
+          "pred_us": -316.8
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "-",
+            "b96"
+          ],
+          "measured_us": 746.8,
+          "pred_us": -227.7
+        },
+        {
+          "config": [
+            "t256x16",
+            "k512",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 790.9,
+          "pred_us": -209.2
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "-",
+            "b24"
+          ],
+          "measured_us": 846.7,
+          "pred_us": -59.2
+        }
+      ],
+      "regret_pct": 0.0,
+      "shape": "32768x47",
+      "topk": [
+        [
+          "t128x32",
+          "k256",
+          "ri",
+          "pp",
+          "b48"
+        ],
+        [
+          "t128x32",
+          "k128",
+          "rb",
+          "-",
+          "b48"
+        ]
+      ],
+      "topk_hit": true,
+      "true_best": [
+        "t128x32",
+        "k256",
+        "ri",
+        "pp",
+        "b48"
+      ],
+      "true_best_us": 591.7
+    },
+    {
+      "pred_best": [
+        "t128x32",
+        "k256",
+        "ri",
+        "pp",
+        "b48"
+      ],
+      "pred_best_measured_us": 1273.3,
+      "ranking": [
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "pp",
+            "b48"
+          ],
+          "measured_us": 1273.3,
+          "pred_us": -2958.4
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "nb",
+            "b48"
+          ],
+          "measured_us": 1200.7,
+          "pred_us": -2948.6
+        },
+        {
+          "config": [
+            "t128x32",
+            "k128",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 1421.2,
+          "pred_us": -2938.6
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 1402.6,
+          "pred_us": -2912.8
+        },
+        {
+          "config": [
+            "t128x32",
+            "k512",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 1428.4,
+          "pred_us": -2886.8
+        },
+        {
+          "config": [
+            "t64x64",
+            "k512",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 1503.6,
+          "pred_us": -2792.6
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "-",
+            "b48"
+          ],
+          "measured_us": 1352.4,
+          "pred_us": -2776.9
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "-",
+            "b96"
+          ],
+          "measured_us": 1472.2,
+          "pred_us": -2745.3
+        },
+        {
+          "config": [
+            "t256x16",
+            "k512",
+            "rb",
+            "-",
+            "b48"
+          ],
+          "measured_us": 1679.0,
+          "pred_us": -2536.2
+        },
+        {
+          "config": [
+            "t128x32",
+            "k256",
+            "ri",
+            "-",
+            "b24"
+          ],
+          "measured_us": 2074.1,
+          "pred_us": -2427.7
+        }
+      ],
+      "regret_pct": 6.046,
+      "shape": "65536x47",
+      "topk": [
+        [
+          "t128x32",
+          "k256",
+          "ri",
+          "pp",
+          "b48"
+        ],
+        [
+          "t128x32",
+          "k256",
+          "ri",
+          "nb",
+          "b48"
+        ]
+      ],
+      "topk_hit": true,
+      "true_best": [
+        "t128x32",
+        "k256",
+        "ri",
+        "nb",
+        "b48"
+      ],
+      "true_best_us": 1200.7
+    }
+  ],
+  "topk_hits": "2/2"
+}

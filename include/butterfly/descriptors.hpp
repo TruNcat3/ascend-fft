@@ -9,6 +9,7 @@
 #pragma once
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 // UB 资源公式与内核同源（PR #2 阶段 3）：AB_LT_* / AB_*_UB_BYTES 由
@@ -57,6 +58,19 @@ enum class Residence { None, CellResident, BlockResident, WorkerResident };
 // Where the inter-stage boundary is materialized when it leaves on-chip storage.
 enum class BoundaryHome { HostMemory, DeviceGM, OnChip };
 
+// PR-B R1: how the device chain materializes the inter-stage boundary.
+//   Separate (default): 6 launches (transpose-in, row-FFT, twiddle,
+//                        transpose-boundary, row-FFT, transpose-out)
+//   Fused:              5 launches -- kfft_lt_tr consumes the twiddle table
+//                        in the same launch as the boundary transpose.
+// Only meaningful for BoundaryHome::DeviceGM; host chains keep the host-side
+// scalar boundary regardless.
+enum class BoundaryImpl { Separate, Fused };
+
+inline const char* boundary_impl_name(BoundaryImpl i){
+  return i == BoundaryImpl::Fused ? "fused" : "separate";
+}
+
 inline const char* residence_name(Residence r){
   switch(r){
     case Residence::None:           return "none";
@@ -78,6 +92,10 @@ struct ArchitectureMapping {
   Residence residence = Residence::None;
   Layout boundary_layout = Layout::TwiddledStage;
   BoundaryHome boundary_home = BoundaryHome::HostMemory;
+  // Device-boundary launch shape (PR-B): fft_check fills this from
+  // AB_LONG_BOUNDARY_IMPL before query_lowering, so the manifest (5/6
+  // launches), the GM-byte accounting and the runtime launch agree.
+  BoundaryImpl boundary_impl = BoundaryImpl::Separate;
   int pipeline_buffers = 1;
   // Row-FFT resource overrides (0 = derive): mirror the AB_FOLD_D / AB_PLANE_K
   // test hooks so the descriptor gate and the launch resolve the SAME (D,K)
@@ -201,9 +219,14 @@ struct KernelResource {
 // launch must resolve identical values (R0.1).  launch_rows is the row count
 // the launch actually issues (long chain: (n/len)*batch; short path: batch);
 // overrides come from ArchitectureMapping (filled from AB_FOLD_D/AB_PLANE_K).
+// R1.0: an override that violates the kernel contract is REJECTED explicitly
+// (legal=false + reason) -- never silently clamped to a derived value, so
+// K=12 can never be treated as supported.
 struct RowFftPlan {
   uint32_t fold_d;   // batch fold coefficient packed into arg byte 0
   uint32_t plane_k;  // plane factor packed into arg byte 1
+  bool legal = true; // false when an override violates the kernel contract
+  const char* reason = "";  // explicit when legal == false
 };
 inline RowFftPlan resolve_row_fft(uint32_t len, uint32_t launch_rows,
                                   uint32_t fold_d_override,
@@ -213,10 +236,17 @@ inline RowFftPlan resolve_row_fft(uint32_t len, uint32_t launch_rows,
                               : bfly::foldDFor(len, launch_rows, 48u);
   if(p.fold_d < 1u) p.fold_d = 1u;
   p.plane_k = plane_k_override ? plane_k_override : bfly::planeKFor(len);
-  // K 合法性（R0.1）：rows = n/K >= 8 是矢量算子 32B 对齐的硬约束
-  // （否则 AIV 抛 507035）。AB_PLANE_K 指定非法 K 时两处同时回落到规则值，
-  // descriptor 与 launch 依旧同源 —— 与 kernel 的 arg 打包保持一致。
-  if(p.plane_k < 8u || p.plane_k * 8u > len) p.plane_k = bfly::planeKFor(len);
+  // K 合法性（R0.1/R1.0）：kernel contract = K ∈ {8,16,32}、K 整除 len、
+  // rows = len/K >= 8（否则矢量算子 32B 对齐失效，AIV 抛 507035）。
+  // planeKFor 派生值恒满足；override 违约时显式拒绝，不再静默回落。
+  const bool kSet = (p.plane_k == 8u || p.plane_k == 16u || p.plane_k == 32u);
+  if(!kSet || (p.plane_k * 8u) > len || (len % p.plane_k) != 0u){
+    p.legal = false;
+    p.reason = "plane K violates the kernel contract {8,16,32} with "
+               "K | len and len/K >= 8";
+    return p;
+  }
+  p.legal = true;
   return p;
 }
 
@@ -231,17 +261,104 @@ inline KernelResource row_fft_resource(uint32_t len, uint32_t launch_rows,
                         "row length power of two in [64,4096]; "
                         "UB(n,D,K) with the launch's fold D and plane K"};
 }
-inline KernelResource transpose_resource(){
+// R2-A: transpose tile shape candidates.  AB_LT_TILE=HxW selects a compiled
+// kfft_lt_tr entry; legality is the single-source ab_stripe_legal shared
+// with the kernel static_asserts and the host entry selector, checked
+// JOINTLY with the stripe K (an illegal K or tile is rejected loudly --
+// never silently reshaped).
+struct LtTilePlan {
+  uint32_t h = AB_LT_H;
+  uint32_t w = AB_LT_W;
+  bool legal = true;
+  std::string reason;
+};
+// Parse AB_LT_STRIPE_K: 0 = illegal (not one of the candidates).
+inline uint32_t parse_lt_stripe_k(const char* env = nullptr) {
+  const char* s = env ? env : getenv("AB_LT_STRIPE_K");
+  if (!s || !*s) return AB_FUSE_STRIPE_K;
+  unsigned sk = 0;
+  char junk = 0;
+  if (sscanf(s, "%u%c", &sk, &junk) != 1) return 0;
+  static const unsigned ks[] = AB_FUSE_K_CANDIDATES;
+  return ab_lt_in_set(sk, ks, 3) ? (uint32_t)sk : 0u;
+}
+// Parse AB_LT_IDX: -1 = illegal, 0 = rebuild (default), 1 = resident.
+inline int parse_lt_idx(const char* env = nullptr) {
+  const char* s = env ? env : getenv("AB_LT_IDX");
+  if (!s || !*s) return 0;
+  if (strcmp(s, "resident") == 0) return 1;
+  if (strcmp(s, "rebuild") == 0) return 0;
+  return -1;
+}
+inline LtTilePlan resolve_lt_tile(uint32_t k = AB_FUSE_STRIPE_K,
+                                  int resident = 0,
+                                  const char* env = nullptr) {
+  LtTilePlan p;
+  const char* s = env ? env : getenv("AB_LT_TILE");
+  if (!s || !*s) return p;
+  unsigned th = 0, tw = 0;
+  char junk = 0;
+  if (sscanf(s, "%ux%u%c", &th, &tw, &junk) != 2) {
+    p.legal = false;
+    p.reason = "AB_LT_TILE must look like HxW (e.g. 64x32), got '" +
+               std::string(s) + "'";
+    return p;
+  }
+  if (!ab_stripe_legal(th, tw, k, resident ? 1u : 0u)) {
+    p.legal = false;
+    p.reason = "AB_LT_TILE H=" + std::to_string(th) + " W=" +
+               std::to_string(tw) +
+               " violates the R2-A candidate/alignment/carve constraints"
+               " at stripe K=" + std::to_string(k) +
+               (resident ? " resident" : " rebuild");
+    return p;
+  }
+  p.h = (uint32_t)th;
+  p.w = (uint32_t)tw;
+  return p;
+}
+inline KernelResource transpose_resource(uint32_t h = AB_LT_H,
+                                         uint32_t w = AB_LT_W,
+                                         uint32_t k = AB_FUSE_STRIPE_K,
+                                         int resident = 0){
+  // kfft_lt_tr is one .o entry with the fused tw path statically included
+  // (bTw in InitBuffer), so EVERY launch of it is gated at the four-tile
+  // peak plus the resident-index buffer when selected (R2-A Rounds 1-3).
   return KernelResource{"kfft_lt_tr", CoreKind::AIVVectorCore,
-                        (size_t)AB_TRANSPOSE_UB_BYTES,
+                        (size_t)AB_FUSED_UB_BYTES_HWKR(h, w, k,
+                                                       resident ? 1u : 0u),
                         SyncScope::AIVIntraCore,
-                        "fixed LT_H x LT_W tile, shape independent"};
+                        resident ? "fused-capable HxW tile + resident stripe "
+                                   "idx (4*H*W*8 + 16K)"
+                                 : "fused-capable HxW tile (bIn+bOut+bIdx+bTw),"
+                                   " peak = 4*H*W*8 (R2-A)"};
 }
 inline KernelResource twiddle_resource(uint32_t len){
   return KernelResource{"kfft_lt_tw", CoreKind::AIVVectorCore,
                         (size_t)AB_TWIDDLE_UB_BYTES(len),
                         SyncScope::AIVIntraCore,
                         "half-row chunking over one stage length"};
+}
+
+// Modeled payload GM-byte accounting for one execute (PR-B, renamed R1.0):
+// every lowered launch MODELED as streaming one full complex tensor in and
+// one full tensor out of global memory (row FFT reads its input tensor and
+// writes its output tensor; transpose and in-place twiddle read + write the
+// chain tensor).  This is a payload MODEL, not a profiler measurement: it
+// excludes twiddle tables, index tensors, coefficients and any other
+// auxiliary GM transactions.  H2D/D2H are host transfers, not manifest
+// launches, and are excluded.  The fused boundary chain drops one launch's
+// full modeled read+write (2 * n * batch * 8 bytes).
+inline uint64_t modeled_payload_gm_rw(LaunchKind k, uint64_t tensor_bytes){
+  switch(k){
+    case LaunchKind::RowFFT:
+    case LaunchKind::TransposeIn:
+    case LaunchKind::Twiddle:
+    case LaunchKind::TransposeBoundary:
+    case LaunchKind::TransposeOut:
+      return 2ull * tensor_bytes;
+  }
+  return 2ull * tensor_bytes;
 }
 
 // Plan-level UB for serial launches is the PEAK of the per-kernel records,
@@ -274,6 +391,11 @@ struct LoweringResult {
   int materialized_gm_boundaries = 0;       // stage edges that touch GM/host memory
                                             // (sum of boundary_edge flags)
   size_t plan_ub_bytes = 0;                 // serial plan UB peak over the manifest
+  uint64_t modeled_payload_gm_rw_bytes = 0;  // modeled payload GM read+write
+                                             // bytes of one execute's manifest
+                                             // launches (payload model only:
+                                             // no twiddle/index/coeff traffic,
+                                             // no H2D/D2H; PR-B accounting)
   Residence resident_subgraph = Residence::None;
   bool whole_transform_on_chip = false;
   bool host_assisted = false;               // boundary crosses host memory today
@@ -411,16 +533,30 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
   // --- executable: derive the manifest, then derive every count from it ---
   std::vector<LaunchRecord> man;
   if(m.boundary_home == BoundaryHome::DeviceGM){
-    // addendum §3 device chain: transpose-in -> FFT-1 -> twiddle ->
-    // transpose-boundary -> FFT-2 -> transpose-out (all on device, no host hop).
-    man = {
-      {LaunchKind::TransposeIn,       0, 0},
-      {LaunchKind::RowFFT,            0, 0},
-      {LaunchKind::Twiddle,           0, 0},
-      {LaunchKind::TransposeBoundary, 1, 1},  // consumes the GM stage edge
-      {LaunchKind::RowFFT,            1, 0},
-      {LaunchKind::TransposeOut,      1, 0},
-    };
+    if(m.boundary_impl == BoundaryImpl::Fused){
+      // PR-B R1 fused chain: the twiddle launches inside kfft_lt_tr at the
+      // stage edge, so the manifest drops the Twiddle record; the merged
+      // boundary transpose still consumes the edge (boundary_edge = 1) and
+      // its UB peak is AB_FUSED_UB_BYTES.
+      man = {
+        {LaunchKind::TransposeIn,       0, 0},
+        {LaunchKind::RowFFT,            0, 0},
+        {LaunchKind::TransposeBoundary, 1, 1},  // fused: twiddle+transpose, edge here
+        {LaunchKind::RowFFT,            1, 0},
+        {LaunchKind::TransposeOut,      1, 0},
+      };
+    }else{
+      // addendum §3 device chain: transpose-in -> FFT-1 -> twiddle ->
+      // transpose-boundary -> FFT-2 -> transpose-out (no host hop).
+      man = {
+        {LaunchKind::TransposeIn,       0, 0},
+        {LaunchKind::RowFFT,            0, 0},
+        {LaunchKind::Twiddle,           0, 0},
+        {LaunchKind::TransposeBoundary, 1, 1},  // consumes the GM stage edge
+        {LaunchKind::RowFFT,            1, 0},
+        {LaunchKind::TransposeOut,      1, 0},
+      };
+    }
   }else{ // HostMemory: host does transpose/twiddle/reorder between the two FFTs
     man = {
       {LaunchKind::RowFFT, 0, 0},
@@ -429,6 +565,45 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
   }
   r.launch_manifest = std::move(man);
   r.visible_launches = (int)r.launch_manifest.size();
+  {
+    // Modeled payload GM traffic of the chain, derived from the same
+    // manifest the runtime launches (PR-B): separate device chain 6*2T,
+    // fused 5*2T, T = n*batch*8.  Payload model only -- excludes
+    // twiddle/index/coefficient auxiliary transactions (R1.0 rename).
+    const uint64_t tensor_bytes = 8ull * (uint64_t)spec.n * (uint64_t)spec.batch;
+    uint64_t rw = 0;
+    for(const auto& rec : r.launch_manifest)
+      rw += modeled_payload_gm_rw(rec.kind, tensor_bytes);
+    r.modeled_payload_gm_rw_bytes = rw;
+  }
+
+  // R2-A: an illegal AB_LT_TILE / AB_LT_STRIPE_K / AB_LT_IDX is a loud
+  // rejection (same contract as an illegal row-FFT plan) -- the gate must
+  // never launch an uncompiled or over-budget tile shape.  K and the index
+  // mode parse first; the tile carve is checked jointly at that (K, mode).
+  const uint32_t ltsk = parse_lt_stripe_k();
+  if (ltsk == 0) {
+    r.abstract_feasible = false;
+    r.supported = false;
+    r.reason = "illegal transpose stripe: AB_LT_STRIPE_K must be one of "
+               "128|256|512";
+    return r;
+  }
+  const int ltidx = parse_lt_idx();
+  if (ltidx < 0) {
+    r.abstract_feasible = false;
+    r.supported = false;
+    r.reason = "illegal transpose index mode: AB_LT_IDX must be "
+               "resident|rebuild";
+    return r;
+  }
+  const LtTilePlan ltp = resolve_lt_tile(ltsk, ltidx);
+  if (!ltp.legal) {
+    r.abstract_feasible = false;
+    r.supported = false;
+    r.reason = "illegal transpose tile: " + ltp.reason;
+    return r;
+  }
 
   // Per-kernel UB fit, checked in launch order (transpose launches come
   // first in the device manifest, so a UB below the transpose peak is
@@ -442,8 +617,19 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
       case LaunchKind::RowFFT: {
         // Same (n,rows,D,K) the launch resolves in prepPass: rows is the
         // launch's row count, i.e. (n/len)*batch for the two-segment chain.
+        // R1.0: an illegal (D,K) plan is rejected here with an explicit
+        // reason -- it must never reach a launch or the resource gate.
         const uint32_t len   = m.stage_lengths[rec.stage];
         const uint32_t rows  = (spec.n / len) * spec.batch;
+        const RowFftPlan rf  = resolve_row_fft(len, rows,
+                                               m.row_fft_fold_d,
+                                               m.row_fft_plane_k);
+        if(!rf.legal){
+          r.abstract_feasible = false;
+          r.supported = false;
+          r.reason = std::string("illegal row-FFT plan: ") + rf.reason;
+          return r;
+        }
         kr = row_fft_resource(len, rows,
                               m.row_fft_fold_d, m.row_fft_plane_k);
         break;
@@ -453,7 +639,7 @@ inline LoweringResult query_lowering(const TransformSpec& spec,
       case LaunchKind::TransposeIn:
       case LaunchKind::TransposeBoundary:
       case LaunchKind::TransposeOut:
-        kr = transpose_resource(); break;
+        kr = transpose_resource(ltp.h, ltp.w, ltsk, ltidx); break;
     }
     if(kr.ub_bytes > ub_have){
       r.abstract_feasible = false;

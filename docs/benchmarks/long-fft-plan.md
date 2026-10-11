@@ -119,8 +119,10 @@ lfft32k47,lfft65k47`（msprof `--task-time`），同尺寸 torch_npu 基线用
 对照表见 [长 FFT 同尺寸基线](../generated/long-fft-baseline.md)）。P0 分段归因
 （5-trial 中位数）已入归档：`8192×1` 的 chain 中 3 次转置占约 86%（固定成本
 主导）；batch=47 形状的独立 twiddle 段占约 21%~31%，是 P1 融合消融的首选目标。
-E2E 对照须与 device-only 分列解读：自研长链 E2E 目前从 `std::vector` 发起
-（pinned 分配仅覆盖短路径），传输为 pageable 口径，差距包含此项。
+E2E 对照须与 device-only 分列解读：本页引用的 P0 归档与基线表采集时，自研长链
+E2E 从 `std::vector` 发起（pageable 口径）；R3 之后 `fft_check.cpp` 的 pinned
+分配已覆盖长路径（`AB_E2E_HOST` 默认 pinned，alloc 失败回退 pageable），
+当前实现的 E2E 差距应小于历史归档值，device-only 列不受影响。
 
 每个实验固定 SoC、CANN、构建、FP32、前向 1D C2C、稠密交错输入和自然序输出；其他语义
 使用独立结果集。设备计时、同步 host 端到端、Plan 创建和首次执行分别报告。

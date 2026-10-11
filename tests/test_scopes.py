@@ -131,6 +131,12 @@ SEG_DEVICE_SCOPES = ("scopes: plan_setup=752.5 us first_use=882.4 us "
                      "h2d=61.2 us device_chain=167.0 us d2h=62.6 us reps=3")
 SEG_DEVICE_LINE = ("segments: transpose_in=57.8 us fft1=9.4 us twiddle=6.1 us "
                    "transpose_boundary=43.0 us fft2=7.4 us transpose_out=43.3 us")
+# PR-B R1 fused capture: twiddle merged into transpose_boundary (43.0+6.1),
+# so the fused line carries the five non-twiddle names and telescopes to the
+# same device_chain=167.0 us on SEG_DEVICE_SCOPES.
+SEG_DEVICE_FUSED_LINE = ("segments: transpose_in=57.8 us fft1=9.4 us "
+                         "transpose_boundary=49.1 us fft2=7.4 us "
+                         "transpose_out=43.3 us")
 SEG_NA_LINE = "segments: NA"
 
 
@@ -145,8 +151,58 @@ class SegmentsTest(unittest.TestCase):
         self.assertIsNone(scopes.parse_segments(SEG_NA_LINE))
 
     def test_missing_segment_rejected(self):
+        # PR-B: a five-field line parses (it is a legal fused line), but the
+        # separate contract still demands the twiddle span.
+        seg = scopes.parse_segments(SEG_DEVICE_LINE.replace(" twiddle=6.1 us",
+                                                            ""))
+        self.assertEqual(sorted(seg),
+                         sorted(scopes.FUSED_SEGMENT_FIELDS))
+        fields = scopes.parse_scopes(SEG_DEVICE_SCOPES)
+        problems = scopes.validate_segments(seg, fields, "long_device",
+                                            impl="separate")
+        self.assertTrue(any("segment twiddle missing" in p
+                            for p in problems))
+
+    def test_fused_line_accepted_by_fused_contract(self):
+        fields = scopes.parse_scopes(SEG_DEVICE_SCOPES)
+        seg = scopes.parse_segments(SEG_DEVICE_FUSED_LINE)
+        self.assertEqual(sorted(seg), sorted(scopes.FUSED_SEGMENT_FIELDS))
+        self.assertNotIn("twiddle", seg)
+        self.assertEqual(
+            scopes.validate_segments(seg, fields, "long_device",
+                                     impl="fused"), [])
+        self.assertAlmostEqual(sum(seg.values()),
+                               fields["device_chain"], places=1)
+
+    def test_fused_contract_rejects_twiddle_span(self):
+        fields = scopes.parse_scopes(SEG_DEVICE_SCOPES)
+        seg = scopes.parse_segments(SEG_DEVICE_LINE)
+        problems = scopes.validate_segments(seg, fields, "long_device",
+                                            impl="fused")
+        self.assertTrue(any("must not report the twiddle" in p
+                            for p in problems))
+
+    def test_fused_requires_five_segments(self):
+        fields = scopes.parse_scopes(SEG_DEVICE_SCOPES)
+        problems = scopes.validate_segments(None, fields, "long_device",
+                                            impl="fused")
+        self.assertTrue(any("five segments" in p for p in problems))
+
+    def test_unknown_impl_rejected(self):
+        problems = scopes.validate_segments(None, {}, "long_device",
+                                            impl="bolted")
+        self.assertTrue(any("unknown impl" in p for p in problems))
+
+    def test_parse_boundary_impl(self):
+        self.assertEqual(
+            scopes.parse_boundary_impl("boundary_impl: fused"), "fused")
+        self.assertEqual(
+            scopes.parse_boundary_impl("boundary_impl: separate\n"),
+            "separate")
         with self.assertRaises(ValueError):
-            scopes.parse_segments(SEG_DEVICE_LINE.replace(" twiddle=6.1 us", ""))
+            scopes.parse_boundary_impl("boundary_impl: maybe")
+        with self.assertRaises(ValueError):
+            scopes.parse_boundary_impl("segments: NA")
 
     def test_unexpected_field_rejected(self):
         with self.assertRaises(ValueError):

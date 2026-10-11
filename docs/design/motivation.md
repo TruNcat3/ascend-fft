@@ -115,7 +115,13 @@ a = (Us, Ts, Ud, Td, layout, residence, pipeline, processing_unit)
 
 当前验证设备的 AIV 使用显式矢量指令、私有 UB 与 MTE 搬运，不具备本仓 CUDA 路径所依赖的 warp shuffle 语义。因此不能直接移植 warp 子图；要使用对齐的 K-plane 布局、Gather 索引与 Level-0 repeat 组织同一批蝶形。
 
-当前生产路径把单个 transform 的阶段留在一个 AIV 的 UB 中，多个 AIV 分担 batch，单核再时间遍历剩余批次。对合适的小长度，多个 batch 被折入同一 repeat 组织，减少重复指令发射。它实现了片上阶段时间复用与数据展开/复用，但尚不是独立阶段角色同时驻留的跨核流水。详见 [架构页中的实现边界](architecture.md)。
+当前短 FFT 生产路径把单个 transform 的阶段留在一个 AIV 的 UB 中，多个 AIV 分担 batch，单核再时间遍历剩余批次。对合适的小长度，多个 batch 被折入同一 repeat 组织，减少重复指令发射。它实现了片上阶段时间复用与数据展开/复用，但尚不是独立阶段角色同时驻留的跨核流水。详见 [架构页中的实现边界](architecture.md)。
+
+超过单 AIV 容量时，前向长 FFT 验收路径以分段行 FFT 与 GM 交接延续这一映射方法。
+宿主/设备边界、separate/fused twiddle-转置以及合法缓冲组织，是固定局部核心下的流编排
+对照，而非新算术核心的收益。长链已有实现和归档不等于任意长度、独立阶段角色流水或
+自动搜索已经完成；尤其 `pp2` 的 device-chain 候选与 pinned E2E 放行必须分开。
+实验合同与限制见 [长 FFT 实验计划](../benchmarks/long-fft-plan.md)。
 
 ## 7. 核心选型与模型搜索负责找到硬件设计点
 

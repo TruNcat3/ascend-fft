@@ -1,0 +1,7308 @@
+{
+ "generated_utc": "2026-10-10T07:34:43.728986+00:00",
+ "manifest": {
+  "git_sha": "01ec917faa5fb7eb96f00d746dace65a8c306fa9",
+  "git_dirty": false,
+  "binary": "build/fft_check",
+  "binary_sha256": "bd0e9de55521ac71cdd29049a072eec335e09f33f6554f13d917a1ebb1c984bb",
+  "kernel_objects": {
+   "fft_radix2.o": "d7c20c72bccaa70f64b547061d9e5e8d77d0ef57b9fc10b08a74ed8e3fcb1d50",
+   "fft_long.o": "e939983a2d7d018e4c4c4d735b020360093d515fa082d764c0b41cc3a95c71af",
+   "fft_real.o": "5fc46ac998ef12c6458b70a76ab1077c7621431d38d59cbf34d3c993849c4100"
+  },
+  "config_sha256": {
+   "ascend910_93_profile.json": "42768522dcdd2d3088dfe5ffbaf7d73a5c1041a8199b4f6c5a1fef27a4ee006f",
+   "butterfly_space.json": "1c6c60fabfc006dbc122158bf2ce7fbe07301c6203fb7db20cab8fd1d9bdb1a4",
+   "long_fft_experiments.json": "a19fbb8fe4de30d4edeb4eb333f2560b13b91fc9a25edbd4e27712eb8f315caf",
+   "test_matrix.json": "d15dfddfaf3ffd1461faebd79a735ba6e2af57954861b128f777b306041e2f2c"
+  },
+  "build": {
+   "script": "bash scripts/build.sh",
+   "recipe": "scripts/env.sh: ab_ccec (ccec -c --cce-aicore-only --npu-soc=$AB_SOC --asc-aicore-lang -O2 -std=c++17 -Iinclude + AB_INC) / ab_cxx (g++ -O2 -std=c++17 -I$AB_CANN/include -Iinclude -lascendcl)"
+  },
+  "soc": "Ascend910_9382",
+  "cann_version": "9.0.0",
+  "driver_version": "26.1.1",
+  "driver_source": "/usr/local/Ascend/driver/version.info",
+  "python": "3.11.15",
+  "env": {},
+  "boundary": "device-fused",
+  "allow_dirty": false
+ },
+ "commands": [
+  {
+   "kind": "aba_seq",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "3"
+   ],
+   "env": [
+    "AB_INPUT_SEQ=impulse,random-seeded,impulse",
+    "AB_E2E=1",
+    "AB_BOUNDARY=device",
+    "AB_LONG_BOUNDARY_IMPL=fused"
+   ],
+   "reps": 3,
+   "note": "first shape"
+  },
+  {
+   "kind": "trial",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "5"
+   ],
+   "env": [
+    "AB_E2E=5",
+    "AB_BOUNDARY=device",
+    "AB_LONG_BOUNDARY_IMPL=fused"
+   ],
+   "reps": 5,
+   "note": "repeated per shape"
+  },
+  {
+   "kind": "e2e",
+   "argv": [
+    "./build/fft_check",
+    "8192",
+    "1",
+    "3"
+   ],
+   "env": [
+    "AB_E2E=3",
+    "AB_BOUNDARY=device",
+    "AB_LONG_BOUNDARY_IMPL=fused"
+   ],
+   "reps": 3
+  }
+ ],
+ "command": "python3 scripts/collect_long_fft_evidence.py --boundary device-fused",
+ "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
+ "boundary": "device-fused",
+ "impl": "fused",
+ "threshold": 0.0001,
+ "grid": {
+  "ns": [
+   8192,
+   16384,
+   32768,
+   65536
+  ],
+  "bs": [
+   1,
+   3,
+   47
+  ]
+ },
+ "trials_per_shape": 5,
+ "env_monitor": {
+  "before": {
+   "utc": "2026-10-10T07:29:32.756639+00:00",
+   "loadavg": {
+    "1m": 27.65,
+    "5m": 28.95,
+    "15m": 27.92
+   },
+   "uptime_s": 2082973.37,
+   "npu_smi": {
+    "npus": [
+     {
+      "npu": 0,
+      "power_w": 165.2,
+      "temp_c": 40
+     },
+     {
+      "npu": 0,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 1,
+      "power_w": 176.2,
+      "temp_c": 40
+     },
+     {
+      "npu": 1,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 2,
+      "power_w": 170.7,
+      "temp_c": 42
+     },
+     {
+      "npu": 2,
+      "power_w": "unavailable",
+      "temp_c": 41
+     },
+     {
+      "npu": 3,
+      "power_w": 167.5,
+      "temp_c": 43
+     },
+     {
+      "npu": 3,
+      "power_w": "unavailable",
+      "temp_c": 41
+     },
+     {
+      "npu": 4,
+      "power_w": 164.6,
+      "temp_c": 40
+     },
+     {
+      "npu": 4,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 5,
+      "power_w": 177.3,
+      "temp_c": 40
+     },
+     {
+      "npu": 5,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 6,
+      "power_w": 165.2,
+      "temp_c": 41
+     },
+     {
+      "npu": 6,
+      "power_w": "unavailable",
+      "temp_c": 41
+     },
+     {
+      "npu": 7,
+      "power_w": 171.4,
+      "temp_c": 43
+     },
+     {
+      "npu": 7,
+      "power_w": "unavailable",
+      "temp_c": 42
+     }
+    ],
+    "chips": [
+     {
+      "npu": 0,
+      "phy": 0,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 1,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 2,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 3,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 4,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 5,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 6,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 7,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 8,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 9,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 10,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 11,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 12,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 13,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 14,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 15,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     }
+    ],
+    "frequency": "unavailable"
+   }
+  },
+  "after": {
+   "utc": "2026-10-10T07:34:43.729013+00:00",
+   "loadavg": {
+    "1m": 22.74,
+    "5m": 25.39,
+    "15m": 26.69
+   },
+   "uptime_s": 2083284.34,
+   "npu_smi": {
+    "npus": [
+     {
+      "npu": 0,
+      "power_w": 165.0,
+      "temp_c": 40
+     },
+     {
+      "npu": 0,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 1,
+      "power_w": 177.0,
+      "temp_c": 39
+     },
+     {
+      "npu": 1,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 2,
+      "power_w": 170.7,
+      "temp_c": 41
+     },
+     {
+      "npu": 2,
+      "power_w": "unavailable",
+      "temp_c": 41
+     },
+     {
+      "npu": 3,
+      "power_w": 168.4,
+      "temp_c": 41
+     },
+     {
+      "npu": 3,
+      "power_w": "unavailable",
+      "temp_c": 41
+     },
+     {
+      "npu": 4,
+      "power_w": 164.1,
+      "temp_c": 39
+     },
+     {
+      "npu": 4,
+      "power_w": "unavailable",
+      "temp_c": 38
+     },
+     {
+      "npu": 5,
+      "power_w": 177.0,
+      "temp_c": 40
+     },
+     {
+      "npu": 5,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 6,
+      "power_w": 165.1,
+      "temp_c": 40
+     },
+     {
+      "npu": 6,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 7,
+      "power_w": 169.5,
+      "temp_c": 42
+     },
+     {
+      "npu": 7,
+      "power_w": "unavailable",
+      "temp_c": 41
+     }
+    ],
+    "chips": [
+     {
+      "npu": 0,
+      "phy": 0,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 1,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 2,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 3,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 4,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 5,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 6,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 7,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 8,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 9,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 10,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 11,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 12,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 13,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 14,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 15,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     }
+    ],
+    "frequency": "unavailable"
+   }
+  }
+ },
+ "points": [
+  {
+   "n": 8192,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 5.116e-08,
+   "max_abs": 0.0002456,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.503e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 319.0,
+      "e2e_min_us": 312.0,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 670.9,
+       "first_use": 794.7,
+       "e2e_mean": 328.4,
+       "e2e_min": 321.9,
+       "h2d": 56.8,
+       "device_chain": 159.3,
+       "d2h": 53.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 44.9,
+       "fft1": 8.9,
+       "transpose_boundary": 54.1,
+       "fft2": 7.4,
+       "transpose_out": 43.9
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 343.7,
+      "e2e_min_us": 326.9,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 689.2,
+       "first_use": 809.5,
+       "e2e_mean": 334.4,
+       "e2e_min": 326.2,
+       "h2d": 56.1,
+       "device_chain": 159.8,
+       "d2h": 59.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 45.7,
+       "fft1": 8.9,
+       "transpose_boundary": 54.2,
+       "fft2": 7.2,
+       "transpose_out": 43.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 395.9,
+      "e2e_min_us": 375.0,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 732.6,
+       "first_use": 927.2,
+       "e2e_mean": 395.0,
+       "e2e_min": 364.3,
+       "h2d": 65.3,
+       "device_chain": 159.8,
+       "d2h": 70.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 45.9,
+       "fft1": 8.9,
+       "transpose_boundary": 54.1,
+       "fft2": 7.2,
+       "transpose_out": 43.6
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 379.7,
+      "e2e_min_us": 363.5,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 699.5,
+       "first_use": 834.2,
+       "e2e_mean": 361.5,
+       "e2e_min": 353.5,
+       "h2d": 61.1,
+       "device_chain": 160.7,
+       "d2h": 69.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.7,
+       "fft1": 8.9,
+       "transpose_boundary": 54.2,
+       "fft2": 7.1,
+       "transpose_out": 43.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 354.6,
+      "e2e_min_us": 319.3,
+      "max_abs": 0.0002456,
+      "max_rel": 5.116e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 749.6,
+       "first_use": 881.2,
+       "e2e_mean": 354.3,
+       "e2e_min": 324.4,
+       "h2d": 53.8,
+       "device_chain": 159.6,
+       "d2h": 62.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 45.1,
+       "fft1": 8.9,
+       "transpose_boundary": 54.1,
+       "fft2": 7.4,
+       "transpose_out": 44.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 354.6,
+     "min": 319.0,
+     "mean": 358.58000000000004,
+     "cv": 0.07527291422017081,
+     "samples": [
+      319.0,
+      343.7,
+      395.9,
+      379.7,
+      354.6
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:29:33.356492+00:00",
+     "loadavg": {
+      "1m": 27.65,
+      "5m": 28.95,
+      "15m": 27.92
+     },
+     "uptime_s": 2082973.97,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.6,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.7,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": 169.9,
+        "temp_c": 43
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.0,
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.6,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.5,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 170.0,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 42
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:29:57.669132+00:00",
+     "loadavg": {
+      "1m": 27.66,
+      "5m": 28.83,
+      "15m": 27.91
+     },
+     "uptime_s": 2082998.28,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.9,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 177.6,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 170.8,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 167.3,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.1,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.5,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 171.4,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 42
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 8192,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 1.158e-07,
+   "max_abs": 0.0004779,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.676e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 337.6,
+      "e2e_min_us": 328.9,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 691.8,
+       "first_use": 866.4,
+       "e2e_mean": 348.0,
+       "e2e_min": 328.0,
+       "h2d": 64.1,
+       "device_chain": 163.9,
+       "d2h": 61.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.8,
+       "fft1": 9.3,
+       "transpose_boundary": 55.8,
+       "fft2": 7.4,
+       "transpose_out": 44.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 361.0,
+      "e2e_min_us": 349.4,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 691.6,
+       "first_use": 900.6,
+       "e2e_mean": 358.0,
+       "e2e_min": 342.4,
+       "h2d": 64.2,
+       "device_chain": 162.7,
+       "d2h": 66.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.5,
+       "fft1": 9.3,
+       "transpose_boundary": 55.5,
+       "fft2": 6.6,
+       "transpose_out": 44.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 353.7,
+      "e2e_min_us": 341.5,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 716.0,
+       "first_use": 863.3,
+       "e2e_mean": 344.7,
+       "e2e_min": 329.1,
+       "h2d": 59.5,
+       "device_chain": 162.2,
+       "d2h": 62.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.4,
+       "fft1": 9.3,
+       "transpose_boundary": 55.5,
+       "fft2": 6.6,
+       "transpose_out": 44.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 335.8,
+      "e2e_min_us": 331.5,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 708.7,
+       "first_use": 869.6,
+       "e2e_mean": 336.2,
+       "e2e_min": 330.7,
+       "h2d": 59.4,
+       "device_chain": 162.2,
+       "d2h": 62.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.2,
+       "fft1": 9.3,
+       "transpose_boundary": 55.4,
+       "fft2": 6.6,
+       "transpose_out": 44.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 349.4,
+      "e2e_min_us": 344.6,
+      "max_abs": 0.0004779,
+      "max_rel": 1.158e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 718.6,
+       "first_use": 850.7,
+       "e2e_mean": 349.3,
+       "e2e_min": 340.4,
+       "h2d": 66.4,
+       "device_chain": 163.4,
+       "d2h": 63.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.5,
+       "fft1": 9.4,
+       "transpose_boundary": 55.6,
+       "fft2": 7.2,
+       "transpose_out": 44.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 349.4,
+     "min": 335.8,
+     "mean": 347.5,
+     "cv": 0.02757789594408271,
+     "samples": [
+      337.6,
+      361.0,
+      353.7,
+      335.8,
+      349.4
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:29:58.284123+00:00",
+     "loadavg": {
+      "1m": 27.66,
+      "5m": 28.83,
+      "15m": 27.91
+     },
+     "uptime_s": 2082998.89,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 177.6,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.4,
+        "temp_c": 43
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.8,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 162.1,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.1,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": 164.6,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 171.2,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:30:22.677200+00:00",
+     "loadavg": {
+      "1m": 26.7,
+      "5m": 28.51,
+      "15m": 27.82
+     },
+     "uptime_s": 2083023.29,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 166.4,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.9,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.0,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.0,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 162.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 163.6,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 172.1,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 8192,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 1.989e-07,
+   "max_abs": 0.000743,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 2.384e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.954e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 2.384e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 2271.9,
+      "e2e_min_us": 2081.0,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7386.1,
+       "first_use": 2871.7,
+       "e2e_mean": 2169.5,
+       "e2e_min": 2064.8,
+       "h2d": 798.7,
+       "device_chain": 294.5,
+       "d2h": 885.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 52.5,
+       "fft1": 74.2,
+       "transpose_boundary": 69.9,
+       "fft2": 47.3,
+       "transpose_out": 50.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2229.0,
+      "e2e_min_us": 2018.5,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7299.6,
+       "first_use": 2828.1,
+       "e2e_mean": 2216.4,
+       "e2e_min": 2082.6,
+       "h2d": 825.0,
+       "device_chain": 295.3,
+       "d2h": 888.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 52.9,
+       "fft1": 74.7,
+       "transpose_boundary": 69.8,
+       "fft2": 46.9,
+       "transpose_out": 51.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2298.7,
+      "e2e_min_us": 2239.1,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7646.4,
+       "first_use": 2983.1,
+       "e2e_mean": 2299.9,
+       "e2e_min": 2189.8,
+       "h2d": 853.4,
+       "device_chain": 302.6,
+       "d2h": 921.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 61.4,
+       "fft1": 74.2,
+       "transpose_boundary": 69.8,
+       "fft2": 46.7,
+       "transpose_out": 50.6
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2317.4,
+      "e2e_min_us": 2196.7,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7322.1,
+       "first_use": 3183.8,
+       "e2e_mean": 2292.1,
+       "e2e_min": 2166.8,
+       "h2d": 887.4,
+       "device_chain": 310.4,
+       "d2h": 847.0,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 68.1,
+       "fft1": 74.7,
+       "transpose_boundary": 70.1,
+       "fft2": 46.9,
+       "transpose_out": 50.6
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2378.7,
+      "e2e_min_us": 2224.2,
+      "max_abs": 0.000743,
+      "max_rel": 1.989e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 7261.0,
+       "first_use": 2945.2,
+       "e2e_mean": 2303.0,
+       "e2e_min": 2275.8,
+       "h2d": 918.1,
+       "device_chain": 295.1,
+       "d2h": 912.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.7,
+       "fft1": 74.1,
+       "transpose_boundary": 69.7,
+       "fft2": 47.2,
+       "transpose_out": 50.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 2298.7,
+     "min": 2229.0,
+     "mean": 2299.1400000000003,
+     "cv": 0.021594540169302165,
+     "samples": [
+      2271.9,
+      2229.0,
+      2298.7,
+      2317.4,
+      2378.7
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:30:23.286671+00:00",
+     "loadavg": {
+      "1m": 26.7,
+      "5m": 28.51,
+      "15m": 27.82
+     },
+     "uptime_s": 2083023.9,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 166.1,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.3,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 172.3,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 167.0,
+        "temp_c": 43
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.9,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.2,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 165.2,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 170.2,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:30:47.677180+00:00",
+     "loadavg": {
+      "1m": 25.37,
+      "5m": 28.05,
+      "15m": 27.69
+     },
+     "uptime_s": 2083048.29,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.6,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.2,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 172.4,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 169.8,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.4,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 176.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 166.3,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 170.9,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 42
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 16384,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.001571,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.871e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 387.5,
+      "e2e_min_us": 373.3,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 947.5,
+       "first_use": 943.8,
+       "e2e_mean": 375.3,
+       "e2e_min": 367.7,
+       "h2d": 73.9,
+       "device_chain": 161.1,
+       "d2h": 80.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 45.9,
+       "fft1": 8.1,
+       "transpose_boundary": 55.0,
+       "fft2": 8.1,
+       "transpose_out": 44.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 379.3,
+      "e2e_min_us": 372.1,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1034.9,
+       "first_use": 954.1,
+       "e2e_mean": 369.2,
+       "e2e_min": 364.0,
+       "h2d": 62.8,
+       "device_chain": 178.5,
+       "d2h": 74.0,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 62.3,
+       "fft1": 8.7,
+       "transpose_boundary": 55.1,
+       "fft2": 8.2,
+       "transpose_out": 44.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 337.6,
+      "e2e_min_us": 325.7,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 959.4,
+       "first_use": 1021.2,
+       "e2e_mean": 341.7,
+       "e2e_min": 328.5,
+       "h2d": 57.8,
+       "device_chain": 166.0,
+       "d2h": 64.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 51.2,
+       "fft1": 7.9,
+       "transpose_boundary": 55.1,
+       "fft2": 8.1,
+       "transpose_out": 43.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 377.4,
+      "e2e_min_us": 369.6,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1078.6,
+       "first_use": 971.3,
+       "e2e_mean": 380.6,
+       "e2e_min": 371.7,
+       "h2d": 65.5,
+       "device_chain": 160.5,
+       "d2h": 72.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 45.1,
+       "fft1": 8.4,
+       "transpose_boundary": 54.9,
+       "fft2": 8.1,
+       "transpose_out": 44.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 358.8,
+      "e2e_min_us": 345.0,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 958.9,
+       "first_use": 878.2,
+       "e2e_mean": 353.0,
+       "e2e_min": 339.6,
+       "h2d": 56.3,
+       "device_chain": 161.7,
+       "d2h": 67.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.8,
+       "fft1": 7.9,
+       "transpose_boundary": 55.0,
+       "fft2": 8.1,
+       "transpose_out": 43.9
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 377.4,
+     "min": 337.6,
+     "mean": 368.12,
+     "cv": 0.04867062139315312,
+     "samples": [
+      387.5,
+      379.3,
+      337.6,
+      377.4,
+      358.8
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:30:48.312474+00:00",
+     "loadavg": {
+      "1m": 25.37,
+      "5m": 28.05,
+      "15m": 27.69
+     },
+     "uptime_s": 2083048.92,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.9,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.9,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.1,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 169.7,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 165.5,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 176.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": 164.0,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 170.9,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:31:12.679511+00:00",
+     "loadavg": {
+      "1m": 24.61,
+      "5m": 27.67,
+      "15m": 27.57
+     },
+     "uptime_s": 2083073.29,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 177.3,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.0,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 167.9,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 42
+       },
+       {
+        "npu": 4,
+        "power_w": 164.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 176.4,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.5,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 171.7,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 16384,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.001571,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.871e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 395.0,
+      "e2e_min_us": 370.9,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1103.4,
+       "first_use": 901.0,
+       "e2e_mean": 369.6,
+       "e2e_min": 362.5,
+       "h2d": 71.0,
+       "device_chain": 168.0,
+       "d2h": 76.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.1,
+       "fft1": 10.4,
+       "transpose_boundary": 56.2,
+       "fft2": 9.2,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 442.3,
+      "e2e_min_us": 423.9,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1127.1,
+       "first_use": 983.3,
+       "e2e_mean": 413.2,
+       "e2e_min": 407.0,
+       "h2d": 83.9,
+       "device_chain": 166.5,
+       "d2h": 95.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.0,
+       "fft1": 9.4,
+       "transpose_boundary": 56.2,
+       "fft2": 9.1,
+       "transpose_out": 44.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 511.2,
+      "e2e_min_us": 482.7,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1535.8,
+       "first_use": 1118.9,
+       "e2e_mean": 464.9,
+       "e2e_min": 452.0,
+       "h2d": 100.8,
+       "device_chain": 166.4,
+       "d2h": 117.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.0,
+       "fft1": 9.3,
+       "transpose_boundary": 56.2,
+       "fft2": 9.1,
+       "transpose_out": 44.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 465.2,
+      "e2e_min_us": 441.2,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1327.9,
+       "first_use": 1078.9,
+       "e2e_mean": 451.4,
+       "e2e_min": 438.2,
+       "h2d": 98.4,
+       "device_chain": 173.7,
+       "d2h": 117.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.1,
+       "fft1": 9.4,
+       "transpose_boundary": 56.0,
+       "fft2": 9.1,
+       "transpose_out": 45.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 498.8,
+      "e2e_min_us": 464.5,
+      "max_abs": 0.001571,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1311.0,
+       "first_use": 1227.6,
+       "e2e_mean": 474.2,
+       "e2e_min": 466.7,
+       "h2d": 104.2,
+       "device_chain": 175.4,
+       "d2h": 121.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 55.2,
+       "fft1": 10.1,
+       "transpose_boundary": 56.1,
+       "fft2": 9.1,
+       "transpose_out": 44.9
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 465.2,
+     "min": 395.0,
+     "mean": 462.5,
+     "cv": 0.08998834759402298,
+     "samples": [
+      395.0,
+      442.3,
+      511.2,
+      465.2,
+      498.8
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:31:13.312904+00:00",
+     "loadavg": {
+      "1m": 24.61,
+      "5m": 27.67,
+      "15m": 27.57
+     },
+     "uptime_s": 2083073.92,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.0,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.9,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.9,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.9,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 176.6,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 165.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 171.6,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:31:37.697748+00:00",
+     "loadavg": {
+      "1m": 23.92,
+      "5m": 27.28,
+      "15m": 27.45
+     },
+     "uptime_s": 2083098.31,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.2,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.4,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 170.9,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 167.8,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 165.4,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 176.6,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 163.2,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 170.6,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 16384,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 2.269e-07,
+   "max_abs": 0.002052,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.961e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 4247.3,
+      "e2e_min_us": 4209.9,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 12799.2,
+       "first_use": 4647.0,
+       "e2e_mean": 4201.7,
+       "e2e_min": 4029.3,
+       "h2d": 1742.3,
+       "device_chain": 383.9,
+       "d2h": 1769.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 56.1,
+       "fft1": 89.7,
+       "transpose_boundary": 96.6,
+       "fft2": 89.8,
+       "transpose_out": 51.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 4226.9,
+      "e2e_min_us": 3989.2,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 12297.1,
+       "first_use": 5160.6,
+       "e2e_mean": 4320.3,
+       "e2e_min": 3998.4,
+       "h2d": 1628.6,
+       "device_chain": 382.1,
+       "d2h": 1830.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.4,
+       "fft1": 90.0,
+       "transpose_boundary": 96.5,
+       "fft2": 89.8,
+       "transpose_out": 51.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 2610.3,
+      "e2e_min_us": 2444.4,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 11068.3,
+       "first_use": 3135.2,
+       "e2e_mean": 2586.3,
+       "e2e_min": 2465.9,
+       "h2d": 969.9,
+       "device_chain": 381.7,
+       "d2h": 1055.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.2,
+       "fft1": 89.6,
+       "transpose_boundary": 96.4,
+       "fft2": 90.2,
+       "transpose_out": 51.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 4088.4,
+      "e2e_min_us": 3692.1,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 12512.6,
+       "first_use": 4926.6,
+       "e2e_mean": 3895.9,
+       "e2e_min": 3629.8,
+       "h2d": 1535.8,
+       "device_chain": 381.7,
+       "d2h": 1643.0,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.3,
+       "fft1": 89.8,
+       "transpose_boundary": 96.4,
+       "fft2": 89.8,
+       "transpose_out": 51.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 3961.8,
+      "e2e_min_us": 3599.6,
+      "max_abs": 0.002052,
+      "max_rel": 2.269e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 12361.1,
+       "first_use": 4888.8,
+       "e2e_mean": 3929.5,
+       "e2e_min": 3636.9,
+       "h2d": 1510.8,
+       "device_chain": 381.7,
+       "d2h": 1642.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.5,
+       "fft1": 89.7,
+       "transpose_boundary": 96.4,
+       "fft2": 89.8,
+       "transpose_out": 51.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 4088.4,
+     "min": 2610.3,
+     "mean": 3826.94,
+     "cv": 0.1612248659474916,
+     "samples": [
+      4247.3,
+      4226.9,
+      2610.3,
+      4088.4,
+      3961.8
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:31:38.313862+00:00",
+     "loadavg": {
+      "1m": 23.92,
+      "5m": 27.28,
+      "15m": 27.45
+     },
+     "uptime_s": 2083098.92,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.9,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 177.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 171.4,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.4,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 164.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 178.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 163.7,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 169.6,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:32:02.699711+00:00",
+     "loadavg": {
+      "1m": 24.36,
+      "5m": 27.1,
+      "15m": 27.38
+     },
+     "uptime_s": 2083123.31,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 177.5,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 171.1,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 166.6,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.5,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 176.7,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": 164.2,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 171.0,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 32768,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 3.646e-08,
+   "max_abs": 0.00103,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.488e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 453.5,
+      "e2e_min_us": 435.5,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1348.4,
+       "first_use": 1022.3,
+       "e2e_mean": 441.4,
+       "e2e_min": 436.6,
+       "h2d": 95.4,
+       "device_chain": 166.5,
+       "d2h": 103.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.7,
+       "fft1": 9.3,
+       "transpose_boundary": 55.8,
+       "fft2": 9.6,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 430.6,
+      "e2e_min_us": 412.5,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1482.1,
+       "first_use": 1244.6,
+       "e2e_mean": 424.7,
+       "e2e_min": 405.6,
+       "h2d": 88.0,
+       "device_chain": 167.2,
+       "d2h": 91.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.0,
+       "fft1": 9.2,
+       "transpose_boundary": 56.1,
+       "fft2": 9.9,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 489.4,
+      "e2e_min_us": 377.2,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1454.1,
+       "first_use": 1036.1,
+       "e2e_mean": 465.3,
+       "e2e_min": 440.0,
+       "h2d": 95.8,
+       "device_chain": 181.9,
+       "d2h": 107.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 61.9,
+       "fft1": 9.9,
+       "transpose_boundary": 56.1,
+       "fft2": 9.2,
+       "transpose_out": 44.8
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 565.2,
+      "e2e_min_us": 452.3,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1475.8,
+       "first_use": 1224.4,
+       "e2e_mean": 446.0,
+       "e2e_min": 433.9,
+       "h2d": 92.7,
+       "device_chain": 177.8,
+       "d2h": 105.6,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 58.6,
+       "fft1": 9.3,
+       "transpose_boundary": 55.7,
+       "fft2": 9.2,
+       "transpose_out": 45.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 404.4,
+      "e2e_min_us": 398.1,
+      "max_abs": 0.00103,
+      "max_rel": 3.646e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 1421.2,
+       "first_use": 1004.7,
+       "e2e_mean": 400.4,
+       "e2e_min": 372.2,
+       "h2d": 76.6,
+       "device_chain": 165.8,
+       "d2h": 82.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.5,
+       "fft1": 9.3,
+       "transpose_boundary": 55.7,
+       "fft2": 9.2,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 453.5,
+     "min": 404.4,
+     "mean": 468.62,
+     "cv": 0.11903342781707345,
+     "samples": [
+      453.5,
+      430.6,
+      489.4,
+      565.2,
+      404.4
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:32:03.705903+00:00",
+     "loadavg": {
+      "1m": 24.36,
+      "5m": 27.1,
+      "15m": 27.38
+     },
+     "uptime_s": 2083124.32,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.1,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.5,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.3,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.0,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.8,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.1,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 171.4,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:32:27.700128+00:00",
+     "loadavg": {
+      "1m": 24.15,
+      "5m": 26.84,
+      "15m": 27.29
+     },
+     "uptime_s": 2083148.31,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.6,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 170.5,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.7,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.6,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 37
+       },
+       {
+        "npu": 5,
+        "power_w": 176.1,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.0,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 169.9,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 42
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 32768,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 9.733e-08,
+   "max_abs": 0.001199,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 2.041e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 544.4,
+      "e2e_min_us": 526.5,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2707.3,
+       "first_use": 1310.1,
+       "e2e_mean": 592.4,
+       "e2e_min": 527.6,
+       "h2d": 125.8,
+       "device_chain": 182.7,
+       "d2h": 164.9,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 53.9,
+       "fft1": 14.6,
+       "transpose_boundary": 56.4,
+       "fft2": 12.3,
+       "transpose_out": 45.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 631.6,
+      "e2e_min_us": 576.6,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2689.2,
+       "first_use": 1468.3,
+       "e2e_mean": 577.1,
+       "e2e_min": 561.7,
+       "h2d": 150.5,
+       "device_chain": 174.9,
+       "d2h": 175.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.6,
+       "fft1": 15.3,
+       "transpose_boundary": 56.3,
+       "fft2": 11.6,
+       "transpose_out": 45.2
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 565.9,
+      "e2e_min_us": 558.3,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2562.9,
+       "first_use": 1152.1,
+       "e2e_mean": 551.3,
+       "e2e_min": 542.7,
+       "h2d": 129.7,
+       "device_chain": 183.5,
+       "d2h": 173.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 55.1,
+       "fft1": 14.5,
+       "transpose_boundary": 56.2,
+       "fft2": 12.2,
+       "transpose_out": 45.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 692.7,
+      "e2e_min_us": 538.9,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 3197.4,
+       "first_use": 1412.1,
+       "e2e_mean": 656.1,
+       "e2e_min": 520.0,
+       "h2d": 133.9,
+       "device_chain": 174.5,
+       "d2h": 131.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.5,
+       "fft1": 15.0,
+       "transpose_boundary": 56.0,
+       "fft2": 11.6,
+       "transpose_out": 45.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 605.3,
+      "e2e_min_us": 517.3,
+      "max_abs": 0.001199,
+      "max_rel": 9.733e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2637.5,
+       "first_use": 1184.5,
+       "e2e_mean": 529.6,
+       "e2e_min": 516.2,
+       "h2d": 128.6,
+       "device_chain": 183.2,
+       "d2h": 157.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 55.4,
+       "fft1": 14.5,
+       "transpose_boundary": 56.2,
+       "fft2": 12.1,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 605.3,
+     "min": 544.4,
+     "mean": 607.98,
+     "cv": 0.08564200129865024,
+     "samples": [
+      544.4,
+      631.6,
+      565.9,
+      692.7,
+      605.3
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:32:28.311933+00:00",
+     "loadavg": {
+      "1m": 24.15,
+      "5m": 26.84,
+      "15m": 27.29
+     },
+     "uptime_s": 2083148.92,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 175.6,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.0,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.0,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.1,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.1,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 165.1,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 170.7,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 42
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:32:52.717857+00:00",
+     "loadavg": {
+      "1m": 24.64,
+      "5m": 26.74,
+      "15m": 27.24
+     },
+     "uptime_s": 2083173.33,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 166.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 175.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.2,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.1,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.4,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 176.5,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 170.1,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 32768,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 1.307e-07,
+   "max_abs": 0.002699,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 2.214e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 7051.5,
+      "e2e_min_us": 6478.2,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 23804.8,
+       "first_use": 8782.8,
+       "e2e_mean": 7152.7,
+       "e2e_min": 6359.2,
+       "h2d": 3217.4,
+       "device_chain": 657.3,
+       "d2h": 2342.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 84.1,
+       "fft1": 177.9,
+       "transpose_boundary": 177.6,
+       "fft2": 130.5,
+       "transpose_out": 87.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 7072.9,
+      "e2e_min_us": 6561.9,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 23247.4,
+       "first_use": 8427.1,
+       "e2e_mean": 7132.7,
+       "e2e_min": 6304.2,
+       "h2d": 3217.0,
+       "device_chain": 666.4,
+       "d2h": 2267.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 95.3,
+       "fft1": 179.2,
+       "transpose_boundary": 174.8,
+       "fft2": 129.7,
+       "transpose_out": 87.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 3016.5,
+      "e2e_min_us": 2974.2,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 20835.5,
+       "first_use": 3695.1,
+       "e2e_mean": 3028.9,
+       "e2e_min": 2880.8,
+       "h2d": 956.3,
+       "device_chain": 654.9,
+       "d2h": 1087.9,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 84.5,
+       "fft1": 178.1,
+       "transpose_boundary": 175.0,
+       "fft2": 130.2,
+       "transpose_out": 87.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 7010.7,
+      "e2e_min_us": 6361.6,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 24230.2,
+       "first_use": 8613.1,
+       "e2e_mean": 7276.2,
+       "e2e_min": 6338.2,
+       "h2d": 2332.4,
+       "device_chain": 655.8,
+       "d2h": 3270.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 84.1,
+       "fft1": 178.7,
+       "transpose_boundary": 175.8,
+       "fft2": 129.3,
+       "transpose_out": 87.9
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 7145.0,
+      "e2e_min_us": 6508.5,
+      "max_abs": 0.002699,
+      "max_rel": 1.307e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 24838.7,
+       "first_use": 7673.8,
+       "e2e_mean": 8428.8,
+       "e2e_min": 6345.2,
+       "h2d": 3227.8,
+       "device_chain": 666.6,
+       "d2h": 2359.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 92.5,
+       "fft1": 178.8,
+       "transpose_boundary": 178.6,
+       "fft2": 129.6,
+       "transpose_out": 87.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 7051.5,
+     "min": 3016.5,
+     "mean": 6259.32,
+     "cv": 0.2591328322957258,
+     "samples": [
+      7051.5,
+      7072.9,
+      3016.5,
+      7010.7,
+      7145.0
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:32:53.338481+00:00",
+     "loadavg": {
+      "1m": 24.64,
+      "5m": 26.74,
+      "15m": 27.24
+     },
+     "uptime_s": 2083173.95,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.2,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.9,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.3,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 169.8,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.1,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.3,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 169.9,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:33:18.715910+00:00",
+     "loadavg": {
+      "1m": 23.97,
+      "5m": 26.42,
+      "15m": 27.12
+     },
+     "uptime_s": 2083199.33,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.5,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 177.0,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.4,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.6,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 164.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 176.7,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 166.0,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 170.4,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 65536,
+   "b": 1,
+   "rc": 0,
+   "max_rel": 8.04e-08,
+   "max_abs": 0.002446,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.271e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 0.0,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 475.5,
+      "e2e_min_us": 455.1,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2907.5,
+       "first_use": 1076.5,
+       "e2e_mean": 473.5,
+       "e2e_min": 440.8,
+       "h2d": 94.3,
+       "device_chain": 188.4,
+       "d2h": 97.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 62.1,
+       "fft1": 11.6,
+       "transpose_boundary": 57.1,
+       "fft2": 12.1,
+       "transpose_out": 45.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 491.4,
+      "e2e_min_us": 468.6,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2700.3,
+       "first_use": 1102.7,
+       "e2e_mean": 482.4,
+       "e2e_min": 446.9,
+       "h2d": 100.4,
+       "device_chain": 171.6,
+       "d2h": 125.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.6,
+       "fft1": 11.4,
+       "transpose_boundary": 56.9,
+       "fft2": 11.5,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 592.4,
+      "e2e_min_us": 580.7,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 3149.0,
+       "first_use": 1236.5,
+       "e2e_mean": 597.4,
+       "e2e_min": 538.1,
+       "h2d": 136.8,
+       "device_chain": 184.1,
+       "d2h": 140.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 59.3,
+       "fft1": 11.4,
+       "transpose_boundary": 56.9,
+       "fft2": 11.5,
+       "transpose_out": 45.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 515.4,
+      "e2e_min_us": 504.4,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2964.4,
+       "first_use": 1190.3,
+       "e2e_mean": 506.8,
+       "e2e_min": 483.3,
+       "h2d": 110.8,
+       "device_chain": 180.4,
+       "d2h": 135.2,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 54.6,
+       "fft1": 11.3,
+       "transpose_boundary": 57.9,
+       "fft2": 11.5,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 489.9,
+      "e2e_min_us": 480.2,
+      "max_abs": 0.002446,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 2879.6,
+       "first_use": 1131.1,
+       "e2e_mean": 484.3,
+       "e2e_min": 473.3,
+       "h2d": 112.2,
+       "device_chain": 171.8,
+       "d2h": 134.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 46.5,
+       "fft1": 11.4,
+       "transpose_boundary": 56.8,
+       "fft2": 12.1,
+       "transpose_out": 45.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 491.4,
+     "min": 475.5,
+     "mean": 512.92,
+     "cv": 0.08140229153642534,
+     "samples": [
+      475.5,
+      491.4,
+      592.4,
+      515.4,
+      489.9
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:33:19.340505+00:00",
+     "loadavg": {
+      "1m": 23.97,
+      "5m": 26.42,
+      "15m": 27.12
+     },
+     "uptime_s": 2083199.95,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": 176.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.7,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.4,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 176.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.0,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 172.3,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:33:43.719552+00:00",
+     "loadavg": {
+      "1m": 23.32,
+      "5m": 26.07,
+      "15m": 26.99
+     },
+     "uptime_s": 2083224.33,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.4,
+        "temp_c": 39
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 175.2,
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.9,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": 166.9,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 162.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 177.3,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.4,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 171.3,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 65536,
+   "b": 3,
+   "rc": 0,
+   "max_rel": 8.04e-08,
+   "max_abs": 0.002615,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 1.929e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 1.192e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 555.6,
+      "e2e_min_us": 536.2,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 4702.7,
+       "first_use": 1215.7,
+       "e2e_mean": 584.8,
+       "e2e_min": 538.2,
+       "h2d": 151.3,
+       "device_chain": 188.8,
+       "d2h": 154.8,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.4,
+       "fft1": 19.2,
+       "transpose_boundary": 56.9,
+       "fft2": 19.9,
+       "transpose_out": 45.4
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 873.9,
+      "e2e_min_us": 790.7,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 5289.6,
+       "first_use": 1715.9,
+       "e2e_mean": 665.4,
+       "e2e_min": 588.5,
+       "h2d": 171.7,
+       "device_chain": 188.4,
+       "d2h": 170.9,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 47.1,
+       "fft1": 19.8,
+       "transpose_boundary": 56.8,
+       "fft2": 19.2,
+       "transpose_out": 45.6
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 825.6,
+      "e2e_min_us": 726.7,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 4981.7,
+       "first_use": 1407.0,
+       "e2e_mean": 735.1,
+       "e2e_min": 717.2,
+       "h2d": 185.3,
+       "device_chain": 203.6,
+       "d2h": 277.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 63.5,
+       "fft1": 19.0,
+       "transpose_boundary": 56.8,
+       "fft2": 19.1,
+       "transpose_out": 45.2
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 746.3,
+      "e2e_min_us": 732.6,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 4959.4,
+       "first_use": 1470.6,
+       "e2e_mean": 743.7,
+       "e2e_min": 724.4,
+       "h2d": 205.2,
+       "device_chain": 202.8,
+       "d2h": 265.1,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 62.4,
+       "fft1": 19.5,
+       "transpose_boundary": 56.7,
+       "fft2": 19.1,
+       "transpose_out": 45.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 829.4,
+      "e2e_min_us": 730.8,
+      "max_abs": 0.002615,
+      "max_rel": 8.04e-08,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 4979.1,
+       "first_use": 1728.3,
+       "e2e_mean": 786.4,
+       "e2e_min": 769.7,
+       "h2d": 225.6,
+       "device_chain": 203.2,
+       "d2h": 276.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 62.9,
+       "fft1": 19.0,
+       "transpose_boundary": 56.9,
+       "fft2": 19.1,
+       "transpose_out": 45.3
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 825.6,
+     "min": 555.6,
+     "mean": 766.1600000000001,
+     "cv": 0.14751793971680555,
+     "samples": [
+      555.6,
+      873.9,
+      825.6,
+      746.3,
+      829.4
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:33:44.341583+00:00",
+     "loadavg": {
+      "1m": 23.32,
+      "5m": 26.07,
+      "15m": 26.99
+     },
+     "uptime_s": 2083224.95,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.9,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 2,
+        "power_w": 171.6,
+        "temp_c": 42
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 169.2,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 176.9,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 165.2,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 171.2,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:34:08.710171+00:00",
+     "loadavg": {
+      "1m": 22.52,
+      "5m": 25.67,
+      "15m": 26.83
+     },
+     "uptime_s": 2083249.32,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.6,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 175.4,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 169.8,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.6,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 164.2,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 176.7,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 169.6,
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 65536,
+   "b": 47,
+   "rc": 0,
+   "max_rel": 2.267e-07,
+   "max_abs": 0.00558,
+   "seq": [
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "random-seeded",
+     "max_rel": 2.531e-07,
+     "pass": true,
+     "stale": false
+    },
+    {
+     "input": "impulse",
+     "max_rel": 2.98e-07,
+     "pass": true,
+     "stale": false
+    }
+   ],
+   "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+   "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+   "pass": true,
+   "boundary_ok": true,
+   "trials": {
+    "count": 5,
+    "raw": [
+     {
+      "e2e_us": 13276.4,
+      "e2e_min_us": 12856.0,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 45166.8,
+       "first_use": 13913.9,
+       "e2e_mean": 12833.2,
+       "e2e_min": 11380.5,
+       "h2d": 4720.5,
+       "device_chain": 1601.0,
+       "d2h": 4135.5,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 272.7,
+       "fft1": 268.5,
+       "transpose_boundary": 497.5,
+       "fft2": 264.6,
+       "transpose_out": 297.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 14854.9,
+      "e2e_min_us": 13467.6,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 51407.8,
+       "first_use": 14257.4,
+       "e2e_mean": 14872.3,
+       "e2e_min": 13301.6,
+       "h2d": 5942.8,
+       "device_chain": 1602.7,
+       "d2h": 5371.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 278.2,
+       "fft1": 266.8,
+       "transpose_boundary": 493.9,
+       "fft2": 266.3,
+       "transpose_out": 297.5
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 15950.7,
+      "e2e_min_us": 15082.8,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 49815.7,
+       "first_use": 16162.1,
+       "e2e_mean": 15964.1,
+       "e2e_min": 15177.7,
+       "h2d": 6376.5,
+       "device_chain": 1609.2,
+       "d2h": 6546.3,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 288.0,
+       "fft1": 266.6,
+       "transpose_boundary": 499.3,
+       "fft2": 266.6,
+       "transpose_out": 288.7
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 14950.6,
+      "e2e_min_us": 13435.9,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 49038.9,
+       "first_use": 14060.2,
+       "e2e_mean": 14825.6,
+       "e2e_min": 13299.2,
+       "h2d": 5945.6,
+       "device_chain": 1613.4,
+       "d2h": 5347.7,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 288.1,
+       "fft1": 266.6,
+       "transpose_boundary": 496.4,
+       "fft2": 267.2,
+       "transpose_out": 295.0
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     },
+     {
+      "e2e_us": 14958.9,
+      "e2e_min_us": 13358.2,
+      "max_abs": 0.00558,
+      "max_rel": 2.267e-07,
+      "pass": true,
+      "scopes": {
+       "plan_setup": 48647.8,
+       "first_use": 14262.6,
+       "e2e_mean": 14930.9,
+       "e2e_min": 13329.6,
+       "h2d": 6308.5,
+       "device_chain": 1604.7,
+       "d2h": 5339.4,
+       "reps": 5
+      },
+      "segments": {
+       "transpose_in": 275.9,
+       "fft1": 267.7,
+       "transpose_boundary": 497.5,
+       "fft2": 265.4,
+       "transpose_out": 298.1
+      },
+      "boundary_impl": "fused",
+      "rc": 0
+     }
+    ],
+    "stats": {
+     "median": 14950.6,
+     "min": 13276.4,
+     "mean": 14798.3,
+     "cv": 0.05810218306152969,
+     "samples": [
+      13276.4,
+      14854.9,
+      15950.7,
+      14950.6,
+      14958.9
+     ]
+    }
+   },
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T07:34:09.331974+00:00",
+     "loadavg": {
+      "1m": 22.52,
+      "5m": 25.67,
+      "15m": 26.83
+     },
+     "uptime_s": 2083249.94,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.1,
+        "temp_c": 39
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 175.9,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 171.4,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 169.1,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 164.5,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": 177.4,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 165.2,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": 172.7,
+        "temp_c": 43
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T07:34:35.723967+00:00",
+     "loadavg": {
+      "1m": 22.97,
+      "5m": 25.48,
+      "15m": 26.73
+     },
+     "uptime_s": 2083276.33,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.1,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.5,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.5,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.5,
+        "temp_c": 43
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 162.7,
+        "temp_c": 39
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 177.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.7,
+        "temp_c": 41
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 171.1,
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  }
+ ],
+ "short_control": {
+  "n": 4096,
+  "b": 3,
+  "rc": 0,
+  "max_rel": 1.35e-07,
+  "max_abs": 0.0002374,
+  "seq": [
+   {
+    "input": "impulse",
+    "max_rel": 0.0,
+    "pass": true,
+    "stale": false
+   },
+   {
+    "input": "random-seeded",
+    "max_rel": 1.414e-07,
+    "pass": true,
+    "stale": false
+   },
+   {
+    "input": "impulse",
+    "max_rel": 0.0,
+    "pass": true,
+    "stale": false
+   }
+  ],
+  "seq_summary": "seq: 3 inputs re-executed under one plan (no rebuild), stale-check on -> PASS",
+  "e2e_transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+  "pass": true,
+  "path": "short"
+ },
+ "e2e_transfers": {
+  "rc": 0,
+  "transfers": "E2E transfers: in=1 out=1 boundary=0 per_execution",
+  "line": "E2E n=8192 batch=1 reps=3 e2e_us=335.9 e2e_min_us=330.4 first_us=341.6 boot_us=675449.7 plan_us=684.0 warmup_us=813.5 mode=async host=chain input=sin"
+ },
+ "problems": [],
+ "incomplete": [],
+ "status": "pass"
+}
