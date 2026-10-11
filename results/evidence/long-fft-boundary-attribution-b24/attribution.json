@@ -1,0 +1,2923 @@
+{
+ "generated_utc": "2026-10-10T09:57:53.420375+00:00",
+ "manifest": {
+  "git_sha": "be19d78806996edd1a2f9990f6a7dc2625134cb6",
+  "git_dirty": false,
+  "binary": "build/fft_check",
+  "binary_sha256": "2894edba9123f85fcd9a6390f30371ab1c928daa5bb1791567ae70858a99b271",
+  "kernel_objects": {
+   "fft_radix2.o": "d7c20c72bccaa70f64b547061d9e5e8d77d0ef57b9fc10b08a74ed8e3fcb1d50",
+   "fft_long.o": "42b01e9b0405068e63b20c9489a4fc98a454d81d8f124a7f3cd27707a80ae183",
+   "fft_real.o": "5fc46ac998ef12c6458b70a76ab1077c7621431d38d59cbf34d3c993849c4100"
+  },
+  "config_sha256": {
+   "ascend910_93_profile.json": "42768522dcdd2d3088dfe5ffbaf7d73a5c1041a8199b4f6c5a1fef27a4ee006f",
+   "butterfly_space.json": "1c6c60fabfc006dbc122158bf2ce7fbe07301c6203fb7db20cab8fd1d9bdb1a4",
+   "long_fft_experiments.json": "a19fbb8fe4de30d4edeb4eb333f2560b13b91fc9a25edbd4e27712eb8f315caf",
+   "test_matrix.json": "d15dfddfaf3ffd1461faebd79a735ba6e2af57954861b128f777b306041e2f2c"
+  },
+  "build": {
+   "script": "bash scripts/build.sh",
+   "recipe": "scripts/env.sh: ab_ccec (ccec -c --cce-aicore-only --npu-soc=$AB_SOC --asc-aicore-lang -O2 -std=c++17 -Iinclude + AB_INC) / ab_cxx (g++ -O2 -std=c++17 -I$AB_CANN/include -Iinclude -lascendcl)"
+  },
+  "soc": "Ascend910_9382",
+  "cann_version": "9.0.0",
+  "driver_version": "26.1.1",
+  "driver_source": "/usr/local/Ascend/driver/version.info",
+  "python": "3.11.15",
+  "env": {
+   "AB_BOUNDARY": "device",
+   "AB_BUILD": "/root/ascend-butterfly/build",
+   "AB_CANN": "/usr/local/Ascend/cann-9.0.0",
+   "AB_E2E": "1",
+   "AB_ENV_SOURCED": "1",
+   "AB_INC": "-I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/geglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/gelu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/reglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/sigmoid -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/silu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/membase -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/membase/common -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/membase/common/softmax_flashv2_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/membase/common/softmax_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/membase/v200 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/membase/v220 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/membase/v220/softmax_common_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/regbase -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/regbase/c310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/regbase/l300 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/regbase/v300 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/softmax_common -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/softmax/softmax_flash_base_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/swiglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/activation/swish -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/geglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/gelu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/reglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/sigmoid -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/silu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/adjust_softmax_res -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/log_softmax -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/simple_softmax -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/softmax -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/softmax_flash -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/softmax_flashv2 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/softmax_flashv3 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/softmax_grad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/softmax/softmax_grad_front -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/swiglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/activation/swish -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/basic_check -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/filter -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/filter/dropout -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/index -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/index/arithprogression -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/acos -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/acosh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/asin -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/asinh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/atan -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/atanh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/axpy -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/bitwise_and -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/bitwise_not -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/bitwise_or -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/bitwise_xor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/ceil -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/clamp -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/cos -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/cosh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/cumsum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/digamma -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/erf -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/erfc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/exp -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/floor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/fma -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/fmod -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/frac -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/isinf -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/isnan -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/lgamma -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/log -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/logical_and -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/logical_ands -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/logical_not -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/logical_or -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/logical_ors -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/logical_xor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/power -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/rint -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/round -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/sign -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/sin -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/sincos -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/sinh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/tan -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/tanh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/trunc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/where -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/math/xor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/batchnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/deepnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/groupnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/layernorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/layernormgrad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/layernormgradbeta -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/normalize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/rmsnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/welfordfinalize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/normalization/welforupdate -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/pad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/pad/broadcast -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/pad/pad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/quantization -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/quantization/antiquant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/quantization/dequant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/quantization/quant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/mean -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/reduce_all -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/reduce_any -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/reduce_max -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/reduce_mean -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/reduce_min -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/reduce_prod -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/reduce_sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/reduce_xor_sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/reduce/sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/select -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/select/selectwithbytesmask -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/sort -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/sort/concat -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/sort/extract -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/sort/mrgsort -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/sort/sort -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/sort/topk -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/transpose -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/transpose/confusion_transpose -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/transpose/transdata -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/api_check/kernel_check/utils/init_global_memory -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/common -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv/common -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv/conv3d -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv/conv3d/dav_m220 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv_backprop -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv_backprop/common -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv_backprop/conv3d_backprop_filter -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv_backprop/conv3d_backprop_filter/dav_v220 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv_backprop/conv3d_backprop_input -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/conv_backprop/conv3d_backprop_input/dav_v220 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/filter -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/filter/dropout -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/hccl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/hccl/ccu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/hccl/common -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/hccl/impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/hccl/impl/platform_v220 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/hccl/impl/platform_v310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/index -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/index/arithprogression -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/kfc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/acos -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/acosh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/asin -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/asinh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/atan -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/atanh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/axpy -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/bitwise_and -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/bitwise_not -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/bitwise_or -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/bitwise_template -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/bitwise_xor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/ceil -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/clamp -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/cos -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/cosh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/cumsum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/cumsum/regbase -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/cumsum/regbase/c310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/digamma -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/erf -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/erfc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/exp -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/floor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/fma -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/fmod -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/frac -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/hypot -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/isfinite -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/isinf -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/isnan -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/lgamma -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/log -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/logical_and -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/logical_ands -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/logical_not -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/logical_or -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/logical_ors -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/logical_template -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/logical_xor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/philox -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/power -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/rint -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/round -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/sign -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/sin -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/sincos -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/sinh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/tan -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/tanh -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/trunc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/where -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/math/xor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/context -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/dfx -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/dfx/handlers -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/feature_trait -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/kfc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/param -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/policy -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource/bias_buffer -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource/bias_buffer/c1_buffer -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource/bias_buffer/c2_buffer -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource/cube_in_buffer -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource/cube_out_buffer -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource/l0_buffer -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource/l1_manager -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/resource/local_workspace -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler/base -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler/batch -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler/bias -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler/iterator -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler/iterator/batch_loop -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler/iterator/k_loop -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler/iterator/m_loop -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/scheduler/iterator/n_loop -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/compute -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/copy_cube_in -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/copy_cube_in/antiquant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/copy_cube_in/base -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/copy_cube_in/batch -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/copy_cube_in/bias -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/copy_cube_in/copy_tile_to_cube -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/copy_cube_out -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/copy_cube_out/quant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/split -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/split/load_to_l0a -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/stage/split/load_to_l0b -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/matmul/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/batchnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/deepnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/groupnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/layernorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/layernorm/regbase -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/layernorm/regbase/c310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/layernormgrad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/layernormgrad/regbase -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/layernormgrad/regbase/c310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/normalize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/rmsnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/normalization/welfordfinalize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/pad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/pad/broadcast -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/pad/pad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/quantization -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/quantization/antiquant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/quantization/antiquantize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/quantization/dequant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/quantization/dequantize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/quantization/quant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/quantization/quantize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/mean -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/reduce_all -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/reduce_any -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/reduce_max -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/reduce_mean -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/reduce_min -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/reduce_prod -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/reduce_sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/reduce_xor_sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/reduce/sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/select -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/select/selectwithbytesmask -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/sort -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/sort/sort -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/sort/topk -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/transpose -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/transpose/confusion_transpose -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/transpose/transdata -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/detail/utils/init_global_memory -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/activation -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/conv -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/conv_backprop -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/filter -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/hccl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/index -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/math -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/matmul -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/normalization -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/pad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/quantization -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/reduce -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/select -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/sort -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/adv_api/tiling/transpose -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c100 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c220 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c220/core_mng -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c220/core_mng/roc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c220/kfc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c310/core_mng -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c310/core_mng/roc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_c310/kfc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_m200 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_m300 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/dav_m310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/reg_compute -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/reg_compute/dav_c310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/basic_api/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/atomic_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/cache_ctrl_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/cube_compute_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/cube_datamove_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/misc_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/scalar_compute_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/sync_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/sys_var_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/utils_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/vector_compute_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/vector_compute_impl/vconv -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_2201/vector_datamove_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/atomic_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/cache_ctrl_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/cube_compute_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/cube_datamove_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/misc_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/scalar_compute_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/sync_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/sys_var_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/utils_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_bfloat162e1m2x2_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_bfloat162e2m1x2_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_bfloat162half_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_bfloat162int32_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_float2bfloat16_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_float2half_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_float2hif8_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_float2int16_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_float2int32_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_float2int64_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_half2bfloat16_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_half2int16_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_half2int32_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_half2int4x2_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_half2uint8_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_hif82float_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_int162half_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_int642float_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_uint162uint32_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_uint322int16_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_compute_impl/vconv/asc_uint82half_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_datamove_impl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_datamove_impl/reg_load -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/c_api/instr_impl/npu_arch_3510/vector_datamove_impl/reg_store -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/simt_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/simt_api/cpp -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/simt_api/cpp/dav_c310 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/debug -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/debug/npu_arch_2002 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/debug/npu_arch_2201 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/debug/npu_arch_3510 -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/std -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/std/algorithm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/std/cmath -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/std/tuple -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/std/type_traits -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/impl/utils/std/utility -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/activation -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/arithprogression -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/ascend_antiquant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/ascend_dequant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/ascend_quant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/batchnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/broadcast -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/conv -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/conv/common -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/conv/conv3d -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/conv_backprop -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/conv_backprop/common -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/cube_group -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/deepnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/dropout -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/filter -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/gelu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/hccl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/hccl/internal -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/index -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/init_global_memory -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/layernorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/layernormgrad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/math -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/matmul -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/matrix -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/mean -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/normalization -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/normalize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/pad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/quantization -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/reduce -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/reglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/rmsnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/select -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/sigmoid -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/silu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/softmax -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/sort -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/swiglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/swish -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/topk -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/transpose -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/welfordfinalize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/adv_api/xor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/aicpu_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/basic_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/basic_api/core_mng -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/basic_api/core_mng/roc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/basic_api/op_frame -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/basic_api/reg_compute -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/atomic -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/cache_ctrl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/cube_compute -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/cube_datamove -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/misc -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/reg_compute -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/scalar_compute -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/sync -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/sys_var -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/vector_compute -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/vector_datamove -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/c_api/vector_reg -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/interface -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/interface/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/interface/utils/base -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/simt_api -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/simt_api/cpp -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/arithprogression -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/ascend_antiquant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/ascend_dequant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/ascend_quant -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/batchnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/broadcast -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/context -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/conv -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/conv/conv3d -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/conv_backprop -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/deepnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/dropout -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/gelu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/hccl -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/layernorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/layernormgrad -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/matrix -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/mean -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/normalize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/platform -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/reduce_xor_sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/reglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/rmsnorm -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/sigmoid -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/silu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/softmax -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/sum -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/swiglu -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/swish -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/topk -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/welfordfinalize -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/tiling/xor -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/utils -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/utils/base -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/utils/context -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/utils/debug -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/utils/log -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/utils/std -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/utils/tiling -I/usr/local/Ascend/cann-9.0.0/aarch64-linux/asc/include/utils/tiling/platform ",
+   "AB_LONG_BOUNDARY_IMPL": "fused",
+   "AB_LT_BLOCKS": "24",
+   "AB_LT_IDX": "resident",
+   "AB_LT_STRIPE_K": "256",
+   "AB_MSPROF": "/usr/local/Ascend/cann-9.0.0/bin/msprof",
+   "AB_PY": "/usr/local/python3.11.15/bin/python3",
+   "AB_ROOT": "/root/ascend-butterfly",
+   "AB_SOC": "Ascend910_9382",
+   "AB_WORK": "/root/ascend-butterfly/.tmp"
+  },
+  "boundary": "device",
+  "allow_dirty": false
+ },
+ "command": "python3 scripts/collect_boundary_attribution.py",
+ "binary": "build/fft_check (AB_INPUT_SEQ named input modes)",
+ "boundary": "device",
+ "impls": [
+  "separate",
+  "fused"
+ ],
+ "grid": [
+  [
+   8192,
+   1
+  ],
+  [
+   16384,
+   47
+  ],
+  [
+   32768,
+   47
+  ],
+  [
+   65536,
+   47
+  ]
+ ],
+ "trials_per_point": 5,
+ "reps": 5,
+ "threshold": 0.0001,
+ "kernel_counts": {
+  "separate": 6,
+  "fused": 5
+ },
+ "ub_peak_bytes": 135168,
+ "env_monitor": {
+  "before": {
+   "utc": "2026-10-10T09:55:08.687243+00:00",
+   "loadavg": {
+    "1m": 24.54,
+    "5m": 26.6,
+    "15m": 26.64
+   },
+   "uptime_s": 2091709.3,
+   "npu_smi": {
+    "npus": [
+     {
+      "npu": 0,
+      "power_w": 164.8,
+      "temp_c": 39
+     },
+     {
+      "npu": 0,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 1,
+      "power_w": 175.5,
+      "temp_c": 39
+     },
+     {
+      "npu": 1,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 2,
+      "power_w": 170.7,
+      "temp_c": 41
+     },
+     {
+      "npu": 2,
+      "power_w": "unavailable",
+      "temp_c": 41
+     },
+     {
+      "npu": 3,
+      "power_w": 167.6,
+      "temp_c": 41
+     },
+     {
+      "npu": 3,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 4,
+      "power_w": 163.8,
+      "temp_c": 40
+     },
+     {
+      "npu": 4,
+      "power_w": "unavailable",
+      "temp_c": 38
+     },
+     {
+      "npu": 5,
+      "power_w": 176.1,
+      "temp_c": 39
+     },
+     {
+      "npu": 5,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 6,
+      "power_w": 164.4,
+      "temp_c": 40
+     },
+     {
+      "npu": 6,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 7,
+      "power_w": 170.3,
+      "temp_c": 42
+     },
+     {
+      "npu": 7,
+      "power_w": "unavailable",
+      "temp_c": 41
+     }
+    ],
+    "chips": [
+     {
+      "npu": 0,
+      "phy": 0,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 1,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 2,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 3,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 4,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 5,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 6,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 7,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 8,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 9,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 10,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 11,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 12,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 13,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 14,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 15,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     }
+    ],
+    "frequency": "unavailable"
+   }
+  },
+  "after": {
+   "utc": "2026-10-10T09:57:53.420418+00:00",
+   "loadavg": {
+    "1m": 23.2,
+    "5m": 25.06,
+    "15m": 26.04
+   },
+   "uptime_s": 2091874.03,
+   "npu_smi": {
+    "npus": [
+     {
+      "npu": 0,
+      "power_w": 164.9,
+      "temp_c": 39
+     },
+     {
+      "npu": 0,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 1,
+      "power_w": 176.1,
+      "temp_c": 39
+     },
+     {
+      "npu": 1,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 2,
+      "power_w": 171.0,
+      "temp_c": 41
+     },
+     {
+      "npu": 2,
+      "power_w": "unavailable",
+      "temp_c": 41
+     },
+     {
+      "npu": 3,
+      "power_w": 167.9,
+      "temp_c": 41
+     },
+     {
+      "npu": 3,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 4,
+      "power_w": 163.2,
+      "temp_c": 39
+     },
+     {
+      "npu": 4,
+      "power_w": "unavailable",
+      "temp_c": 37
+     },
+     {
+      "npu": 5,
+      "power_w": 176.6,
+      "temp_c": 39
+     },
+     {
+      "npu": 5,
+      "power_w": "unavailable",
+      "temp_c": 39
+     },
+     {
+      "npu": 6,
+      "power_w": 164.4,
+      "temp_c": 40
+     },
+     {
+      "npu": 6,
+      "power_w": "unavailable",
+      "temp_c": 40
+     },
+     {
+      "npu": 7,
+      "power_w": 170.3,
+      "temp_c": 41
+     },
+     {
+      "npu": 7,
+      "power_w": "unavailable",
+      "temp_c": 41
+     }
+    ],
+    "chips": [
+     {
+      "npu": 0,
+      "phy": 0,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 1,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 2,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 3,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 4,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 5,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 6,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 7,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 8,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 9,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 10,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 11,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 12,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 13,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 0,
+      "phy": 14,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     },
+     {
+      "npu": 1,
+      "phy": 15,
+      "aicore_pct": 0.0,
+      "hbm_usage": "unavailable"
+     }
+    ],
+    "frequency": "unavailable"
+   }
+  }
+ },
+ "points": [
+  {
+   "n": 8192,
+   "b": 1,
+   "kernel_counts": {
+    "separate": 6,
+    "fused": 5
+   },
+   "ub_peak_bytes": 135168,
+   "separate_modeled_payload_gm_rw_bytes": 786432,
+   "fused_modeled_payload_gm_rw_bytes": 655360,
+   "launch_blocks": {
+    "separate": 48,
+    "fused": 48
+   },
+   "pairs": [
+    {
+     "trial": 0,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 170.2,
+      "e2e": 441.6,
+      "segments": {
+       "transpose_in": 56.7,
+       "fft1": 8.8,
+       "twiddle": 7.5,
+       "transpose_boundary": 46.4,
+       "fft2": 7.1,
+       "transpose_out": 43.6
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 158.1,
+      "e2e": 324.4,
+      "segments": {
+       "transpose_in": 45.3,
+       "fft1": 8.9,
+       "transpose_boundary": 53.0,
+       "fft2": 7.4,
+       "transpose_out": 43.5
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "delta_chain_pct": -7.109283196239716,
+     "delta_e2e_pct": -26.539855072463777
+    },
+    {
+     "trial": 1,
+     "order": "fused-separate",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 168.3,
+      "e2e": 380.1,
+      "segments": {
+       "transpose_in": 54.9,
+       "fft1": 8.8,
+       "twiddle": 7.4,
+       "transpose_boundary": 45.8,
+       "fft2": 7.3,
+       "transpose_out": 44.0
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 158.1,
+      "e2e": 343.0,
+      "segments": {
+       "transpose_in": 45.4,
+       "fft1": 8.9,
+       "transpose_boundary": 53.1,
+       "fft2": 7.3,
+       "transpose_out": 43.4
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "delta_chain_pct": -6.06060606060607,
+     "delta_e2e_pct": -9.760589318600374
+    },
+    {
+     "trial": 2,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 156.0,
+      "e2e": 317.4,
+      "segments": {
+       "transpose_in": 45.3,
+       "fft1": 8.9,
+       "twiddle": 7.3,
+       "transpose_boundary": 43.5,
+       "fft2": 7.2,
+       "transpose_out": 43.7
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 173.1,
+      "e2e": 392.7,
+      "segments": {
+       "transpose_in": 60.6,
+       "fft1": 8.8,
+       "transpose_boundary": 53.0,
+       "fft2": 7.1,
+       "transpose_out": 43.5
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "delta_chain_pct": 10.961538461538458,
+     "delta_e2e_pct": 23.72400756143668
+    },
+    {
+     "trial": 3,
+     "order": "fused-separate",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 156.0,
+      "e2e": 341.1,
+      "segments": {
+       "transpose_in": 45.2,
+       "fft1": 8.9,
+       "twiddle": 7.5,
+       "transpose_boundary": 43.5,
+       "fft2": 7.2,
+       "transpose_out": 43.7
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 168.3,
+      "e2e": 406.1,
+      "segments": {
+       "transpose_in": 55.6,
+       "fft1": 8.8,
+       "transpose_boundary": 53.0,
+       "fft2": 7.1,
+       "transpose_out": 43.7
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "delta_chain_pct": 7.884615384615391,
+     "delta_e2e_pct": 19.05599530929346
+    },
+    {
+     "trial": 4,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 166.4,
+      "e2e": 423.3,
+      "segments": {
+       "transpose_in": 54.8,
+       "fft1": 8.9,
+       "twiddle": 7.5,
+       "transpose_boundary": 44.4,
+       "fft2": 7.3,
+       "transpose_out": 43.5
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 173.4,
+      "e2e": 372.5,
+      "segments": {
+       "transpose_in": 60.5,
+       "fft1": 8.9,
+       "transpose_boundary": 53.1,
+       "fft2": 7.3,
+       "transpose_out": 43.7
+      },
+      "blocks": 48,
+      "max_rel": 5.116e-08
+     },
+     "delta_chain_pct": 4.206730769230769,
+     "delta_e2e_pct": -12.000944956295774
+    }
+   ],
+   "stats": {
+    "median_delta_chain_pct": 4.206730769230769,
+    "median_delta_e2e_pct": -9.760589318600374,
+    "worst_delta_chain_pct": 10.961538461538458,
+    "not_slower_pairs": 2,
+    "chain_separate_median": 166.4,
+    "chain_fused_median": 168.3,
+    "e2e_separate_median": 380.1,
+    "e2e_fused_median": 372.5
+   },
+   "verdict": "regress",
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T09:55:09.310075+00:00",
+     "loadavg": {
+      "1m": 24.54,
+      "5m": 26.6,
+      "15m": 26.64
+     },
+     "uptime_s": 2091709.92,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.8,
+        "temp_c": 39
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": 176.1,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.4,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 170.7,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": 164.4,
+        "temp_c": 39
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 177.2,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 169.7,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T09:55:49.767598+00:00",
+     "loadavg": {
+      "1m": 23.7,
+      "5m": 26.12,
+      "15m": 26.48
+     },
+     "uptime_s": 2091750.38,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.2,
+        "temp_c": 39
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": 175.7,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.1,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 167.6,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 161.9,
+        "temp_c": 39
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 177.5,
+        "temp_c": 40
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 169.2,
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 16384,
+   "b": 47,
+   "kernel_counts": {
+    "separate": 6,
+    "fused": 5
+   },
+   "ub_peak_bytes": 135168,
+   "separate_modeled_payload_gm_rw_bytes": 73924608,
+   "fused_modeled_payload_gm_rw_bytes": 61603840,
+   "launch_blocks": {
+    "separate": 48,
+    "fused": 48
+   },
+   "pairs": [
+    {
+     "trial": 0,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 590.1,
+      "e2e": 2693.1,
+      "segments": {
+       "transpose_in": 64.2,
+       "fft1": 89.6,
+       "twiddle": 227.7,
+       "transpose_boundary": 59.1,
+       "fft2": 89.5,
+       "transpose_out": 59.9
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 420.4,
+      "e2e": 2542.3,
+      "segments": {
+       "transpose_in": 64.8,
+       "fft1": 89.9,
+       "transpose_boundary": 115.6,
+       "fft2": 90.0,
+       "transpose_out": 60.1
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "delta_chain_pct": -28.757837654634816,
+     "delta_e2e_pct": -5.59949500575544
+    },
+    {
+     "trial": 1,
+     "order": "fused-separate",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 590.1,
+      "e2e": 2702.0,
+      "segments": {
+       "transpose_in": 64.4,
+       "fft1": 89.7,
+       "twiddle": 227.5,
+       "transpose_boundary": 59.3,
+       "fft2": 89.3,
+       "transpose_out": 59.9
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 420.4,
+      "e2e": 2529.1,
+      "segments": {
+       "transpose_in": 64.3,
+       "fft1": 90.0,
+       "transpose_boundary": 116.0,
+       "fft2": 90.2,
+       "transpose_out": 59.9
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "delta_chain_pct": -28.757837654634816,
+     "delta_e2e_pct": -6.398963730569951
+    },
+    {
+     "trial": 2,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 590.9,
+      "e2e": 3358.5,
+      "segments": {
+       "transpose_in": 64.2,
+       "fft1": 89.8,
+       "twiddle": 227.9,
+       "transpose_boundary": 59.3,
+       "fft2": 89.6,
+       "transpose_out": 60.1
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 421.2,
+      "e2e": 3979.0,
+      "segments": {
+       "transpose_in": 65.4,
+       "fft1": 90.7,
+       "transpose_boundary": 115.5,
+       "fft2": 89.7,
+       "transpose_out": 60.0
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "delta_chain_pct": -28.71890336774412,
+     "delta_e2e_pct": 18.47550990025309
+    },
+    {
+     "trial": 3,
+     "order": "fused-separate",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 590.2,
+      "e2e": 4068.0,
+      "segments": {
+       "transpose_in": 63.9,
+       "fft1": 89.7,
+       "twiddle": 227.8,
+       "transpose_boundary": 59.2,
+       "fft2": 89.6,
+       "transpose_out": 60.0
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 419.5,
+      "e2e": 3962.1,
+      "segments": {
+       "transpose_in": 64.4,
+       "fft1": 89.6,
+       "transpose_boundary": 115.6,
+       "fft2": 90.0,
+       "transpose_out": 59.9
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "delta_chain_pct": -28.922399186716376,
+     "delta_e2e_pct": -2.603244837758114
+    },
+    {
+     "trial": 4,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 591.3,
+      "e2e": 4094.1,
+      "segments": {
+       "transpose_in": 64.5,
+       "fft1": 90.0,
+       "twiddle": 227.8,
+       "transpose_boundary": 59.3,
+       "fft2": 89.5,
+       "transpose_out": 60.2
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 420.0,
+      "e2e": 3946.9,
+      "segments": {
+       "transpose_in": 64.8,
+       "fft1": 89.8,
+       "transpose_boundary": 115.7,
+       "fft2": 90.0,
+       "transpose_out": 59.7
+      },
+      "blocks": 48,
+      "max_rel": 2.269e-07
+     },
+     "delta_chain_pct": -28.970065956367318,
+     "delta_e2e_pct": -3.5954177963410716
+    }
+   ],
+   "stats": {
+    "median_delta_chain_pct": -28.757837654634816,
+    "median_delta_e2e_pct": -3.5954177963410716,
+    "worst_delta_chain_pct": -28.71890336774412,
+    "not_slower_pairs": 5,
+    "chain_separate_median": 590.2,
+    "chain_fused_median": 420.4,
+    "e2e_separate_median": 3358.5,
+    "e2e_fused_median": 3946.9
+   },
+   "verdict": "candidate",
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T09:55:50.389087+00:00",
+     "loadavg": {
+      "1m": 23.7,
+      "5m": 26.12,
+      "15m": 26.48
+     },
+     "uptime_s": 2091751.0,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 165.3,
+        "temp_c": 39
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": 175.5,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 171.0,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.6,
+        "temp_c": 42
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": 162.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 177.3,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 165.0,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 171.2,
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T09:56:30.770024+00:00",
+     "loadavg": {
+      "1m": 23.24,
+      "5m": 25.71,
+      "15m": 26.33
+     },
+     "uptime_s": 2091791.38,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.6,
+        "temp_c": 39
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": 176.0,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.4,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 3,
+        "power_w": 167.9,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 162.0,
+        "temp_c": 39
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 37
+       },
+       {
+        "npu": 5,
+        "power_w": 177.1,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 163.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 170.1,
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 32768,
+   "b": 47,
+   "kernel_counts": {
+    "separate": 6,
+    "fused": 5
+   },
+   "ub_peak_bytes": 135168,
+   "separate_modeled_payload_gm_rw_bytes": 147849216,
+   "fused_modeled_payload_gm_rw_bytes": 123207680,
+   "launch_blocks": {
+    "separate": 48,
+    "fused": 48
+   },
+   "pairs": [
+    {
+     "trial": 0,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 1225.3,
+      "e2e": 7600.2,
+      "segments": {
+       "transpose_in": 114.6,
+       "fft1": 182.9,
+       "twiddle": 542.7,
+       "transpose_boundary": 113.2,
+       "fft2": 132.3,
+       "transpose_out": 139.6
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 850.2,
+      "e2e": 7107.1,
+      "segments": {
+       "transpose_in": 141.9,
+       "fft1": 184.7,
+       "transpose_boundary": 251.5,
+       "fft2": 135.0,
+       "transpose_out": 137.1
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "delta_chain_pct": -30.61291112380641,
+     "delta_e2e_pct": -6.487987158232671
+    },
+    {
+     "trial": 1,
+     "order": "fused-separate",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 1226.5,
+      "e2e": 4826.3,
+      "segments": {
+       "transpose_in": 112.8,
+       "fft1": 183.2,
+       "twiddle": 543.5,
+       "transpose_boundary": 115.7,
+       "fft2": 132.5,
+       "transpose_out": 138.7
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 846.1,
+      "e2e": 5867.0,
+      "segments": {
+       "transpose_in": 140.3,
+       "fft1": 184.1,
+       "transpose_boundary": 250.5,
+       "fft2": 134.1,
+       "transpose_out": 137.1
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "delta_chain_pct": -31.01508357113738,
+     "delta_e2e_pct": 21.56310216936369
+    },
+    {
+     "trial": 2,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 1223.6,
+      "e2e": 4865.0,
+      "segments": {
+       "transpose_in": 113.7,
+       "fft1": 183.7,
+       "twiddle": 539.1,
+       "transpose_boundary": 114.0,
+       "fft2": 132.9,
+       "transpose_out": 140.2
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 846.7,
+      "e2e": 5069.1,
+      "segments": {
+       "transpose_in": 137.8,
+       "fft1": 185.9,
+       "transpose_boundary": 252.5,
+       "fft2": 135.1,
+       "transpose_out": 135.4
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "delta_chain_pct": -30.80254985289309,
+     "delta_e2e_pct": 4.195272353545743
+    },
+    {
+     "trial": 3,
+     "order": "fused-separate",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 1222.1,
+      "e2e": 5052.9,
+      "segments": {
+       "transpose_in": 111.8,
+       "fft1": 183.0,
+       "twiddle": 540.8,
+       "transpose_boundary": 112.3,
+       "fft2": 132.1,
+       "transpose_out": 142.1
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 846.4,
+      "e2e": 7499.8,
+      "segments": {
+       "transpose_in": 138.6,
+       "fft1": 183.9,
+       "transpose_boundary": 249.0,
+       "fft2": 133.5,
+       "transpose_out": 141.3
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "delta_chain_pct": -30.742165125603467,
+     "delta_e2e_pct": 48.425656553662265
+    },
+    {
+     "trial": 4,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 1223.1,
+      "e2e": 7836.9,
+      "segments": {
+       "transpose_in": 114.5,
+       "fft1": 183.1,
+       "twiddle": 542.1,
+       "transpose_boundary": 114.8,
+       "fft2": 131.7,
+       "transpose_out": 137.0
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 851.3,
+      "e2e": 5673.8,
+      "segments": {
+       "transpose_in": 143.3,
+       "fft1": 184.6,
+       "transpose_boundary": 253.1,
+       "fft2": 133.4,
+       "transpose_out": 137.0
+      },
+      "blocks": 48,
+      "max_rel": 1.307e-07
+     },
+     "delta_chain_pct": -30.398168588014062,
+     "delta_e2e_pct": -27.60147507305184
+    }
+   ],
+   "stats": {
+    "median_delta_chain_pct": -30.742165125603467,
+    "median_delta_e2e_pct": 4.195272353545743,
+    "worst_delta_chain_pct": -30.398168588014062,
+    "not_slower_pairs": 5,
+    "chain_separate_median": 1223.6,
+    "chain_fused_median": 846.7,
+    "e2e_separate_median": 5052.9,
+    "e2e_fused_median": 5867.0
+   },
+   "verdict": "candidate",
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T09:56:31.389714+00:00",
+     "loadavg": {
+      "1m": 23.24,
+      "5m": 25.71,
+      "15m": 26.33
+     },
+     "uptime_s": 2091792.0,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.9,
+        "temp_c": 39
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": 176.8,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.8,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 170.1,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 163.1,
+        "temp_c": 39
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 177.0,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 164.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 169.7,
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T09:57:11.778539+00:00",
+     "loadavg": {
+      "1m": 23.28,
+      "5m": 25.39,
+      "15m": 26.19
+     },
+     "uptime_s": 2091832.39,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 163.5,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": 175.7,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 171.2,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 168.6,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 162.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 176.5,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 6,
+        "power_w": 163.3,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 171.2,
+        "temp_c": 42
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  },
+  {
+   "n": 65536,
+   "b": 47,
+   "kernel_counts": {
+    "separate": 6,
+    "fused": 5
+   },
+   "ub_peak_bytes": 135168,
+   "separate_modeled_payload_gm_rw_bytes": 295698432,
+   "fused_modeled_payload_gm_rw_bytes": 246415360,
+   "launch_blocks": {
+    "separate": 48,
+    "fused": 48
+   },
+   "pairs": [
+    {
+     "trial": 0,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 2433.0,
+      "e2e": 14015.4,
+      "segments": {
+       "transpose_in": 386.3,
+       "fft1": 269.1,
+       "twiddle": 681.9,
+       "transpose_boundary": 386.9,
+       "fft2": 269.1,
+       "transpose_out": 439.7
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 2091.4,
+      "e2e": 14987.0,
+      "segments": {
+       "transpose_in": 440.0,
+       "fft1": 267.0,
+       "transpose_boundary": 662.4,
+       "fft2": 270.7,
+       "transpose_out": 451.4
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "delta_chain_pct": -14.04027949034114,
+     "delta_e2e_pct": 6.932374388173013
+    },
+    {
+     "trial": 1,
+     "order": "fused-separate",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 2437.7,
+      "e2e": 9410.1,
+      "segments": {
+       "transpose_in": 400.7,
+       "fft1": 267.4,
+       "twiddle": 689.8,
+       "transpose_boundary": 375.4,
+       "fft2": 267.8,
+       "transpose_out": 436.5
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 2083.8,
+      "e2e": 8962.3,
+      "segments": {
+       "transpose_in": 432.6,
+       "fft1": 268.2,
+       "transpose_boundary": 649.2,
+       "fft2": 271.1,
+       "transpose_out": 462.6
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "delta_chain_pct": -14.517783156253833,
+     "delta_e2e_pct": -4.758716698015973
+    },
+    {
+     "trial": 2,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 2436.3,
+      "e2e": 9286.5,
+      "segments": {
+       "transpose_in": 387.3,
+       "fft1": 268.5,
+       "twiddle": 683.6,
+       "transpose_boundary": 390.3,
+       "fft2": 267.4,
+       "transpose_out": 439.2
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 2072.0,
+      "e2e": 14504.3,
+      "segments": {
+       "transpose_in": 426.7,
+       "fft1": 269.4,
+       "transpose_boundary": 653.8,
+       "fft2": 271.9,
+       "transpose_out": 450.1
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "delta_chain_pct": -14.953002503796748,
+     "delta_e2e_pct": 56.186938028320675
+    },
+    {
+     "trial": 3,
+     "order": "fused-separate",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 2454.8,
+      "e2e": 16993.4,
+      "segments": {
+       "transpose_in": 403.5,
+       "fft1": 267.8,
+       "twiddle": 686.0,
+       "transpose_boundary": 385.4,
+       "fft2": 267.8,
+       "transpose_out": 444.4
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 2064.6,
+      "e2e": 10168.1,
+      "segments": {
+       "transpose_in": 429.0,
+       "fft1": 267.9,
+       "transpose_boundary": 660.5,
+       "fft2": 270.7,
+       "transpose_out": 436.6
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "delta_chain_pct": -15.895388626364685,
+     "delta_e2e_pct": -40.16441677357092
+    },
+    {
+     "trial": 4,
+     "order": "separate-fused",
+     "separate": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "separate",
+      "chain": 2427.8,
+      "e2e": 15476.5,
+      "segments": {
+       "transpose_in": 385.2,
+       "fft1": 267.5,
+       "twiddle": 694.6,
+       "transpose_boundary": 390.0,
+       "fft2": 265.9,
+       "transpose_out": 424.7
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "fused": {
+      "rc": 0,
+      "pass": true,
+      "boundary_impl": "fused",
+      "chain": 2074.1,
+      "e2e": 10129.1,
+      "segments": {
+       "transpose_in": 437.6,
+       "fft1": 268.5,
+       "transpose_boundary": 656.0,
+       "fft2": 269.5,
+       "transpose_out": 442.6
+      },
+      "blocks": 48,
+      "max_rel": 2.267e-07
+     },
+     "delta_chain_pct": -14.568745366175149,
+     "delta_e2e_pct": -34.551739734436076
+    }
+   ],
+   "stats": {
+    "median_delta_chain_pct": -14.568745366175149,
+    "median_delta_e2e_pct": -4.758716698015973,
+    "worst_delta_chain_pct": -14.04027949034114,
+    "not_slower_pairs": 5,
+    "chain_separate_median": 2436.3,
+    "chain_fused_median": 2074.1,
+    "e2e_separate_median": 14015.4,
+    "e2e_fused_median": 10168.1
+   },
+   "verdict": "candidate",
+   "env_monitor": {
+    "before": {
+     "utc": "2026-10-10T09:57:12.400787+00:00",
+     "loadavg": {
+      "1m": 23.28,
+      "5m": 25.39,
+      "15m": 26.19
+     },
+     "uptime_s": 2091833.01,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 163.9,
+        "temp_c": 39
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.6,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 169.9,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 3,
+        "power_w": 169.4,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": 163.9,
+        "temp_c": 39
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 177.1,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 6,
+        "power_w": 164.4,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 170.7,
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    },
+    "after": {
+     "utc": "2026-10-10T09:57:52.795088+00:00",
+     "loadavg": {
+      "1m": 23.2,
+      "5m": 25.06,
+      "15m": 26.04
+     },
+     "uptime_s": 2091873.41,
+     "npu_smi": {
+      "npus": [
+       {
+        "npu": 0,
+        "power_w": 164.8,
+        "temp_c": 40
+       },
+       {
+        "npu": 0,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 1,
+        "power_w": 176.4,
+        "temp_c": 39
+       },
+       {
+        "npu": 1,
+        "power_w": "unavailable",
+        "temp_c": 39
+       },
+       {
+        "npu": 2,
+        "power_w": 170.1,
+        "temp_c": 41
+       },
+       {
+        "npu": 2,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": 169.3,
+        "temp_c": 41
+       },
+       {
+        "npu": 3,
+        "power_w": "unavailable",
+        "temp_c": 41
+       },
+       {
+        "npu": 4,
+        "power_w": 162.4,
+        "temp_c": 40
+       },
+       {
+        "npu": 4,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 5,
+        "power_w": 176.2,
+        "temp_c": 39
+       },
+       {
+        "npu": 5,
+        "power_w": "unavailable",
+        "temp_c": 38
+       },
+       {
+        "npu": 6,
+        "power_w": 164.7,
+        "temp_c": 40
+       },
+       {
+        "npu": 6,
+        "power_w": "unavailable",
+        "temp_c": 40
+       },
+       {
+        "npu": 7,
+        "power_w": 169.9,
+        "temp_c": 41
+       },
+       {
+        "npu": 7,
+        "power_w": "unavailable",
+        "temp_c": 41
+       }
+      ],
+      "chips": [
+       {
+        "npu": 0,
+        "phy": 0,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 1,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 2,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 3,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 4,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 5,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 6,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 7,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 8,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 9,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 10,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 11,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 12,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 13,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 0,
+        "phy": 14,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       },
+       {
+        "npu": 1,
+        "phy": 15,
+        "aicore_pct": 0.0,
+        "hbm_usage": "unavailable"
+       }
+      ],
+      "frequency": "unavailable"
+     }
+    }
+   }
+  }
+ ],
+ "gate": {
+  "min_not_slower_pairs": 4,
+  "improve_pct_required": 5.0,
+  "regress_pct_fallback": 3.0,
+  "candidates": [
+   "16384x47",
+   "32768x47",
+   "65536x47"
+  ],
+  "regressing_points": [
+   "8192x1"
+  ],
+  "fallback_separate": true,
+  "promoted": false
+ },
+ "problems": [],
+ "incomplete": [],
+ "status": "pass"
+}

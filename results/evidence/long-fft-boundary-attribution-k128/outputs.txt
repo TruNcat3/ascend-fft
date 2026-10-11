@@ -1,0 +1,439 @@
+===== n=8192 b=1 pair=0 impl=separate =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=355.6 e2e_min_us=343.9 first_us=361.6 boot_us=642505.3 plan_us=771.5 warmup_us=845.4 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=771.5 us first_use=844.0 us host_end_to_end mean=356.3 min=352.4 us h2d=60.5 us device_chain=158.1 us d2h=67.7 us reps=5
+boundary_impl: separate
+segments: transpose_in=45.3 us fft1=9.2 us twiddle=8.5 us transpose_boundary=43.3 us fft2=7.5 us transpose_out=44.3 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 356.3 us/call over 5 reps (min 352.4 us) med 354.4 us
+PASS
+
+===== n=8192 b=1 pair=0 impl=fused =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=423.2 e2e_min_us=366.7 first_us=409.1 boot_us=651092.2 plan_us=689.7 warmup_us=799.4 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=689.7 us first_use=798.4 us host_end_to_end mean=354.8 min=350.6 us h2d=62.5 us device_chain=168.8 us d2h=62.2 us reps=5
+boundary_impl: fused
+segments: transpose_in=55.4 us fft1=8.9 us transpose_boundary=54.1 us fft2=7.3 us transpose_out=43.1 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 354.8 us/call over 5 reps (min 350.6 us) med 352.8 us
+PASS
+
+===== n=8192 b=1 pair=1 impl=fused =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=360.4 e2e_min_us=339.7 first_us=390.5 boot_us=643743.6 plan_us=696.1 warmup_us=814.6 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=696.1 us first_use=813.4 us host_end_to_end mean=341.5 min=335.6 us h2d=57.5 us device_chain=159.4 us d2h=55.9 us reps=5
+boundary_impl: fused
+segments: transpose_in=45.9 us fft1=8.4 us transpose_boundary=54.0 us fft2=7.1 us transpose_out=43.9 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 341.5 us/call over 5 reps (min 335.6 us) med 342.8 us
+PASS
+
+===== n=8192 b=1 pair=1 impl=separate =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=354.7 e2e_min_us=350.9 first_us=353.3 boot_us=658982.0 plan_us=740.5 warmup_us=877.3 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=740.5 us first_use=875.7 us host_end_to_end mean=345.1 min=334.2 us h2d=61.2 us device_chain=159.6 us d2h=63.5 us reps=5
+boundary_impl: separate
+segments: transpose_in=46.2 us fft1=9.4 us twiddle=8.8 us transpose_boundary=43.2 us fft2=8.1 us transpose_out=44.0 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 345.1 us/call over 5 reps (min 334.2 us) med 345.3 us
+PASS
+
+===== n=8192 b=1 pair=2 impl=separate =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=381.2 e2e_min_us=361.4 first_us=388.3 boot_us=649715.8 plan_us=743.3 warmup_us=871.7 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=743.3 us first_use=870.4 us host_end_to_end mean=352.4 min=330.6 us h2d=58.9 us device_chain=163.5 us d2h=58.0 us reps=5
+boundary_impl: separate
+segments: transpose_in=46.0 us fft1=9.4 us twiddle=7.5 us transpose_boundary=48.9 us fft2=7.4 us transpose_out=44.3 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 352.4 us/call over 5 reps (min 330.6 us) med 346.7 us
+PASS
+
+===== n=8192 b=1 pair=2 impl=fused =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=364.7 e2e_min_us=350.6 first_us=370.0 boot_us=670410.8 plan_us=785.4 warmup_us=959.2 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=785.4 us first_use=957.7 us host_end_to_end mean=326.8 min=309.8 us h2d=55.4 us device_chain=160.8 us d2h=49.2 us reps=5
+boundary_impl: fused
+segments: transpose_in=46.0 us fft1=9.4 us transpose_boundary=54.0 us fft2=7.4 us transpose_out=44.0 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 326.8 us/call over 5 reps (min 309.8 us) med 318.6 us
+PASS
+
+===== n=8192 b=1 pair=3 impl=fused =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=372.5 e2e_min_us=359.3 first_us=401.3 boot_us=664685.6 plan_us=921.4 warmup_us=926.9 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=921.4 us first_use=925.8 us host_end_to_end mean=367.6 min=355.5 us h2d=63.8 us device_chain=167.5 us d2h=66.5 us reps=5
+boundary_impl: fused
+segments: transpose_in=53.4 us fft1=9.4 us transpose_boundary=54.0 us fft2=7.4 us transpose_out=43.3 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 367.6 us/call over 5 reps (min 355.5 us) med 366.2 us
+PASS
+
+===== n=8192 b=1 pair=3 impl=separate =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=399.2 e2e_min_us=345.1 first_us=367.1 boot_us=656315.7 plan_us=717.9 warmup_us=908.0 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=717.9 us first_use=906.8 us host_end_to_end mean=347.1 min=335.1 us h2d=56.1 us device_chain=166.4 us d2h=60.2 us reps=5
+boundary_impl: separate
+segments: transpose_in=54.1 us fft1=9.4 us twiddle=8.0 us transpose_boundary=43.3 us fft2=7.4 us transpose_out=44.1 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 347.1 us/call over 5 reps (min 335.1 us) med 345.3 us
+PASS
+
+===== n=8192 b=1 pair=4 impl=separate =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=333.2 e2e_min_us=324.4 first_us=339.0 boot_us=659235.4 plan_us=751.5 warmup_us=857.5 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=751.5 us first_use=856.0 us host_end_to_end mean=334.6 min=313.2 us h2d=57.2 us device_chain=157.2 us d2h=57.3 us reps=5
+boundary_impl: separate
+segments: transpose_in=45.7 us fft1=9.4 us twiddle=7.4 us transpose_boundary=43.2 us fft2=7.4 us transpose_out=44.2 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 334.6 us/call over 5 reps (min 313.2 us) med 337.5 us
+PASS
+
+===== n=8192 b=1 pair=4 impl=fused =====
+long backend: n=8192 split N1=64 N2=128 rows1=128 rows2=64 gm_bytes=196608
+E2E n=8192 batch=1 reps=5 e2e_us=336.0 e2e_min_us=321.2 first_us=349.2 boot_us=634122.6 plan_us=701.0 warmup_us=874.8 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=701.0 us first_use=873.8 us host_end_to_end mean=327.7 min=298.9 us h2d=49.3 us device_chain=158.9 us d2h=51.5 us reps=5
+boundary_impl: fused
+segments: transpose_in=45.6 us fft1=8.9 us transpose_boundary=54.0 us fft2=7.1 us transpose_out=43.3 us
+n=8192 batch=1 blocks=48  maxAbs=2.456e-04 maxRel=5.116e-08 (worst idx 4067)
+kfft_fwd: 327.7 us/call over 5 reps (min 298.9 us) med 332.5 us
+PASS
+
+===== n=16384 b=47 pair=0 impl=separate =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=4137.6 e2e_min_us=3914.5 first_us=4549.7 boot_us=694026.4 plan_us=12587.6 warmup_us=4842.3 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=12587.6 us first_use=4840.3 us host_end_to_end mean=4104.7 min=3969.0 us h2d=1697.0 us device_chain=458.2 us d2h=1717.6 us reps=5
+boundary_impl: separate
+segments: transpose_in=54.8 us fft1=89.8 us twiddle=118.9 us transpose_boundary=51.5 us fft2=91.5 us transpose_out=51.6 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 4104.7 us/call over 5 reps (min 3969.0 us) med 4078.0 us
+PASS
+
+===== n=16384 b=47 pair=0 impl=fused =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=3451.3 e2e_min_us=3207.0 first_us=3207.0 boot_us=643929.4 plan_us=12048.6 warmup_us=3832.9 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=12048.6 us first_use=3831.6 us host_end_to_end mean=3429.0 min=3220.8 us h2d=1354.5 us device_chain=381.4 us d2h=1309.5 us reps=5
+boundary_impl: fused
+segments: transpose_in=54.7 us fft1=90.3 us transpose_boundary=94.9 us fft2=89.9 us transpose_out=51.5 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 3429.0 us/call over 5 reps (min 3220.8 us) med 3459.8 us
+PASS
+
+===== n=16384 b=47 pair=1 impl=fused =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=1713.8 e2e_min_us=1629.9 first_us=1655.5 boot_us=643474.7 plan_us=11095.4 warmup_us=2295.3 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=11095.4 us first_use=2293.1 us host_end_to_end mean=1697.0 min=1571.3 us h2d=546.6 us device_chain=381.4 us d2h=581.3 us reps=5
+boundary_impl: fused
+segments: transpose_in=54.7 us fft1=89.9 us transpose_boundary=95.1 us fft2=90.1 us transpose_out=51.7 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 1697.0 us/call over 5 reps (min 1571.3 us) med 1694.3 us
+PASS
+
+===== n=16384 b=47 pair=1 impl=separate =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=4092.7 e2e_min_us=3886.9 first_us=4137.8 boot_us=647671.3 plan_us=12542.3 warmup_us=4652.7 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=12542.3 us first_use=4650.9 us host_end_to_end mean=3879.2 min=3644.1 us h2d=1614.7 us device_chain=460.0 us d2h=1462.5 us reps=5
+boundary_impl: separate
+segments: transpose_in=54.9 us fft1=89.8 us twiddle=119.8 us transpose_boundary=51.6 us fft2=91.9 us transpose_out=52.0 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 3879.2 us/call over 5 reps (min 3644.1 us) med 3838.4 us
+PASS
+
+===== n=16384 b=47 pair=2 impl=separate =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=4053.3 e2e_min_us=3871.4 first_us=4251.4 boot_us=645603.1 plan_us=12657.3 warmup_us=4797.5 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=12657.3 us first_use=4796.0 us host_end_to_end mean=4021.7 min=3801.2 us h2d=1651.7 us device_chain=458.7 us d2h=1618.4 us reps=5
+boundary_impl: separate
+segments: transpose_in=54.9 us fft1=89.9 us twiddle=119.1 us transpose_boundary=51.6 us fft2=91.2 us transpose_out=52.0 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 4021.7 us/call over 5 reps (min 3801.2 us) med 3989.2 us
+PASS
+
+===== n=16384 b=47 pair=2 impl=fused =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=3570.1 e2e_min_us=3363.5 first_us=3457.6 boot_us=676470.6 plan_us=12394.0 warmup_us=4222.8 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=12394.0 us first_use=4220.8 us host_end_to_end mean=3458.6 min=3181.4 us h2d=1372.3 us device_chain=380.1 us d2h=1271.5 us reps=5
+boundary_impl: fused
+segments: transpose_in=54.5 us fft1=89.8 us transpose_boundary=94.8 us fft2=89.9 us transpose_out=51.1 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 3458.6 us/call over 5 reps (min 3181.4 us) med 3426.2 us
+PASS
+
+===== n=16384 b=47 pair=3 impl=fused =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=4047.3 e2e_min_us=3854.5 first_us=4484.4 boot_us=751646.4 plan_us=76909.4 warmup_us=4613.5 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=76909.4 us first_use=4611.7 us host_end_to_end mean=4014.2 min=3853.2 us h2d=1610.4 us device_chain=380.7 us d2h=1760.4 us reps=5
+boundary_impl: fused
+segments: transpose_in=54.6 us fft1=89.8 us transpose_boundary=95.1 us fft2=89.8 us transpose_out=51.3 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 4014.2 us/call over 5 reps (min 3853.2 us) med 3987.1 us
+PASS
+
+===== n=16384 b=47 pair=3 impl=separate =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=4117.5 e2e_min_us=3994.8 first_us=4072.6 boot_us=664832.7 plan_us=12588.3 warmup_us=4878.2 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=12588.3 us first_use=4875.7 us host_end_to_end mean=4123.1 min=3940.4 us h2d=1749.8 us device_chain=457.8 us d2h=1674.0 us reps=5
+boundary_impl: separate
+segments: transpose_in=54.8 us fft1=89.4 us twiddle=118.1 us transpose_boundary=51.7 us fft2=92.0 us transpose_out=51.7 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 4123.1 us/call over 5 reps (min 3940.4 us) med 4122.8 us
+PASS
+
+===== n=16384 b=47 pair=4 impl=separate =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=4117.3 e2e_min_us=3928.3 first_us=4377.4 boot_us=666330.0 plan_us=18120.5 warmup_us=4902.2 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=18120.5 us first_use=4900.6 us host_end_to_end mean=3938.9 min=3794.0 us h2d=1619.7 us device_chain=456.6 us d2h=1666.7 us reps=5
+boundary_impl: separate
+segments: transpose_in=54.6 us fft1=89.5 us twiddle=117.7 us transpose_boundary=52.0 us fft2=90.8 us transpose_out=52.0 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 3938.9 us/call over 5 reps (min 3794.0 us) med 3904.8 us
+PASS
+
+===== n=16384 b=47 pair=4 impl=fused =====
+long backend: n=16384 split N1=128 N2=128 rows1=6016 rows2=6016 gm_bytes=18481152
+E2E n=16384 batch=47 reps=5 e2e_us=4044.8 e2e_min_us=3919.1 first_us=4216.6 boot_us=674261.0 plan_us=15069.7 warmup_us=4760.4 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=15069.7 us first_use=4759.0 us host_end_to_end mean=3937.6 min=3792.4 us h2d=1637.4 us device_chain=379.5 us d2h=1684.5 us reps=5
+boundary_impl: fused
+segments: transpose_in=54.4 us fft1=89.2 us transpose_boundary=95.0 us fft2=89.4 us transpose_out=51.4 us
+n=16384 batch=47 blocks=48  maxAbs=2.052e-03 maxRel=2.269e-07 (worst idx 606151)
+kfft_fwd: 3937.6 us/call over 5 reps (min 3792.4 us) med 3950.3 us
+PASS
+
+===== n=32768 b=47 pair=0 impl=separate =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7506.3 e2e_min_us=6981.0 first_us=8021.9 boot_us=646220.5 plan_us=23703.5 warmup_us=8243.9 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=23703.5 us first_use=8242.1 us host_end_to_end mean=7498.1 min=6987.7 us h2d=3044.0 us device_chain=850.0 us d2h=2977.2 us reps=5
+boundary_impl: separate
+segments: transpose_in=87.3 us fft1=179.3 us twiddle=259.5 us transpose_boundary=94.0 us fft2=130.0 us transpose_out=99.9 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7498.1 us/call over 5 reps (min 6987.7 us) med 7394.6 us
+PASS
+
+===== n=32768 b=47 pair=0 impl=fused =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7271.1 e2e_min_us=6843.0 first_us=7927.9 boot_us=699318.6 plan_us=24308.7 warmup_us=7960.5 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=24308.7 us first_use=7958.3 us host_end_to_end mean=7267.4 min=6786.1 us h2d=3022.5 us device_chain=654.2 us d2h=3042.6 us reps=5
+boundary_impl: fused
+segments: transpose_in=85.3 us fft1=178.1 us transpose_boundary=171.3 us fft2=129.5 us transpose_out=90.0 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7267.4 us/call over 5 reps (min 6786.1 us) med 7331.9 us
+PASS
+
+===== n=32768 b=47 pair=1 impl=fused =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7759.4 e2e_min_us=7235.4 first_us=7235.4 boot_us=672380.4 plan_us=24382.2 warmup_us=7855.5 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=24382.2 us first_use=7853.5 us host_end_to_end mean=7697.6 min=7233.2 us h2d=3242.1 us device_chain=651.8 us d2h=3257.1 us reps=5
+boundary_impl: fused
+segments: transpose_in=84.0 us fft1=177.4 us transpose_boundary=170.1 us fft2=129.4 us transpose_out=90.8 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7697.6 us/call over 5 reps (min 7233.2 us) med 7854.2 us
+PASS
+
+===== n=32768 b=47 pair=1 impl=separate =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7461.3 e2e_min_us=6951.7 first_us=7000.8 boot_us=730891.2 plan_us=24536.3 warmup_us=8132.0 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=24536.3 us first_use=8130.1 us host_end_to_end mean=7204.3 min=6904.8 us h2d=3057.7 us device_chain=852.0 us d2h=2633.3 us reps=5
+boundary_impl: separate
+segments: transpose_in=87.7 us fft1=179.4 us twiddle=258.8 us transpose_boundary=96.6 us fft2=130.4 us transpose_out=99.1 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7204.3 us/call over 5 reps (min 6904.8 us) med 7277.8 us
+PASS
+
+===== n=32768 b=47 pair=2 impl=separate =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7525.1 e2e_min_us=7053.8 first_us=8029.4 boot_us=678416.4 plan_us=23269.5 warmup_us=8121.7 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=23269.5 us first_use=8119.9 us host_end_to_end mean=7485.1 min=6962.1 us h2d=3056.6 us device_chain=848.6 us d2h=2976.5 us reps=5
+boundary_impl: separate
+segments: transpose_in=88.2 us fft1=178.5 us twiddle=259.4 us transpose_boundary=94.7 us fft2=129.8 us transpose_out=98.0 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7485.1 us/call over 5 reps (min 6962.1 us) med 7346.8 us
+PASS
+
+===== n=32768 b=47 pair=2 impl=fused =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7416.3 e2e_min_us=7023.0 first_us=7802.5 boot_us=674334.3 plan_us=22854.2 warmup_us=7824.7 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=22854.2 us first_use=7822.8 us host_end_to_end mean=7356.7 min=7025.9 us h2d=3110.3 us device_chain=652.0 us d2h=3015.2 us reps=5
+boundary_impl: fused
+segments: transpose_in=84.2 us fft1=179.0 us transpose_boundary=169.6 us fft2=129.2 us transpose_out=90.0 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7356.7 us/call over 5 reps (min 7025.9 us) med 7215.8 us
+PASS
+
+===== n=32768 b=47 pair=3 impl=fused =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7438.0 e2e_min_us=7021.0 first_us=7620.2 boot_us=663271.6 plan_us=23223.4 warmup_us=7264.7 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=23223.4 us first_use=7262.8 us host_end_to_end mean=7187.5 min=6809.5 us h2d=2897.5 us device_chain=653.1 us d2h=3027.1 us reps=5
+boundary_impl: fused
+segments: transpose_in=84.6 us fft1=178.3 us transpose_boundary=170.0 us fft2=128.7 us transpose_out=91.5 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7187.5 us/call over 5 reps (min 6809.5 us) med 7062.7 us
+PASS
+
+===== n=32768 b=47 pair=3 impl=separate =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7918.3 e2e_min_us=7359.1 first_us=7452.7 boot_us=644981.0 plan_us=24030.8 warmup_us=7125.4 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=24030.8 us first_use=7123.9 us host_end_to_end mean=7894.5 min=6965.0 us h2d=3006.1 us device_chain=849.5 us d2h=3063.5 us reps=5
+boundary_impl: separate
+segments: transpose_in=86.7 us fft1=180.7 us twiddle=257.4 us transpose_boundary=95.4 us fft2=130.3 us transpose_out=99.0 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7894.5 us/call over 5 reps (min 6965.0 us) med 7669.0 us
+PASS
+
+===== n=32768 b=47 pair=4 impl=separate =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7928.4 e2e_min_us=7353.5 first_us=7526.2 boot_us=675412.7 plan_us=24518.7 warmup_us=7261.1 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=24518.7 us first_use=7259.3 us host_end_to_end mean=7833.5 min=7036.7 us h2d=2960.9 us device_chain=853.4 us d2h=3100.5 us reps=5
+boundary_impl: separate
+segments: transpose_in=88.4 us fft1=178.7 us twiddle=260.0 us transpose_boundary=95.5 us fft2=131.0 us transpose_out=99.9 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7833.5 us/call over 5 reps (min 7036.7 us) med 7614.0 us
+PASS
+
+===== n=32768 b=47 pair=4 impl=fused =====
+long backend: n=32768 split N1=128 N2=256 rows1=12032 rows2=6016 gm_bytes=36962304
+E2E n=32768 batch=47 reps=5 e2e_us=7373.9 e2e_min_us=6824.1 first_us=7220.4 boot_us=661556.7 plan_us=23398.3 warmup_us=8779.8 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=23398.3 us first_use=8778.2 us host_end_to_end mean=7512.4 min=7163.1 us h2d=3035.2 us device_chain=653.7 us d2h=2952.6 us reps=5
+boundary_impl: fused
+segments: transpose_in=85.0 us fft1=178.0 us transpose_boundary=172.0 us fft2=128.3 us transpose_out=90.3 us
+n=32768 batch=47 blocks=48  maxAbs=2.699e-03 maxRel=1.307e-07 (worst idx 1146765)
+kfft_fwd: 7512.4 us/call over 5 reps (min 7163.1 us) med 7392.6 us
+PASS
+
+===== n=65536 b=47 pair=0 impl=separate =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=15568.3 e2e_min_us=14497.9 first_us=16723.3 boot_us=655502.8 plan_us=47883.4 warmup_us=15105.9 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=47883.4 us first_use=15104.3 us host_end_to_end mean=15788.3 min=14488.1 us h2d=5888.2 us device_chain=1589.5 us d2h=6559.6 us reps=5
+boundary_impl: separate
+segments: transpose_in=240.5 us fft1=263.4 us twiddle=339.0 us transpose_boundary=232.2 us fft2=263.9 us transpose_out=250.6 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 15788.3 us/call over 5 reps (min 14488.1 us) med 15925.5 us
+PASS
+
+===== n=65536 b=47 pair=0 impl=fused =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=14029.8 e2e_min_us=12525.6 first_us=14043.3 boot_us=660450.8 plan_us=46231.9 warmup_us=16985.6 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=46231.9 us first_use=16983.4 us host_end_to_end mean=14080.6 min=12136.8 us h2d=5315.1 us device_chain=1416.8 us d2h=5290.9 us reps=5
+boundary_impl: fused
+segments: transpose_in=231.4 us fft1=263.8 us transpose_boundary=414.3 us fft2=262.0 us transpose_out=245.3 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 14080.6 us/call over 5 reps (min 12136.8 us) med 14058.7 us
+PASS
+
+===== n=65536 b=47 pair=1 impl=fused =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=14137.1 e2e_min_us=10984.3 first_us=15344.2 boot_us=636291.0 plan_us=43738.3 warmup_us=15861.3 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=43738.3 us first_use=15859.5 us host_end_to_end mean=14173.2 min=13068.1 us h2d=5076.2 us device_chain=1423.3 us d2h=5345.3 us reps=5
+boundary_impl: fused
+segments: transpose_in=235.0 us fft1=263.5 us transpose_boundary=415.4 us fft2=260.8 us transpose_out=248.5 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 14173.2 us/call over 5 reps (min 13068.1 us) med 14222.9 us
+PASS
+
+===== n=65536 b=47 pair=1 impl=separate =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=14422.9 e2e_min_us=12454.1 first_us=16685.7 boot_us=654221.3 plan_us=46380.4 warmup_us=16326.7 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=46380.4 us first_use=16324.3 us host_end_to_end mean=14383.3 min=12553.0 us h2d=6687.3 us device_chain=1580.8 us d2h=4235.0 us reps=5
+boundary_impl: separate
+segments: transpose_in=235.9 us fft1=263.1 us twiddle=335.0 us transpose_boundary=236.0 us fft2=263.0 us transpose_out=247.8 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 14383.3 us/call over 5 reps (min 12553.0 us) med 14401.1 us
+PASS
+
+===== n=65536 b=47 pair=2 impl=separate =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=14793.1 e2e_min_us=13179.5 first_us=13179.5 boot_us=679399.9 plan_us=46006.7 warmup_us=14110.7 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=46006.7 us first_use=14109.0 us host_end_to_end mean=14319.4 min=12590.5 us h2d=5413.6 us device_chain=1592.4 us d2h=5312.6 us reps=5
+boundary_impl: separate
+segments: transpose_in=240.7 us fft1=263.4 us twiddle=338.8 us transpose_boundary=235.5 us fft2=263.8 us transpose_out=250.2 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 14319.4 us/call over 5 reps (min 12590.5 us) med 14192.8 us
+PASS
+
+===== n=65536 b=47 pair=2 impl=fused =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=14496.8 e2e_min_us=12847.5 first_us=12847.5 boot_us=671162.9 plan_us=46294.6 warmup_us=13946.6 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=46294.6 us first_use=13945.0 us host_end_to_end mean=14107.5 min=12215.0 us h2d=5354.1 us device_chain=1421.2 us d2h=5281.1 us reps=5
+boundary_impl: fused
+segments: transpose_in=234.5 us fft1=262.6 us transpose_boundary=413.3 us fft2=261.9 us transpose_out=248.9 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 14107.5 us/call over 5 reps (min 12215.0 us) med 14066.8 us
+PASS
+
+===== n=65536 b=47 pair=3 impl=fused =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=14765.6 e2e_min_us=13144.6 first_us=15256.9 boot_us=659848.9 plan_us=46061.7 warmup_us=12748.0 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=46061.7 us first_use=12746.6 us host_end_to_end mean=14888.6 min=13686.9 us h2d=5518.4 us device_chain=1428.8 us d2h=6220.5 us reps=5
+boundary_impl: fused
+segments: transpose_in=245.8 us fft1=263.4 us transpose_boundary=415.8 us fft2=260.7 us transpose_out=243.1 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 14888.6 us/call over 5 reps (min 13686.9 us) med 14808.9 us
+PASS
+
+===== n=65536 b=47 pair=3 impl=separate =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=14151.5 e2e_min_us=13364.0 first_us=14427.5 boot_us=665042.7 plan_us=44201.5 warmup_us=13998.8 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=44201.5 us first_use=13997.3 us host_end_to_end mean=13594.4 min=13081.0 us h2d=4200.5 us device_chain=1590.9 us d2h=4389.7 us reps=5
+boundary_impl: separate
+segments: transpose_in=245.5 us fft1=263.3 us twiddle=336.6 us transpose_boundary=236.3 us fft2=263.8 us transpose_out=245.4 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 13594.4 us/call over 5 reps (min 13081.0 us) med 13404.6 us
+PASS
+
+===== n=65536 b=47 pair=4 impl=separate =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=6109.3 e2e_min_us=5506.1 first_us=5944.4 boot_us=672628.6 plan_us=42998.3 warmup_us=6919.5 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=42998.3 us first_use=6917.2 us host_end_to_end mean=5896.5 min=5125.3 us h2d=1779.6 us device_chain=1583.1 us d2h=1589.7 us reps=5
+boundary_impl: separate
+segments: transpose_in=233.5 us fft1=263.7 us twiddle=335.3 us transpose_boundary=237.8 us fft2=264.2 us transpose_out=248.7 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 5896.5 us/call over 5 reps (min 5125.3 us) med 6257.7 us
+PASS
+
+===== n=65536 b=47 pair=4 impl=fused =====
+long backend: n=65536 split N1=256 N2=256 rows1=12032 rows2=12032 gm_bytes=73924608
+E2E n=65536 batch=47 reps=5 e2e_us=14232.9 e2e_min_us=12208.4 first_us=14785.8 boot_us=655311.2 plan_us=46320.5 warmup_us=13618.5 mode=async host=chain input=sin
+E2E transfers: in=1 out=1 boundary=0 per_execution
+scopes: plan_setup=46320.5 us first_use=13616.9 us host_end_to_end mean=14375.1 min=13303.7 us h2d=5942.8 us device_chain=1420.4 us d2h=5132.0 us reps=5
+boundary_impl: fused
+segments: transpose_in=231.0 us fft1=262.2 us transpose_boundary=417.0 us fft2=262.1 us transpose_out=248.1 us
+n=65536 batch=47 blocks=48  maxAbs=5.580e-03 maxRel=2.267e-07 (worst idx 3079963)
+kfft_fwd: 14375.1 us/call over 5 reps (min 13303.7 us) med 14341.2 us
+PASS

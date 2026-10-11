@@ -64,6 +64,20 @@ K 增大并不总能减少成本：平面级指令数、后续组数、行切片
 
 `AB_PLANE_K` 与 `AB_FOLD_D` 是消融钩子，用于固定布局和折叠策略；用户使用路径应优先使用 Plan 的合法候选，而不是绕过约束强制参数。核心代码见 [fft_radix2.cpp](https://github.com/TruNcat3/ascend-fft/blob/master/src/ascendc/fft_radix2.cpp)。
 
+## 长 FFT 边界融合与流水实验不是新算术核心
+
+长链继续使用同一 `kfft_fwd` 行 FFT。`src/ascendc/fft_long.cpp` 的 fused 转置入口在 UB
+内执行段间 twiddle 后转置，区别于 separate 的独立点乘发射；它改变的是段边界组织，而非
+行 FFT 的 radix。应固定局部核心与形状进行配对消融，见 [长路径架构](architecture.md)。
+
+`AB_LT_PIPE=nb|pp|pp2` 是转置数据流实验入口：`nb` 为窄屏障组织，`pp` 为输入 ping-pong；
+`pp2` 是 `64×32` 半 tile、resident `K=256` 与完整双缓冲的独立原型
+（`kfft_lt_tr_t64x32_k256ri_pp2`），不能与 `128×32` 的 `nb/pp` 当作同一模型族。
+入口仍受 tile、索引、K 和 UB 合法性约束，不应通过强制环境变量绕过失败原因。
+`pp2` 保持显式 opt-in：两次独立 session 的 device-chain 门禁只决定候选资格；其归档为
+pageable E2E，当前驱动上 `65536×47` 的 pinned E2E 存在 IOMMU 失败，不能宣布生产放行。
+静态候选说明由 `scripts/long_fft_pp2_dispatch.py` 提供，不是 runtime 自动切换或学习模型。
+
 ## Cube：基础能力已证实，FFT 收益未证实
 
 [cube_probe.cpp](https://github.com/TruNcat3/ascend-fft/blob/master/src/ascendc/cube_probe.cpp) 在独立 `__cube__` AIC kernel 中验证了 fp32 的 LoadData → Mmad → Fixpipe 链路。验证形状为 16×16×16；探针使用保守栅栏且没有双缓冲，其吞吐不能当作 Cube 峰值或未来 FFT 性能。

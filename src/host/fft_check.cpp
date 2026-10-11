@@ -14,6 +14,7 @@
 //   其中 AB_FOLD_D/AB_PLANE_K 作用在「内层 FFT」的长度上（r2c 时为 n/2）。
 #include <acl/acl.h>
 #include "butterfly/fft_k.hpp"
+#include "butterfly/descriptors.hpp"
 #include "butterfly/reference.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -241,6 +242,50 @@ int main(int argc, char** argv){
     // 长度落在单 AIV 行 FFT 的 UB envelope [64,4096]；超出 G1 envelope 直接拒绝。
     uint32_t longN1=0, longN2=0;
     const bool isLong = !isReal && n>4096;
+    // AB_BOUNDARY=device：段边界全程在 device materialize（twiddle+转置 + 自然序
+    // 写出均走 device 内核，段边界不经宿主内存）。默认不设置 => 宿主中介链，
+    // 行为与已发布结果逐字节一致；device 链的 E2E boundary 计数为 0。
+    const bool devBoundary = isLong &&
+        getenv("AB_BOUNDARY") && !strcmp(getenv("AB_BOUNDARY"), "device");
+    // AB_LONG_BOUNDARY_IMPL=separate|fused（PR-B R1）：device 链段边界的发射形态。
+    //   separate（默认）= 6 发射：... lt_tw + 独立段边界转置；
+    //   fused           = 5 发射：twiddle 折进段边界转置（kfft_lt_tr 消费 wT）。
+    // 只解析一次：descriptor 门禁（mapping.boundary_impl -> manifest 5/6 条 +
+    // GM 字节）、launch 分支与 segments/boundary_impl 打印同一取值。
+    const char* implEnv = getenv("AB_LONG_BOUNDARY_IMPL");
+    bool fusedImpl = false;
+    if (implEnv && *implEnv) {
+        if (!strcmp(implEnv, "fused")) fusedImpl = true;
+        else if (strcmp(implEnv, "separate")) {
+            printf("AB_LONG_BOUNDARY_IMPL must be separate|fused, got %s\n",
+                   implEnv);
+            return 2;
+        }
+    }
+    if (fusedImpl && !devBoundary) {
+        printf("AB_LONG_BOUNDARY_IMPL=fused requires AB_BOUNDARY=device\n");
+        return 2;
+    }
+    // R0.1：AB_FOLD_D/AB_PLANE_K 只解析一次，descriptor 门禁（query_lowering 的
+    // mapping）与 launch 打包（prepPass）复用同一组 override —— 两处经
+    // butterfly::resolve_row_fft 得到的 (D,K) 恒同，UB 与实参不漂移。
+    uint32_t ovFoldD=0, ovPlaneK=0;
+    if (const char* e = getenv("AB_FOLD_D")) {
+        int v = atoi(e);
+        if (v >= 1) ovFoldD = (uint32_t)v;
+    }
+    if (const char* e = getenv("AB_PLANE_K")) {
+        // R1.0：非法 K 显式拒绝，不再静默忽略（K=12/24 绝不能被当作
+        // supported；长度相对的违约由 resolve_row_fft/query_lowering 拦截）。
+        if (*e) {
+            int v = atoi(e);
+            if (v == 8 || v == 16 || v == 32) ovPlaneK = (uint32_t)v;
+            else {
+                printf("AB_PLANE_K must be one of 8|16|32, got %s\n", e);
+                return 2;
+            }
+        }
+    }
     if(isLong){
         if(n>65536){
             printf("c2c long backend envelope is 8192..65536 (G3 larger lengths pending)\n");
@@ -268,6 +313,49 @@ int main(int argc, char** argv){
                    (unsigned long long)gmBudget);
             return 2;
         }
+        // Lowering 合约（addendum §2）：在任何分配/启动之前先查 (mapping, unit, hardware)
+        // 合法性；不支持的元组返回显式 reason 并拒绝，绝不静默换核或换映射。
+        {
+            const auto& hw = butterfly::builtin_hardware_profile();
+            auto mapping = butterfly::default_long_mapping(longN1, longN2, hw);
+            if(devBoundary) mapping.boundary_home = butterfly::BoundaryHome::DeviceGM;
+            mapping.boundary_impl = fusedImpl ? butterfly::BoundaryImpl::Fused
+                                              : butterfly::BoundaryImpl::Separate;
+            mapping.row_fft_fold_d  = ovFoldD;
+            mapping.row_fft_plane_k = ovPlaneK;
+            butterfly::TransformSpec spec{n, batch, butterfly::Precision::FP32,
+                                          butterfly::Direction::C2C_FWD};
+            const auto lowered = butterfly::query_lowering(spec, mapping,
+                                       butterfly::local_fft_capability(), hw);
+            if(!lowered.supported){
+                printf("lowering rejected: %s\n", lowered.reason.c_str());
+                return 2;
+            }
+            if(getenv("AB_DESC")){
+                // 计数全部来自 launch manifest（PR #2 阶段 2），kind 序列与
+                // 实际发射顺序一致（host=2×row_fft；device=6 内核链，
+                // AB_LONG_BOUNDARY_IMPL=fused 时 5 条、twiddle 并入边界转置）；
+                // modeled_payload_gm = manifest 各发射的建模 payload GM 读写
+                // 字节和（PR-B 记账：不含 twiddle/index/coeff 辅助事务，
+                // 非 profiler 实测；无 H2D/D2H；R1.0 改名）。
+                printf("lowering: launches=%d gm_boundaries=%d "
+                       "modeled_payload_gm=%llu "
+                       "impl=%s resident=%s "
+                       "on_chip=%d host_assisted=%d abstract=%d kinds=",
+                       lowered.visible_launches,
+                       lowered.materialized_gm_boundaries,
+                       (unsigned long long)lowered.modeled_payload_gm_rw_bytes,
+                       fusedImpl ? "fused" : "separate",
+                       butterfly::residence_name(lowered.resident_subgraph),
+                       (int)lowered.whole_transform_on_chip,
+                       (int)lowered.host_assisted, (int)lowered.abstract_feasible);
+                for(size_t i=0;i<lowered.launch_manifest.size();i++)
+                    printf("%s%s", i?"|":"",
+                           butterfly::launch_kind_name(
+                               lowered.launch_manifest[i].kind));
+                printf("\n");
+            }
+        }
         printf("long backend: n=%u split N1=%u N2=%u rows1=%u rows2=%u gm_bytes=%llu\n",
                n, longN1, longN2, longN2*batch, longN1*batch,
                (unsigned long long)gmBudget);
@@ -285,7 +373,13 @@ int main(int argc, char** argv){
                n, (unsigned long long)0xFFFFFFFFull/(2ull*(uint64_t)n));
         return 2;
     }
-    CK(aclInit(nullptr)); CK(aclrtSetDevice(0));
+    CK(aclInit(nullptr));
+    {   // AB_DEVICE_ID：共享机多卡时切卡（缺省 0，保持既有行为）
+        const char* devEnv = getenv("AB_DEVICE_ID");
+        int devId = 0;
+        if(devEnv && *devEnv) devId = atoi(devEnv);
+        CK(aclrtSetDevice(devId));
+    }
     aclrtStream s=nullptr; CK(aclrtCreateStream(&s));
     // boot = aclInit + SetDevice + CreateStream（进程级一次性）；plan = 之后的数据准备
     const auto tBoot1=std::chrono::steady_clock::now();
@@ -357,24 +451,27 @@ int main(int argc, char** argv){
         }
         if(off!=P.twPad) printf("WARN: twiddle slots %u != twPad %u\n", off, P.twPad);
         // 三张索引合成一个 (4n + 2nD) 的 GM 张量：[idxB(n) | idxT(n) | idxOut(2nD)]，单位字节。
-        // foldD：默认取 bfly::foldDFor(len, rows, 48)，与 launch 的 blocks=min(48,rows)
-        //   同口径，也与 src/framework/butterfly.cpp::Plan::prepare 同一规则（那边 nblk=cand.udCore）。
-        //   AB_FOLD_D=<k> 可强制指定，仅供 A/B —— 核内 tmpF/idx 按传入值现算，任意 k>=1
-        //   都功能正确；k>1 而 rows=len/K>64 时核内 plane 段按 64 元素行切片（不变错）。
-        uint32_t foldD = bfly::foldDFor(len, rows, 48u);
-        if (const char* e = getenv("AB_FOLD_D")) {
-            int v = atoi(e);
-            if (v >= 1) foldD = (uint32_t)v;
+        // (D,K) 解析收口到 butterfly::resolve_row_fft：与 descriptor 门禁
+        // （query_lowering -> row_fft_resource）同一函数、同一 (len,rows,override)，
+        // 因此 descriptor 报告的 UB 就是本段发射实际占用的上界（R0.1）。
+        //   AB_FOLD_D=<k> 可强制指定，仅供 A/B —— 核内 tmpF/idx 按传入值现算，
+        //   任意 k>=1 都功能正确；k>1 而 rows=len/K>64 时核内 plane 段按 64 元素
+        //   行切片（不变错）。AB_PLANE_K=<8|16|32> 覆盖平面 K（索引生成 + 打包进
+        //   第 8 参高 8 位）。K 不能 < 8（planar 首级 h=K<8 时 32B 对齐失效，
+        //   AIV 抛 507035），这正是 planeKFor 候选集从 8 起跳的原因。只对当前
+        //   8 参内核有效（遗留 v1/v2 不读第 8 参）。
+        const butterfly::RowFftPlan rf =
+            butterfly::resolve_row_fft(len, rows, ovFoldD, ovPlaneK);
+        if (!rf.legal) {
+            // R1.0：短路径也走此收口；descriptor 门禁已拦截长链，这里为
+            // 无门禁路径（短链）与未来调用方兜底 —— 显式失败，绝不静默改值。
+            printf("illegal row-FFT plan (len=%u rows=%u D=%u K=%u): %s\n",
+                   len, rows, ovFoldD, ovPlaneK, rf.reason);
+            std::exit(2);
         }
-        const uint32_t D = foldD ? foldD : 1u;
-        // AB_PLANE_K=<8|16|32> 覆盖平面 K（索引生成 + 打包进第 8 参高 8 位）。K 不能 < 8
-        // （planar 首级 h=K<8 时 32B 对齐失效，AIV 抛 507035），这正是 planeKFor 候选集从
-        // 8 起跳的原因。只对当前 8 参内核有效（遗留 v1/v2 不读第 8 参）。
-        uint32_t planeK = bfly::planeKFor(len);
-        if (const char* e = getenv("AB_PLANE_K")) {
-            int v = atoi(e);
-            if (v == 8 || v == 16 || v == 32) planeK = (uint32_t)v;
-        }
+        const uint32_t foldD  = rf.fold_d;
+        const uint32_t planeK = rf.plane_k;
+        const uint32_t D = foldD;
         P.packArg = foldD | (planeK << 8) | ((sgn > 0.0) ? (1u << 16) : 0u);
         P.idxN = 4u*len + 2u*len*D;
         P.idx.assign(P.idxN, 0u);
@@ -438,7 +535,8 @@ int main(int argc, char** argv){
         pp2 = prepPass(gLen2, gRows2);
     }
     void *dIn=nullptr,*dOut=nullptr,*dA=nullptr,*dB=nullptr,*dTwR=nullptr,*dTwI=nullptr,
-         *dIdx=nullptr,*dPW=nullptr,*dTw2R=nullptr,*dTw2I=nullptr,*dIdx2=nullptr;
+         *dIdx=nullptr,*dPW=nullptr,*dTw2R=nullptr,*dTw2I=nullptr,*dIdx2=nullptr,
+         *dWB=nullptr;
     CK(aclrtMalloc(&dIn,  inElems*4u,  ACL_MEM_MALLOC_NORMAL_ONLY));
     CK(aclrtMalloc(&dOut, outElems*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
     if(isR2C){                                    // Z：内层 FFT 输出（n float/行）
@@ -467,6 +565,11 @@ int main(int argc, char** argv){
         CK(aclrtMemcpy(dIdx2, (size_t)pp2.idxN*4u, pp2.idx.data(),
                        (size_t)pp2.idxN*4u, ACL_MEMCPY_HOST_TO_DEVICE));
     }
+    if(devBoundary){                              // 段边界旋转因子（wT 交错布局，plan 期上传）
+        CK(aclrtMalloc(&dWB, 2ull*(size_t)n*sizeof(float), ACL_MEM_MALLOC_NORMAL_ONLY));
+        CK(aclrtMemcpy(dWB, 2ull*(size_t)n*sizeof(float), wT.data(),
+                       2ull*(size_t)n*sizeof(float), ACL_MEMCPY_HOST_TO_DEVICE));
+    }
     if(isR2C){
         CK(aclrtMemcpy(dPW, (size_t)pPad*4u, pwr.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
         CK(aclrtMemcpy((char*)dPW + (size_t)pPad*4u, (size_t)pPad*4u,
@@ -489,6 +592,123 @@ int main(int argc, char** argv){
             CK(aclrtBinaryGetFunction(rb,"kfft_c2r_prep",&fPrep));
             CK(aclrtBinaryGetFunction(rb,"kfft_c2r_post",&fPost));
         }
+    }
+
+    // 长链 device 边界内核（AB_BOUNDARY=device，addendum §3）
+    aclrtBinHandle lb=nullptr;
+    aclrtFuncHandle fLtTr=nullptr, fLtTw=nullptr;
+    uint32_t argBytesL=36;
+    if(devBoundary){
+        const char* lpath = getenv("AB_LONG_O")?getenv("AB_LONG_O"):"build/fft_long.o";
+        CK(aclrtBinaryLoadFromFile(lpath, nullptr, &lb));
+        // R2-A：AB_LT_TILE=HxW 选择编译期候选入口 kfft_lt_tr_t{H}x{W}；
+        // AB_LT_STRIPE_K=K 选择条带长度入口 kfft_lt_tr_k{K}（仅默认 tile
+        // 编译了 K 变体）。合法性与 descriptor 门禁同源 ab_stripe_legal；
+        // 缺省走默认 128x32/K=512 入口。非法组合直接 rc=2，绝不静默回落。
+        std::string trName = "kfft_lt_tr";
+        const char* tileEnv = getenv("AB_LT_TILE");
+        const char* kEnv = getenv("AB_LT_STRIPE_K");
+        const char* idxEnv = getenv("AB_LT_IDX");
+        const bool resident = idxEnv && *idxEnv && strcmp(idxEnv, "resident") == 0;
+        if(idxEnv && *idxEnv && !resident){
+            printf("illegal AB_LT_IDX=%s: only 'resident' is a compiled "
+                   "mode (rebuild is the default)\n", idxEnv);
+            return 2;
+        }
+        unsigned th = AB_LT_H, tw = AB_LT_W, sk = AB_FUSE_STRIPE_K;
+        if(tileEnv && *tileEnv){
+            char junk=0;
+            if(sscanf(tileEnv, "%ux%u%c", &th, &tw, &junk) != 2){
+                printf("illegal AB_LT_TILE=%s: need HxW (e.g. 64x32)\n", tileEnv);
+                return 2;
+            }
+            if(resident && !(tileEnv && strcmp(tileEnv, "64x32") == 0)){
+                // 64x32+resident 仅为 R5 pp2 原型编译（下面 AB_LT_PIPE 块
+                // 放行并重定向到专用入口）；其余 tile+resident 无入口。
+                printf("AB_LT_TILE=%s + AB_LT_IDX=resident has no compiled "
+                       "entry (resident index exists for the default 128x32 "
+                       "tile and the 64x32 pp2 prototype only)\n", tileEnv);
+                return 2;
+            }
+            char buf[32];
+            snprintf(buf, sizeof(buf), "_t%ux%u", th, tw);
+            trName += buf;
+        }
+        if(kEnv && *kEnv){
+            char junk=0;
+            if(sscanf(kEnv, "%u%c", &sk, &junk) != 1 || sk==0){
+                printf("illegal AB_LT_STRIPE_K=%s: need a positive integer\n", kEnv);
+                return 2;
+            }
+            if(!(sk==AB_FUSE_STRIPE_K)){
+                char buf[32];
+                snprintf(buf, sizeof(buf), "_k%u", sk);
+                trName += buf;
+            }
+            const char* pipeEnvEarly = getenv("AB_LT_PIPE");
+            const bool pp2Early = pipeEnvEarly && strcmp(pipeEnvEarly, "pp2") == 0;
+            if((tileEnv && *tileEnv) && sk != AB_FUSE_STRIPE_K && !pp2Early){
+                printf("AB_LT_TILE+AB_LT_STRIPE_K combination %s/%s has no "
+                       "compiled entry (K variants exist for the default "
+                       "128x32 tile only)\n", tileEnv, kEnv);
+                return 2;
+            }
+        }
+        if(resident) trName += "_ri";
+        if(!ab_stripe_legal(th, tw, sk, resident ? 1u : 0u)){
+            printf("illegal tile/stripe: H=%u W=%u K=%u resident=%d "
+                   "(candidates H={64,128,256} W={16,32,64} K={128,256,512}, "
+                   "32B align, K <= H*W, carve 10K<=2HW rebuild / "
+                   "3K<=HW resident)\n", th, tw, sk, (int)resident);
+            return 2;
+        }
+        // R2-B/R5：AB_LT_PIPE=nb|pp|pp2 选择管线实验入口。
+        //   nb/pp  = kfft_lt_tr_k256ri_{nb,pp}（默认 128x32 tile + K=256 +
+        //             resident，R2-A 胜者配置）；
+        //   pp2    = kfft_lt_tr_t64x32_k256ri_pp2（R5 原型：64x32 半 tile，
+        //             in/out/tw 全双缓冲，需显式 AB_LT_TILE=64x32）。
+        // 缺省（未设）走上面拼好的常规入口；非法/未编译组合 rc=2，绝不静默回落。
+        const char* pipeEnv = getenv("AB_LT_PIPE");
+        if(pipeEnv && *pipeEnv){
+            const bool pp2 = strcmp(pipeEnv, "pp2") == 0;
+            if(!(pp2 || strcmp(pipeEnv,"nb")==0 || strcmp(pipeEnv,"pp")==0)){
+                printf("illegal AB_LT_PIPE=%s: only 'nb' (narrow barriers), "
+                       "'pp' (input ping-pong) or 'pp2' (R5 full "
+                       "double-buffer at 64x32) are compiled\n", pipeEnv);
+                return 2;
+            }
+            if(!resident){
+                printf("AB_LT_PIPE=%s requires AB_LT_IDX=resident (the pipe "
+                       "entries are fixed at resident-index configs)\n",
+                       pipeEnv);
+                return 2;
+            }
+            if(sk != 256u){
+                printf("AB_LT_PIPE=%s has no compiled entry: needs K=256\n",
+                       pipeEnv);
+                return 2;
+            }
+            if(pp2){
+                if(!(tileEnv && strcmp(tileEnv, "64x32") == 0)){
+                    printf("AB_LT_PIPE=pp2 needs AB_LT_TILE=64x32 (R5 "
+                           "half-tile full double-buffer prototype)\n");
+                    return 2;
+                }
+                trName = "kfft_lt_tr_t64x32_k256ri_pp2";
+            }else{
+                if(tileEnv && *tileEnv){
+                    printf("AB_LT_PIPE=%s has no compiled entry: needs the "
+                           "default 128x32 tile\n", pipeEnv);
+                    return 2;
+                }
+                trName = "kfft_lt_tr_k256ri_";
+                trName += pipeEnv;
+            }
+        }
+        CK(aclrtBinaryGetFunction(lb, trName.c_str(), &fLtTr));
+        CK(aclrtBinaryGetFunction(lb, "kfft_lt_tw", &fLtTw));
+        uint32_t lbs=readArgSize(lpath);
+        if(lbs>=36) argBytesL=lbs;      // 下界防御：abL 以 36B 下界做 memcpy
     }
 
     uint32_t blocks = batch<48u?batch:48u;
@@ -561,15 +781,126 @@ int main(int argc, char** argv){
         uint32_t blk = rows<48u?rows:48u;
         return aclrtLaunchKernelWithHostArgs(f,blk,s,nullptr,ab.data(),ab.size(),nullptr,0);
     };
-    // device_only 口径：每次 launch 用事件对量取各内核在 device 上的 span 之和
-    // （不含宿主段、不含段间拷贝），由 aclrtEventElapsedTime 给出。
-    aclrtEvent ev0=nullptr, ev1=nullptr;
-    CK(aclrtCreateEvent(&ev0)); CK(aclrtCreateEvent(&ev1));
-    double devSpanMs=-1;
+    // 转置/点乘内核实参（两内核同签名 36B：dst,src,tw,nRows,nCols,batch；
+    // kfft_lt_tr 的 tw 不用但占位，与 fft_real 的 dummy ex0/ex1 同约定）。
+    // R2-A Round 4：AB_LT_BLOCKS 覆盖转置/点乘内核的 launch blocks
+    // （缺省 min(48, rows)；候选 12/24/48/96，多出的块走 grid-stride 第二波）。
+    uint32_t ltBlocksOverride = 0;
+    if(const char* bEnv = getenv("AB_LT_BLOCKS")){
+        char junk = 0; unsigned bv = 0;
+        if(sscanf(bEnv, "%u%c", &bv, &junk) != 1 || bv == 0 || bv > 4095u){
+            printf("illegal AB_LT_BLOCKS=%s: need an integer in [1,4095]\n",
+                   bEnv);
+            return 2;
+        }
+        ltBlocksOverride = bv;
+    }
+    std::vector<unsigned char> abL(argBytesL, 0);
+    auto issueLt=[&](aclrtFuncHandle fh, void* dst, void* src, void* tw,
+                     uint32_t nRows, uint32_t nCols)->aclError{
+        uint64_t q0=(uint64_t)(uintptr_t)dst, q1=(uint64_t)(uintptr_t)src;
+        uint64_t q2=tw?(uint64_t)(uintptr_t)tw:0;
+        memcpy(abL.data()+0, &q0, 8);
+        memcpy(abL.data()+8, &q1, 8);
+        memcpy(abL.data()+16,&q2, 8);
+        memcpy(abL.data()+24,&nRows, 4);
+        memcpy(abL.data()+28,&nCols, 4);
+        memcpy(abL.data()+32,&batch, 4);
+        uint32_t lb = ltBlocksOverride ? ltBlocksOverride : blocks;
+        return aclrtLaunchKernelWithHostArgs(fh, lb, s, nullptr,
+                                             abL.data(), abL.size(), nullptr, 0);
+    };
+    // 计时口径（PR #2 阶段 1）：三段同名字段 + 显式 NA，宿主/设备边界语义一致。
+    //   h2d          = 逻辑输入 H2D 的事件跨度（evIn..ev0）
+    //   device_chain = 链上 device 计算内核的事件跨度（ev0..ev1）——不含任何传输：
+    //                  device 边界 = 3×transpose + 2×FFT + 1×twiddle 连续跨度；
+    //                  host 边界 = pass1+pass2 两次 FFT 跨度之和（段间传输/宿主段在墙钟里）
+    //   d2h          = 逻辑输出 D2H 的事件跨度（ev1..evOut；host 边界为 pass2 出数那次）
+    //   短路径无逐次 launch 传输 => h2d/d2h 显式 NA，device_chain = 内核跨度。
+    // 各跨度报 reps 次的最小值；host_end_to_end 报墙钟 mean/min，恒 >= h2d+chain+d2h
+    // （逐次满足 wall_i >= h2d_i+chain_i+d2h_i，min/mean 保持该不等式，允许时钟域噪声）。
+    aclrtEvent evIn=nullptr, ev0=nullptr, ev1=nullptr, evOut=nullptr;
+    CK(aclrtCreateEvent(&evIn));  CK(aclrtCreateEvent(&ev0));
+    CK(aclrtCreateEvent(&ev1));   CK(aclrtCreateEvent(&evOut));
+    // P0 段分解（PR #2 性能评论阶段 2 / PR-B R1）：device 链相邻内核间的事件对，
+    // 段跨度 telescope 求和 == ev0..ev1 的 device_chain（同一次 launch）。
+    // separate = 6 段（twiddle 与段边界转置两次发射）；fused = 5 段（twiddle 并入
+    // 段边界转置，打印省略 twiddle 字段，槽位跳过 segMs[2]）。
+    aclrtEvent evSeg[5];
+    for(auto &ev:evSeg) CK(aclrtCreateEvent(&ev));
+    const int nSeg = fusedImpl ? 5 : 6;
+    static const int kSlotSep[6]={0,1,2,3,4,5};
+    static const int kSlotFus[5]={0,1,3,4,5};
+    const int* segSlot = fusedImpl ? kSlotFus : kSlotSep;
+    double chainSpanMs=-1, h2dSpanMs=-1, d2hSpanMs=-1;
+    double segMs[6]={-1,-1,-1,-1,-1,-1}; bool segOk=false;
+    // R3：device 链内嵌的 H2D/D2H 指针上提——E2E 分配了 pinned 主机缓冲
+    // （AB_E2E=1）时指向 pinned，否则保持 pageable hIn/hOut（纯链计时口径
+    // 不变：chain 事件跨度不含传输）。
+    const float* h2dPtr = hIn.data();
+    float*       d2hPtr = hOut.data();
     // 一次 launch = 整条方向链（多内核在同一流上串行），末尾一次同步 => 计的是整链 device 时间
     auto launch=[&](){
         aclError e=ACL_SUCCESS;
-        devSpanMs=-1;
+        chainSpanMs=-1; h2dSpanMs=-1; d2hSpanMs=-1; segOk=false;
+        if(isLong && devBoundary){
+            // device-materialized 链（addendum §3 step 3），逐步对齐宿主四步：
+            //   H2D(逻辑输入) -> 转置入 lt_tr(n1,n2) -> 行FFT(N1) ->
+            //   段边界(separate: lt_tw + lt_tr；fused: lt_tr 消费 wT 一体) ->
+            //   行FFT(N2) -> 自然序写出 lt_tr(n1,n2) -> D2H(逻辑输出)。
+            // 每次执行都从当前 hIn 上传（动态输入契约）；段边界不回宿主 => boundary=0。
+            aclError e=aclrtRecordEvent(evIn, s);
+            if(!e) e=aclrtMemcpyAsync(dIn, inElems*4u, h2dPtr, inElems*4u,
+                                      ACL_MEMCPY_HOST_TO_DEVICE, s);
+            if(!e) e=aclrtRecordEvent(ev0, s);        // chain 起点：H2D 完成之后
+            if(!e) e=issueLt(fLtTr, dA, dIn, nullptr, longN1, longN2);
+            if(!e) e=aclrtRecordEvent(evSeg[0], s);    // transpose_in |
+            if(!e) e=issuePass(dIn, dA, longN1, longN2*batch,
+                               dTwR, dTwI, dIdx, pp1.packArg);
+            if(!e) e=aclrtRecordEvent(evSeg[1], s);    // fft1 |
+            if(fusedImpl){
+                // PR-B：twiddle 折进段边界转置（同一发射读入 tile 内复乘），
+                // 整张量 twiddle 的 GM 往返消失 => 5 发射。
+                if(!e) e=issueLt(fLtTr, dA, dIn, dWB, longN2, longN1);
+                if(!e) e=aclrtRecordEvent(evSeg[2], s); // (twiddle 并入) transpose_boundary |
+            }else{
+                if(!e) e=issueLt(fLtTw, dIn, dIn, dWB, longN1, longN2);
+                if(!e) e=aclrtRecordEvent(evSeg[2], s); // twiddle |
+                if(!e) e=issueLt(fLtTr, dA, dIn, nullptr, longN2, longN1);
+                if(!e) e=aclrtRecordEvent(evSeg[3], s); // transpose_boundary |
+            }
+            if(!e) e=issuePass(dIn, dA, longN2, longN1*batch,
+                               dTw2R, dTw2I, dIdx2, pp2.packArg);
+            if(!e) e=aclrtRecordEvent(fusedImpl ? evSeg[3] : evSeg[4], s); // fft2 |
+            if(!e) e=issueLt(fLtTr, dOut, dIn, nullptr, longN1, longN2);
+            if(!e) e=aclrtRecordEvent(ev1, s);        // chain 止点：末次转置之后、D2H 之前
+            if(!e) e=aclrtMemcpyAsync(d2hPtr, outElems*4u, dOut, outElems*4u,
+                                      ACL_MEMCPY_DEVICE_TO_HOST, s);
+            if(!e) e=aclrtRecordEvent(evOut, s);
+            if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
+            float dInEv=-1.f, dm=-1.f, dOutEv=-1.f;
+            if(!e){ aclrtEventElapsedTime(&dInEv, evIn, ev0);
+                    aclrtEventElapsedTime(&dm, ev0, ev1);
+                    aclrtEventElapsedTime(&dOutEv, ev1, evOut); }
+            if(!e){ // 段跨度：separate 6 段 / fused 5 段，见 kSlotSep/kSlotFus
+                aclrtEvent mk[7]={ev0,evSeg[0],evSeg[1],evSeg[2],
+                                  evSeg[3],evSeg[4],ev1};
+                if(fusedImpl) mk[5]=ev1;   // fused 只记 4 个段事件，末标记 = chain 止点
+                bool ok=true;
+                for(int k=0;k<nSeg && ok;k++){
+                    float t=-1.f;
+                    if(aclrtEventElapsedTime(&t, mk[k], mk[k+1])!=ACL_SUCCESS
+                       || t<0.f) ok=false;
+                    else segMs[segSlot[k]]=t;
+                }
+                segOk=ok;
+            }
+            if(e){ printf("long launch=%d\n",(int)e); return false; }
+            chainSpanMs = dm>=0.f ? (double)dm : -1.0;    // 内核连续跨度，无传输混入
+            h2dSpanMs   = dInEv>=0.f ? (double)dInEv : -1.0;
+            d2hSpanMs   = dOutEv>=0.f ? (double)dOutEv : -1.0;
+            return true;
+        }
         if(isLong){
             // 四步 Cooley-Tukey（G1，见 docs/benchmarks/long-fft-plan.md）：
             //   宿主转置入 -> 行FFT(N1) -> 宿主 twiddle+转置 -> 行FFT(N2) -> 宿主重排出。
@@ -582,9 +913,10 @@ int main(int argc, char** argv){
                         size_t dst=2ull*(((size_t)b*longN2 + j)*longN1 + i);
                         hT[dst]=hIn[src]; hT[dst+1]=hIn[src+1];
                     }
-            float dm0=-1.f, dm1=-1.f;
-            e=aclrtMemcpyAsync(dIn, inElems*4u, hT.data(), inElems*4u,
-                               ACL_MEMCPY_HOST_TO_DEVICE, s);
+            float dm0=-1.f, dm1=-1.f, dInEv=-1.f, dOutEv=-1.f;
+            e=aclrtRecordEvent(evIn, s);
+            if(!e) e=aclrtMemcpyAsync(dIn, inElems*4u, hT.data(), inElems*4u,
+                                      ACL_MEMCPY_HOST_TO_DEVICE, s);
             if(!e) e=aclrtRecordEvent(ev0, s);
             if(!e) e=issuePass(dA, dIn, longN1, longN2*batch,
                                dTwR, dTwI, dIdx, pp1.packArg);
@@ -592,7 +924,8 @@ int main(int argc, char** argv){
             if(!e) e=aclrtMemcpyAsync(hMid.data(), inElems*4u, dA, inElems*4u,
                                       ACL_MEMCPY_DEVICE_TO_HOST, s);
             if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
-            if(!e) aclrtEventElapsedTime(&dm0, ev0, ev1);
+            if(!e){ aclrtEventElapsedTime(&dm0, ev0, ev1);
+                    aclrtEventElapsedTime(&dInEv, evIn, ev0); }   // h2d = 输入 H2D 段
             if(!e){ // 宿主段①：twiddle W_N^{j·k1} + 转置成 pass2 行布局
                 for(uint32_t b=0;b<batch;b++)
                     for(uint32_t j=0;j<longN2;j++)
@@ -614,8 +947,10 @@ int main(int argc, char** argv){
             if(!e) e=aclrtRecordEvent(ev1, s);
             if(!e) e=aclrtMemcpyAsync(hMid.data(), inElems*4u, dOut, outElems*4u,
                                       ACL_MEMCPY_DEVICE_TO_HOST, s);
+            if(!e) e=aclrtRecordEvent(evOut, s);
             if(!e){ aclError se=aclrtSynchronizeStream(s); if(se) e=se; }
-            if(!e) aclrtEventElapsedTime(&dm1, ev0, ev1);
+            if(!e){ aclrtEventElapsedTime(&dm1, ev0, ev1);
+                    aclrtEventElapsedTime(&dOutEv, ev1, evOut); }  // d2h = 输出 D2H 段
             if(!e){ // 宿主段②：E[k1][k2] -> X[k1+N1·k2] 自然序
                 for(uint32_t b=0;b<batch;b++)
                     for(uint32_t k1=0;k1<longN1;k1++)
@@ -628,7 +963,9 @@ int main(int argc, char** argv){
             }
             // 结果就地留在 hOut：pass2 的 D2H 就是唯一逻辑输出传输，不再回写 dOut
             if(e){ printf("long launch=%d\n",(int)e); return false; }
-            devSpanMs = (dm0>=0.f && dm1>=0.f) ? (double)(dm0+dm1) : -1.0;  // ms
+            chainSpanMs = (dm0>=0.f && dm1>=0.f) ? (double)(dm0+dm1) : -1.0;  // ms
+            h2dSpanMs   = dInEv>=0.f ? (double)dInEv : -1.0;
+            d2hSpanMs   = dOutEv>=0.f ? (double)dOutEv : -1.0;
             return true;
         }
         float dm=-1.f;
@@ -642,7 +979,7 @@ int main(int argc, char** argv){
         if(e){ printf("launch=%d\n",(int)e); return false; }
         { aclError se=aclrtSynchronizeStream(s); if(se){ printf("sync=%d\n",(int)se); return false; } }
         aclrtEventElapsedTime(&dm, ev0, ev1);
-        devSpanMs = dm>=0.f ? (double)dm : -1.0;   // ms
+        chainSpanMs = dm>=0.f ? (double)dm : -1.0;   // ms；短路径无逐次传输 => h2d/d2h=NA
         return true;
     };
 
@@ -678,7 +1015,10 @@ int main(int argc, char** argv){
         const char* hostMode = getenv("AB_E2E_HOST");
         const bool wantPinned = !(hostMode && strcmp(hostMode,"pageable")==0);
         float* pIn = nullptr; float* pOut = nullptr;
-        if(wantPinned && !isLong){
+        // R3：长链同样分配 pinned（此前 !isLong 跳过 => device 链 E2E 的
+        // H2D/D2H 一直走 pageable，带宽随 loadavg 摆 2~4×，把主机拷贝路径
+        // 的账记到链上）。分配成功后 launch 内嵌传输切到 pinned。
+        if(wantPinned){
             void *a=nullptr, *b=nullptr;
             const size_t nbi=inElems*4u, nbo=outElems*4u;
             const int ei=aclrtMallocHost(&a, nbi), eo=aclrtMallocHost(&b, nbo);
@@ -691,9 +1031,10 @@ int main(int argc, char** argv){
                 printf("E2E host=pinned alloc failed (%d/%d) -> pageable\n", ei, eo);
             }
         }
+        if(pIn){ h2dPtr = pIn; d2hPtr = pOut; }
         const float* src = pIn ? pIn : hIn.data();
         float*       dst = pOut ? pOut : hOut.data();
-        const char*  hostTag = isLong ? "chain" : (pIn ? "pinned" : "pageable");
+        const char*  hostTag = pIn ? "pinned" : "pageable";
         double sumE=0, minE=0, firstE=0;
         const auto t0e=std::chrono::steady_clock::now();
         for(int i=0;i<ereps;i++){
@@ -731,15 +1072,19 @@ int main(int argc, char** argv){
         // 传输计数断言口径：每次执行恰 1 次逻辑输入 + 1 次逻辑输出；
         // 段边界传输（长链 pass1 出数 / pass2 入数）单列，不算逻辑传输。
         printf("E2E transfers: in=1 out=1 boundary=%d per_execution\n",
-               (isLong && !xferOnly) ? 2 : 0);
+               (isLong && !xferOnly && !devBoundary) ? 2 : 0);
         fflush(stdout);
         if(pIn){ aclrtFreeHost(pIn); aclrtFreeHost(pOut); }
     }
 
     // 逐次 launch 计时：均值与最小值都报。均值与 §8.5 的 η 标定同口径，
     // 最小值与 bench_native_npu.py 的统计量同口径 —— 两边可以各自对齐比。
-    // device_only 取各次 launch 内核 span（事件对测量）的最小值。
-    double sumUs=0, minUs=0, devMinUs=-1;
+    // h2d/device_chain/d2h 取各次 launch 事件跨度的最小值（与墙钟 min 同次迭代，
+    // 逐次满足 wall_i >= h2d_i+chain_i+d2h_i => min/mean 口径下不等式仍成立）。
+    double sumUs=0, minUs=0, chainMinUs=-1, h2dMinUs=-1, d2hMinUs=-1;
+    // 六段与 device_chain 绑定同一次 launch（产生 chain 最小值那次），
+    // 这样 sum(segments) == device_chain 恒等成立，不被逐段独立取 min 破坏。
+    double segMinUs[6]={-1,-1,-1,-1,-1,-1}; bool segHave=false;
     std::vector<double> samples; samples.reserve(reps);
     for(int i=0;i<reps;i++){
         auto a0=std::chrono::steady_clock::now();
@@ -747,8 +1092,18 @@ int main(int argc, char** argv){
         auto a1=std::chrono::steady_clock::now();
         double u=std::chrono::duration<double,std::micro>(a1-a0).count();
         sumUs+=u; if(i==0||u<minUs) minUs=u; samples.push_back(u);
-        if(devSpanMs>=0 && (devMinUs<0 || devSpanMs*1000.0<devMinUs))
-            devMinUs=devSpanMs*1000.0;
+        if(chainSpanMs>=0 && (chainMinUs<0 || chainSpanMs*1000.0<chainMinUs)){
+            chainMinUs=chainSpanMs*1000.0;
+            if(segOk){
+                for(int k=0;k<6;k++)
+                    segMinUs[k] = segMs[k]>=0 ? segMs[k]*1000.0 : -1.0;
+                segHave=true;
+            }
+        }
+        if(h2dSpanMs>=0 && (h2dMinUs<0 || h2dSpanMs*1000.0<h2dMinUs))
+            h2dMinUs=h2dSpanMs*1000.0;
+        if(d2hSpanMs>=0 && (d2hMinUs<0 || d2hSpanMs*1000.0<d2hMinUs))
+            d2hMinUs=d2hSpanMs*1000.0;
     }
     double us=sumUs/reps;
     double medUs=0;
@@ -763,11 +1118,39 @@ int main(int argc, char** argv){
         }
     }
 
-    // 四个计时口径显式成行（PR 评论 P1-A）：plan 一次性准备、首次执行、
-    // 同步 host 端到端（含宿主段与段间拷贝）、纯 device 内核 span。
+    // 计时口径显式成行（PR #2 阶段 1）：plan 一次性准备、首次执行、同步 host
+    // 端到端（墙钟，含宿主段与段间拷贝）、h2d / device_chain / d2h 事件跨度。
+    // 同名字段跨宿主/设备边界同语义；不适用（短路径无逐次传输）显式打印 NA。
+    auto spanStr=[](double v){
+        char b[40];
+        if(v>=0) snprintf(b,sizeof b,"%.1f us",v);
+        else     snprintf(b,sizeof b,"NA");
+        return std::string(b);
+    };
     printf("scopes: plan_setup=%.1f us first_use=%.1f us host_end_to_end mean=%.1f "
-           "min=%.1f us device_only=%.1f us reps=%d\n",
-           planUs, firstUseUs, us, minUs, devMinUs, reps);
+           "min=%.1f us h2d=%s device_chain=%s d2h=%s reps=%d\n",
+           planUs, firstUseUs, us, minUs,
+           spanStr(h2dMinUs).c_str(), spanStr(chainMinUs).c_str(),
+           spanStr(d2hMinUs).c_str(), reps);
+    // PR-B：device 链自报段边界发射形态（证据契约核对 impl 归属用；宿主/短
+    // 路径无此行）。fused 的链必然 5 发射，separate 必然 6 发射。
+    if(isLong && devBoundary)
+        printf("boundary_impl: %s\n", fusedImpl ? "fused" : "separate");
+    // P0 段分解行（PR #2 性能评论 / PR-B R1）：device 链按 impl 报 6 段
+    // （separate：twiddle 与段边界转置两次发射）或 5 段（fused：twiddle 并入
+    // 段边界转置）；宿主/短路径显式 NA。
+    // 与 scopes 的 device_chain 取自同一次 launch（chain 最小值那次），
+    // 因此 sum(segments) == device_chain（事件对 telescope，仅浮点误差）。
+    if(segHave){
+        static const char* segNames[6]={"transpose_in","fft1","twiddle",
+                                        "transpose_boundary","fft2","transpose_out"};
+        printf("segments:");
+        for(int k=0;k<nSeg;k++)
+            printf(" %s=%.1f us", segNames[segSlot[k]], segMinUs[segSlot[k]]);
+        printf("\n");
+    }else{
+        printf("segments: NA\n");
+    }
 
     if(!isLong)   // 长链的逻辑输出 D2H 已在 launch 内完成，结果就在 hOut
         CK(aclrtMemcpy(hOut.data(), outElems*4u, dOut, outElems*4u, ACL_MEMCPY_DEVICE_TO_HOST));

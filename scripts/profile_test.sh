@@ -14,6 +14,9 @@
 #   nat       原生 torch.fft.fft, n=4096 B=4096 + PipeUtilization
 #   rfft      裸 CANN aclRfft1D, n=4096 B=1024（norm=1，dump 到 $AB_WORK/rfft.bin）
 #   cube      fp32 Cube 探针（opt-in，只在 `--only cube` 时生效，不在默认清单 ALL 里）
+#   lfft8k1 / lfft16k47 / lfft32k47 / lfft65k47
+#             长 FFT device 边界链（AB_BOUNDARY=device，P0 六段归因优先形状），
+#             --task-time=on 给出逐 kernel 时间，与 fft_check 的 `segments:` 行对照
 #
 # 采集不到 msprof 时直接报错退出（profile 实验不可用，其余实验不受影响）。
 set -uo pipefail
@@ -33,7 +36,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-ALL=(ours_b1 ours_b64 ours_b4k nat rfft)
+ALL=(ours_b1 ours_b64 ours_b4k nat rfft lfft8k1 lfft16k47 lfft32k47 lfft65k47)
 
 case_cmd() { # case_cmd <name> -> 设置命令数组 CMD_ARR 与 msprof 额外参数 PIPE_ARGS
   case "$1" in
@@ -43,6 +46,11 @@ case_cmd() { # case_cmd <name> -> 设置命令数组 CMD_ARR 与 msprof 额外�
     nat)      CMD_ARR=("$AB_PY" scripts/native_fft.py --n 4096 --b 4096 --reps 10)
               PIPE_ARGS=(--aic-metrics=PipeUtilization) ;;
     rfft)     CMD_ARR=(./build/baseline_rfft 4096 1024 1 "$AB_WORK/rfft.bin") PIPE_ARGS=() ;;
+    # P0 长链：AB_E2E=3 让 E2E/segments 行也进 trace；reps=3 足够 task-time 汇总
+    lfft8k1)   CMD_ARR=(env AB_BOUNDARY=device AB_E2E=3 ./build/fft_check 8192 1 3)    PIPE_ARGS=() ;;
+    lfft16k47) CMD_ARR=(env AB_BOUNDARY=device AB_E2E=3 ./build/fft_check 16384 47 3)  PIPE_ARGS=() ;;
+    lfft32k47) CMD_ARR=(env AB_BOUNDARY=device AB_E2E=3 ./build/fft_check 32768 47 3)  PIPE_ARGS=() ;;
+    lfft65k47) CMD_ARR=(env AB_BOUNDARY=device AB_E2E=3 ./build/fft_check 65536 47 3)  PIPE_ARGS=() ;;
     # 与 scripts/hw_probe.sh 的 cube 分支同参：mode=2(+Fixpipe) a0b0(lay=0) nrep=5
     cube)     CMD_ARR=(./build/cube_probe build/cube_probe.o 2 1 16 2 0 5) PIPE_ARGS=() ;;
     *)        echo "unknown case: $1" >&2; return 2 ;;

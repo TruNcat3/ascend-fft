@@ -89,7 +89,7 @@ GM 交错复数输入
    → DataCopy 回 GM
 ```
 
-整个 c2c transform 的中间值在单个 AIV 的 UB 中，不是每一级都写回 GM。多个 AIV 分配独立 batch；单个 AIV 按组循环处理其余批次。满足 repeat、步长和并发约束时，D 个 batch 可共同形成矢量指令工作组。D 的作用是减少重复发射，而不是证明 MTE 与全部计算已经流水重叠。
+上述短 C2C 路径中，整个 transform 的中间值在单个 AIV 的 UB 中，不是每一级都写回 GM。多个 AIV 分配独立 batch；单个 AIV 按组循环处理其余批次。满足 repeat、步长和并发约束时，D 个 batch 可共同形成矢量指令工作组。D 的作用是减少重复发射，而不是证明 MTE 与全部计算已经流水重叠。
 
 <figure class="doc-diagram">
   <a href="../../figures/ascend_data_path_detail.svg">
@@ -103,6 +103,24 @@ GM 交错复数输入
     <a href="../../figures/ascend_data_path_detail.pdf">PDF</a></span>
   </figcaption>
 </figure>
+
+## 长 FFT：复用局部核心，改变段边界
+
+`fft_check` 的前向长 C2C 验收路径覆盖 `N=8192..65536`，以 `N=N1×N2` 的四步
+Cooley-Tukey 分段复用现有 `kfft_fwd` 行 FFT；它不表示公开短 C2C 支持范围已经扩展。
+`AB_BOUNDARY=device` 将转置、段间 twiddle 和自然序输出重排放到设备，段间数据仍在 GM
+物化；这不是多个 AIV 阶段角色同时驻留的生产者/消费者流水。
+
+同一行 FFT 核心下，`AB_LONG_BOUNDARY_IMPL=separate` 发射六个内核
+（转置入、FFT1、twiddle、段间转置、FFT2、转置出）；`fused` 将 twiddle 并入段间转置，
+降为五次发射。两者都保留一个 GM 物化段边界，device 链每次执行的逻辑传输仍为
+`in=1 out=1 boundary=0`。融合减少一次发射和独立点乘的 payload GM 读写，不能据此声称
+消除了全部 GM 交接或已经证明跨核重叠。
+
+lowering 在分配/启动前校验 manifest 与各物理内核的 UB 峰值；未实际消费的角色/驻留组合
+仍返回 `not-lowered`。实现与验收口径见 [长 FFT 实验计划](../benchmarks/long-fft-plan.md)，
+宿主/设备边界对照见 [验收证据](../generated/long-fft-evidence.md)；融合验收另归档于
+`results/evidence/long-fft-device-boundary-fused/acceptance.json`，不与短 FFT 发布均值混算。
 
 ## 框架对象不是七套独立算法
 
