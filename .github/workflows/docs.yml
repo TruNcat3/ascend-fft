@@ -33,6 +33,8 @@ jobs:
           done
       - name: Check planned long FFT tables
         run: python scripts/generate_long_fft_tables.py --check
+      - name: Check targeted convergence scope
+        run: python scripts/check_convergence_targets.py --check
       - name: Check published generated artifacts
         run: |
           if test -f results/published/ascend910_9382-cann9.0.0/manifest.json; then

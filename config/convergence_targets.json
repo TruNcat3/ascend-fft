@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "source_snapshot": "ascend910_9382-revalidation-20261010",
+  "source_sha256": {
+    "matrix.csv": "bbc5ef8daa4d4e808da70adbf1f3428862de978bb98d1c0e708dfd9d8b571457",
+    "r2c_c2r.json": "3eb5a0b67924f7086b0cdadec27ad91fca9435b5a7a8cc93b60ed4dcf18bdab3",
+    "protocol.json": "0e64a717105e7b9126cd7d7197b066d1b72c8c7ceef577d5f8c36e5a3efac1e6",
+    "summary.json": "c1c9f8471c9886ec1c7ea04807f05935f5782777fefa3b5a955ac15ddc6b892a"
+  },
+  "baselines": {
+    "c2c": {"runner": "cann-native", "source": "matrix.csv", "baseline_field": "native_us", "candidate_field": "ours_us"},
+    "r2c": {"runner": "torch-npu-rfft", "source": "r2c_c2r.json", "baseline_field": "torch_rfft", "candidate_field": "r2c"},
+    "c2r": {"runner": "torch-npu-irfft", "source": "r2c_c2r.json", "baseline_field": "torch_irfft", "candidate_field": "c2r"}
+  },
+  "objective": {
+    "metric": "matched_baseline_latency / candidate_latency",
+    "target_rule": "speedup < 1.0",
+    "pointwise_minimum_speedup": 1.0,
+    "desired_speedup": 1.05,
+    "report_parity_band": [0.95, 1.05],
+    "parity_is_not_objective_completion": true
+  },
+  "gates": {
+    "correctness": "All trials pass existing reference/error contracts; max relative error <= 1e-4 where applicable.",
+    "same_protocol": "Compare incumbent, candidate and matched NPU baseline under each source operator's timing/statistic/warmup/repetition contract; keep raw trials and provenance.",
+    "candidate_closure": "Include the current deployed incumbent in every shape's candidate set; validate the selected winner on independent trials.",
+    "full_matrix_non_regression": "After targeted wins, rerun the complete declared C2C/R2C/C2R grids and E2E/application guards; no correctness or supported-shape regression, and retain incumbent wherever a winner regresses.",
+    "uncertainty": "Report trial distribution and unstable outcomes explicitly; a parity-band label does not close a speedup < 1 target."
+  },
+  "phases": [
+    {"priority": "P0", "operator": "c2c", "purpose": "Close the only C2C device-only sub-unity point."},
+    {"priority": "P1", "operator": "r2c", "purpose": "Close all strict sub-unity real-forward points, including near-unity points."},
+    {"priority": "P2", "operator": "c2r", "purpose": "Close the remaining real-inverse sub-unity point."}
+  ],
+  "hardware_mapping_search_axes": [
+    "batch folding and AIV/block assignment",
+    "stage partition and local tile size",
+    "data-space/data-time expansion and task traversal",
+    "local radix or arithmetic-core selection (orthogonal to flow mapping)",
+    "transfer packing and real/complex pre/post-processing fusion",
+    "UB layout, capacity and live-state accounting",
+    "buffer count and producer/consumer overlap where legal and measured"
+  ],
+  "targets": [
+    {"operator": "c2c", "n": 1024, "batch": 4096, "priority": "P0"},
+    {"operator": "r2c", "n": 128, "batch": 64, "priority": "P1"},
+    {"operator": "r2c", "n": 128, "batch": 1024, "priority": "P1"},
+    {"operator": "r2c", "n": 128, "batch": 4096, "priority": "P1"},
+    {"operator": "r2c", "n": 256, "batch": 1024, "priority": "P1"},
+    {"operator": "r2c", "n": 256, "batch": 4096, "priority": "P1"},
+    {"operator": "r2c", "n": 512, "batch": 1024, "priority": "P1"},
+    {"operator": "r2c", "n": 512, "batch": 4096, "priority": "P1"},
+    {"operator": "r2c", "n": 1024, "batch": 1024, "priority": "P1"},
+    {"operator": "r2c", "n": 1024, "batch": 4096, "priority": "P1"},
+    {"operator": "r2c", "n": 8192, "batch": 64, "priority": "P1"},
+    {"operator": "r2c", "n": 8192, "batch": 256, "priority": "P1"},
+    {"operator": "r2c", "n": 8192, "batch": 1024, "priority": "P1"},
+    {"operator": "c2r", "n": 1024, "batch": 4096, "priority": "P2"}
+  ]
+}

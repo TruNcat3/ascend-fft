@@ -72,6 +72,8 @@ reg gpu-compare "docs/benchmarks/related-work.md"               "与公开 GPU �
     "python3 scripts/matrix_test.py --reps 30"
 reg long-fft-plan "docs/benchmarks/long-fft-plan.md"            "检查长 FFT 预声明表与实验清单一致（不测量）" \
     "python3 scripts/generate_long_fft_tables.py --check"
+reg convergence-plan "docs/benchmarks/targeted-convergence.md"  "校验当前快照中的全部低于 1.0x 目标（不测量）" \
+    "python3 scripts/check_convergence_targets.py --check"
 
 # ---------------------------------------------------------------------------
 
