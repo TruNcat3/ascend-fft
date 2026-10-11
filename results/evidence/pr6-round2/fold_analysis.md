@@ -56,3 +56,37 @@ is required per reviewer's R1 plan.
    - requires passing r2c twiddles (wrr, wri) to FFT kernel
 2. Fallback: keep current separate path as `kfft_r2c_post` (incumbent)
 3. Candidate closure: incumbent + fused, same protocol, >=2% promotion gate
+
+## R1 Implementation Attempt (c2r fusion)
+
+Attempted to implement c2r fused-epilogue by adding a mode flag (bit 17 of
+packArg) to kfft_fwd that would do real extraction + 1/n normalization in
+the final writer, eliminating the kfft_c2r_post launch.
+
+**Issue encountered**: The fused kernel output matched the interleaved
+complex output rather than the planar real parts. Despite:
+- Adding PipeBarrier before reading plan
+- Using plan/pr correctly (pr = plan alias)
+- Matching the c2r_post kernel's int32->float conversion pattern
+
+The output was still interleaved, suggesting the planar stages may not
+leave data in the expected format in plan, or there's a subtle buffer
+aliasing issue.
+
+**Resolution**: Reverted kernel changes. The c2r fusion requires deeper
+investigation of the kfft_fwd buffer lifecycle. This is a P2 optimization
+and should be done as a separate task with dedicated debugging.
+
+## Summary
+
+- R0 blockers (test_limits golden + bench_convergence candidate closure): **FIXED**
+- R1 r2c fused-epilogue: **NOT STARTED** (requires kernel fusion design)
+- R1 c2r fused-epilogue: **ATTEMPTED, REVERTED** (buffer lifecycle issue)
+- Remaining 13/14 points <1.0x: requires kernel-level changes per review plan
+
+## Files Changed
+
+- `tests/test_limits.cpp`: golden updated for n-aware foldDFor (33/33 pass)
+- `scripts/bench_convergence.py`: full candidate-closure runner
+- `tests/test_bench_convergence.py`: 6 tests for runner
+- `results/evidence/pr6-round2/`: evidence + analysis
