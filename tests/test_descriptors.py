@@ -250,8 +250,10 @@ class DescriptorLegalityTests(unittest.TestCase):
         self.assertEqual(a, b,
                          "batch must not change the lowering structure")
         self.assertEqual(self.structs["default_8192"]["ub_peak"], "6208")
+        # n<=256 segments now fold D=8 (was 4): UB peak grows accordingly.
+        # seg1(len=64,D=16)=31872, seg2(len=128,D=8)=32896 -> peak 32896.
         self.assertEqual(self.structs["batch_4096_independent"]["ub_peak"],
-                         "17536")
+                         "32896")
         self.assertGreater(
             int(self.structs["batch_4096_independent"]["ub_peak"]),
             int(self.structs["default_8192"]["ub_peak"]),

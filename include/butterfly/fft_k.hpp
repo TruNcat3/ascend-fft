@@ -116,8 +116,17 @@ BFLY_AICORE inline uint32_t planeLogKFor(uint32_t n) {
 BFLY_AICORE inline uint32_t foldDFor(uint32_t n,
                                       uint32_t batch = 0xFFFFFFFFu,
                                       uint32_t nblk = 1u) {
-    // A3 开关：1 = 关闭折叠（验证与折叠前实现逐字节等价）；过门后改 4。
-    const uint32_t kFoldCap = 4;
+    // 批折叠上限：小 n 时 UB 余量大、每批数据少，可折叠更多批以拉高矢量利用率。
+    // 实测（r2c, median/30reps/5trials，与 torch-npu rfft 对比）：
+    //   n=128 B=4096: D=4 229us -> D=16 203us (12%↑)；B=1024 时 D=16 反而恶化（并发不足）
+    //   n=512 B=4096: D=8 最优（264us），D=16 UB/组数恶化到 425us
+    //   n=1024 B=4096: D=4 已最优（365us）
+    // 约束：ceil(batch/D) 必须远大于 nblk 以保持 AIV 满载 —— 下面并发约束用
+    // ceil(batch/D) >= 2*nblk（而非 1*nblk），避免 D 过大导致活跃核数不足。
+    uint32_t kFoldCap;
+    if (n <= 64u)       kFoldCap = 16u;
+    else if (n <= 256u) kFoldCap = 8u;
+    else                kFoldCap = 4u;
     uint32_t D = kFoldCap;
     if (D <= 1u) return 1u;
     const uint32_t K = planeKFor(n);
@@ -135,10 +144,13 @@ BFLY_AICORE inline uint32_t foldDFor(uint32_t n,
     // 右移会把 4 直接砍成 2、白丢一档；举例 groupsMax=64 时 4*64=256>255 => 钳到 3；
 // 当前 planeKFor 使 n<=1024 的 groupsMax <= 32，故正常路径不触发，仅作防御）。
     while (D > 1u && D * groupsMax > 255u) D--;
-    // 并发：活跃组数 ceil(batch/D) 必须 >= nblk。batch >= 1，用 ((batch-1)/D+1) 做 ceil
-    // —— 写成 (batch+D-1)/D 会在 batch=0xFFFFFFFF（"不施加约束"的哨兵值）时溢出回绕。
+    // 并发：活跃组数 ceil(batch/D) 必须 >= 2*nblk（留一倍余量保证 AIV 满载）。
+    // batch >= 1，用 ((batch-1)/D+1) 做 ceil —— 写成 (batch+D-1)/D 会在
+    // batch=0xFFFFFFFF（"不施加约束"的哨兵值）时溢出回绕。
+    // nblk=1（静态估算/单核）时不施加并发约束。
     if (nblk > 1u) {
-        while (D > 1u && ((batch - 1u) / D + 1u) < nblk) D--;
+        const uint32_t minGroups = nblk * 2u;
+        while (D > 1u && ((batch - 1u) / D + 1u) < minGroups) D--;
     }
     return D;
 }
