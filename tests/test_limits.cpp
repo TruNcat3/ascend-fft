@@ -156,28 +156,33 @@ int main(int argc, char** argv) {
             auto r2 = resolve_row_fft(128, 64, 0, 0);      // 8192x1 pass2
             auto r3 = resolve_row_fft(64, 524288, 0, 0);   // 8192x4096 pass1
             auto r4 = resolve_row_fft(4096, 4096, 0, 0);   // n > 2048
-            auto ro = resolve_row_fft(64, 128, 4, 32);     // override + K clamp
+            auto ro = resolve_row_fft(64, 128, 4, 32);     // override + K illegal
             const size_t ub1 = (size_t)AB_ROW_FFT_UB_BYTES(64, r1.fold_d, r1.plane_k);
             const size_t ub2 = (size_t)AB_ROW_FFT_UB_BYTES(128, r2.fold_d, r2.plane_k);
             const size_t ub3 = (size_t)AB_ROW_FFT_UB_BYTES(64, r3.fold_d, r3.plane_k);
-            if (r1.fold_d != 2 || r1.plane_k != 8 || ub1 != 5056ull)
+            // n-aware fold cap (PR#6): len<=64 -> cap=16, len<=256 -> cap=8, else 4.
+            // concurrency: ceil(rows/D) >= 2*nblk (nblk=48 -> minGroups=96).
+            // r1: len=64 cap=16, ceil(128/D)>=96 -> D=1; ub=AB_ROW_FFT_UB_BYTES(64,1,8)=3168
+            // r2: len=128 cap=8,  ceil(64/D)>=96  -> D=1 (batch too small); ub=6208
+            // r3: len=64 cap=16, ceil(524288/16)=32768>=96 -> D=16; ub=31872
+            if (r1.fold_d != 1 || r1.plane_k != 8 || ub1 != 3168ull)
                 bad("resolve_row_fft 8192x1 pass1",
-                    "D=%u K=%u ub=%zu != 2/8/5056", r1.fold_d, r1.plane_k, ub1);
+                    "D=%u K=%u ub=%zu != 1/8/3168", r1.fold_d, r1.plane_k, ub1);
             else if (r2.fold_d != 1 || r2.plane_k != 8 || ub2 != 6208ull)
                 bad("resolve_row_fft 8192x1 pass2",
                     "D=%u K=%u ub=%zu != 1/8/6208", r2.fold_d, r2.plane_k, ub2);
-            else if (r3.fold_d != 4 || ub3 != 8832ull)
+            else if (r3.fold_d != 16 || ub3 != 31872ull)
                 bad("resolve_row_fft 8192x4096 pass1",
-                    "D=%u ub=%zu != 4/8832", r3.fold_d, ub3);
+                    "D=%u ub=%zu != 16/31872", r3.fold_d, ub3);
             else if (r4.fold_d != 1 || r4.plane_k != 16)
                 bad("resolve_row_fft n=4096",
                     "D=%u K=%u != 1/16", r4.fold_d, r4.plane_k);
-            else if (ro.fold_d != 4 || ro.plane_k != 8)
+            else if (ro.legal || ro.plane_k != 32)
                 bad("resolve_row_fft overrides",
-                    "forced D=4 kept=%d, K=32 illegal for n=64 must clamp to 8, got %u",
-                    ro.fold_d == 4, ro.plane_k);
+                    "K=32 for len=64 must be REJECTED (legal=false), got legal=%d K=%u",
+                    ro.legal, ro.plane_k);
             else
-                ok("resolve_row_fft rows-aware (D,K) goldens + K clamp");
+                ok("resolve_row_fft rows-aware (D,K) goldens + K reject");
         }
     }
 
