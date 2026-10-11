@@ -23,7 +23,8 @@
 
 ## 设计空间边界
 
-- 当前`makePlan()`仅装载`pointSize==2`候选。平面级radix-4融合不是完整radix4/8 Plan后端。
+- 当前 `makePlan()` 仅装载 canonical radix-2/shared-UB/交错连续布局候选；并同时检查固定 mapping、
+  fusion、系数驻留、bit-reverse 和 F 参数。平面级 radix-4 融合不是完整 radix4/8 Plan 后端。
 - 本目标没有SIMT shuffle；Cube探针不是公开FFT后端。
 - 枚举保留不可行点供分析，成本模型不承诺整个理论空间的全局最优。
 

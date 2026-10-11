@@ -6,9 +6,10 @@
 [![Hardware](https://img.shields.io/badge/SoC-Ascend910__9382-8A2BE2.svg)](docs/reference/support.md)
 [![Method](https://img.shields.io/badge/method-cuButterfly-2F80ED.svg)](https://github.com/TruNcat3/cuButterfly)
 
-**Ascend-FFT 是面向华为昇腾 NPU 的高性能 FFT 算子库与跨平台方法实践。** 项目目标是在统一
-Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件，并用硬件 profile、参数化设计空间、
-成本模型和实测回填为每个工作负载选择执行计划，而不是固化一组尺寸或一种计算核心。
+**Ascend-FFT 是 cuButterfly 在华为昇腾 NPU 上的迁移实例。** 本仓库的首要目标是把混合
+空间-时间数据流方法落到另一类硬件，并在一个公开、可复现的实验范围内证明它带来实际收益。
+我们用硬件 profile、参数化设计空间、成本模型和实测回填选择执行计划；当前版本不宣称覆盖
+所有 SoC、长度或精度的全局最优。
 
 <p align="center">
   <a href="https://www.ustc.edu.cn/">
@@ -33,11 +34,13 @@ Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件
 存储和同步均重新映射到 AIV、UB、MTE 与 GM。方法来源与差异见[相关工作](docs/benchmarks/related-work.md)。
 
 这里需要明确区分两个正交层次。**计算流优化**决定阶段和数据如何分块、复用、交接、重排和
-流水；**计算核心优化**决定每个局部块内部用 radix-2、radix-4、向量指令、Cube 或其他已验证
-蝶形单元完成算术。cuButterfly/Ascend-FFT 的主要研究对象是前者：我们不把某一个核心的指令
+流水；**计算核心优化**决定每个局部块内部用 radix-2、radix-4 或其他已验证
+蝶形算法完成算术；**硬件 lowering** 再决定使用 Vector、Cube 等指令和数据通路。
+cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个核心的指令
 技巧或某个 radix 的实现宣称为新的通用架构。只要满足布局、UB、对齐和同步的 lowering contract，
 同一计算流可以替换不同核心；反过来，同一核心也可以放入不同的分块、驻留和流水组织。因此，
-核心本身可以继续吸收 cuFFTDx、TurboFFT、Cube 等成熟经验，而不会削弱计算流方法的独立性。
+核心及其 lowering 可以继续吸收 cuFFTDx、TurboFFT 等成熟经验，并探索 Cube 等硬件实现，
+而不会削弱计算流方法的独立性。
 当前 Ascend 路径使用 radix-2/局部 radix-4 只是一个可执行的物理实例，不是方法的固定定义。
 
 本项目中关于 Roofline 上界、阶段依赖、纯数据/纯阶段展开的局限、二维空间-时间映射、计算流与
@@ -48,13 +51,13 @@ Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件
 
 ## 当前能力
 
-下表是当前发布版本已经验证的实现范围，不是项目的最终能力边界。
+下表是当前实现的支持契约，也是本次迁移实例的实验范围；范围外能力不应从当前结果外推。
 
 | 变换 | 精度 | 长度 | 布局 | 状态 |
 |---|---|---|---|---|
 | C2C forward | fp32 complex | 2 的幂，`64..4096` | host 交错复数 `[batch][2n]` | 稳定实验路径 |
-| R2C | fp32 real | 偶数，`128..8192` | `[batch][n] -> [batch][n+2]` | 已验证 |
-| C2R | fp32 half spectrum | 偶数，`64..4096` | `[batch][n+2] -> [batch][n]` | 已验证 |
+| R2C | fp32 real | 2 的幂，`128..8192` | `[batch][n] -> [batch][n+2]` | 已验证 |
+| C2R | fp32 half spectrum | 2 的幂，`64..4096` | `[batch][n+2] -> [batch][n]` | 已验证 |
 
 当前 C++ API 使用 host 指针并同步完成 H2D、变换和 D2H；尚不提供稳定 C ABI、device-pointer
 异步 API、逆向复数 C2C 或跨设备执行。完整边界见[支持矩阵](docs/reference/support.md)。
@@ -67,20 +70,24 @@ Plan 接口下逐步覆盖不同精度、长度、批量、变换语义和硬件
 
 | 工作负载 | 严格基线 | 点数 | 几何均值 speedup |
 |---|---|---:|---:|
-| C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **3.01x** |
-| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.66x** |
-| 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.70x** |
-| R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | 49 | **1.10x** |
-| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | 49 | **1.69x** |
+| C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **1.62x** |
+| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.36x** |
+| 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.42x** |
+| R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | 49 | **1.18x** |
+| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | 49 | **1.78x** |
 
 <!-- END GENERATED: benchmark-summary -->
 
-数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照 `ascend910_9382-cann9.0.0-v2`。
-C2C device-only 为 49/49 点胜出；end-to-end 为 46/49 点胜出。R2C/C2R 按 5-trial
-对称协议各 49 点分别 29 / 44 点胜出（胜/平/负 R2C 29/7/13、C2R 44/3/2；负点如实列出，
-见[胜/平/负热图](docs/figures/fig10_real_speedup_heatmap.png)，逐 trial raw 随快照发布）。
+数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照
+[`ascend910_9382-revalidation-20261010`](results/published/ascend910_9382-revalidation-20261010/)。
+当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；C2C device-only 有 48/49 个点严格
+快于 CANN，唯一回退点为 `N=1024,batch=4096`（0.96x）。C2C E2E 的几何均值为 1.36x，
+应用 shape 为 1.42x 且 12/12 点领先。R2C/C2R 的对称 5-trial 结果分别为 1.18x 和 1.78x；
+其中 R2C 的胜/平/负为 34/5/10，C2R 为 46/2/1，负点保留在热图和 raw 数据中。
+因此，本版本已经证明迁移方法在声明的实验范围内有稳定总体收益，但尚未把每一个边界点都
+优化到严格大于 1；该单点回退是下一轮的明确优化目标，而不是被隐藏的平均值。
 每根柱子都标注自己的同语义基线，跨 GPU 数据不参与几何均值。查看[实验结果](docs/benchmarks/results.md)、
-[测量协议](docs/benchmarks/methodology.md)和[完整矩阵](docs/generated/matrix.md)。
+[测量协议](docs/benchmarks/methodology.md)和[完整矩阵](docs/generated/current_matrix.md)。
 
 ## 为什么这样设计
 

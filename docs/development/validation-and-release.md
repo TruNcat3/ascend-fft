@@ -27,4 +27,9 @@ scripts/repro.sh r2c-c2r
 - headline 只来自固定协议和固定网格。
 - 变换不同、硬件不同或计时区间不同的结果显式降级为参照。
 - 图表、摘要和完整数据必须指向同一个 manifest。
+- schema v3 发布必须来自干净提交，记录稳定硬件 ID、SoC、CANN/ccec、profile 哈希和构建产物哈希；
+- 每个实验必须有显式的零退出码；raw trial 必须完整且无重复地覆盖 runner × round × shape；
+  声明的图像同时归档到快照并绑定输出哈希，不能只绑定作图输入；
+  `unknown`、dirty tree 或空构建哈希均拒绝发布。
+- 历史快照若缺少上述证据，只能显式标记为 `legacy-unverified` 并列出限制，不得升级其证据等级。
 - Citation、许可证和 cuButterfly 来源声明随 release 一起检查。

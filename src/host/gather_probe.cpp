@@ -11,7 +11,7 @@ int main(){
     aclrtStream s=nullptr; CK(aclrtCreateStream(&s));
     aclrtBinHandle b=nullptr; CK(aclrtBinaryLoadFromFile(o,nullptr,&b));
     aclrtFuncHandle f=nullptr; CK(aclrtBinaryGetFunction(b,"kgather",&f));
-    const uint32_t n=64, N=96;
+    const uint32_t n=96, N=96;
     std::vector<float> src(N), out(N, -1.f);
     for(uint32_t i=0;i<N;i++) src[i]=1000.f+i;
     void *dS=nullptr,*dO=nullptr;
@@ -30,7 +30,25 @@ int main(){
     printf("\nA(offset 原值) : "); for(int i=0;i<6;i++) printf("%.0f ", out[i]);
     printf("\nB(offset*4)   : "); for(int i=0;i<6;i++) printf("%.0f ", out[32+i]);
     printf("\nC(base=16)    : "); for(int i=0;i<6;i++) printf("%.0f ", out[64+i]);
-    printf("\n  -> 若 A==expected 则 offset 单位=元素；若 B==expected 则单位=字节；"
-           "C==src[4] 说明 base 单位=字节\n");
-    return 0;
+    unsigned failures=0;
+    for(uint32_t i=0;i<32;i++) {
+        const float expected=src[3*i+1];
+        if(out[32+i]!=expected) {
+            printf("\nFAIL B[%u]: got=%g expected=%g",i,out[32+i],expected);
+            ++failures;
+        }
+    }
+    for(uint32_t i=0;i<8;i++) {
+        const float expected=src[3*i+5];
+        if(out[64+i]!=expected) {
+            printf("\nFAIL C[%u]: got=%g expected=%g",i,out[64+i],expected);
+            ++failures;
+        }
+    }
+    printf("\nGather byte-offset/base validation: %s (%u mismatches)\n",
+           failures ? "FAIL" : "PASS",failures);
+    CK(aclrtFree(dS)); CK(aclrtFree(dO));
+    CK(aclrtBinaryUnLoad(b)); CK(aclrtDestroyStream(s));
+    CK(aclrtResetDevice(0)); CK(aclFinalize());
+    return failures ? 2 : 0;
 }

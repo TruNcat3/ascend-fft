@@ -15,7 +15,10 @@ Plan使用Context创建的stream，因此Context必须比其所有Plan活得更�
 
 `ctx.select(n, batch, topK, &log)`枚举、模型排序、构建可执行候选、校验并实测，返回成功候选中最快的Plan。默认`topK=3`是目标成功测量数；不可装载候选会被跳过，因此不保证只检查三个条目。
 
-`enumerate()`包含不可行点及原因，不等于所有条目都有kernel。当前`makePlan()`仅装载`pointSize==2`候选，主kernel内部的平面级radix-4融合不表示完整`P.radix=4`后端已实现。
+`enumerate()`包含不可行点及原因，不等于所有条目都有 kernel。当前 `makePlan()` 只装载主 kernel 的
+canonical lowering：radix-2 DIT、fusion level 1、shared/UB exchange、驻留系数、bit-reversed input、
+交错连续 I/O，以及当前固定的映射/F 参数。主 kernel 内部的平面级 radix-4 融合不表示完整
+`P.radix=4` 后端已实现；声明但未 lowering 的组合会在装载二进制前被拒绝。
 
 ```cpp
 auto candidates = ctx.enumerate(n, batch);

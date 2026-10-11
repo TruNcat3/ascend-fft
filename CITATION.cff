@@ -9,13 +9,11 @@ authors:
     affiliation: "High Efficient Intelligent Computing Lab, Suzhou Institute for Advanced Research, University of Science and Technology of China, Suzhou, China"
 repository-code: "https://github.com/TruNcat3/ascend-fft"
 url: "https://github.com/TruNcat3/ascend-fft"
-version: 0.1.0
-date-released: 2026-10-03
 abstract: >-
   A hardware-mapped FFT operator library and reproducible research artifact
   for Huawei Ascend NPUs. It applies the cuButterfly space-time mapping method
   through target-specific AscendC processing units, memory movement, legality
-  checks, cost modeling, and measured plan selection. The current release
+  checks, cost modeling, and measured plan selection. The current implementation
   validates fp32 C2C, R2C, and C2R paths on Ascend910_9382 while retaining an
   extensible design space for additional numeric and transform contracts.
 keywords:

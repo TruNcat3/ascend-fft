@@ -15,6 +15,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
 from abenv import root, work  # noqa: E402
+REPO_SLUG = "TruNcat3/ascend-fft"
+
+
+def _short_commit():
+    r = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"],
+                       cwd=ROOT, capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else "master"
+
+
+def _blob(path):
+    return f"https://github.com/{REPO_SLUG}/blob/{_short_commit()}/{path}"
 PY = abenv.python_bin()
 NS = [64, 128, 256, 512, 1024, 2048, 4096]
 BS = [1, 4, 16, 64, 256, 1024, 4096]
@@ -97,7 +108,10 @@ def bench_v1():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--matrix", default="results/published/ascend910_9382-cann9.0.0/matrix.md")
+    ap.add_argument(
+        "--matrix",
+        default="results/published/ascend910_9382-revalidation-20261010/matrix.md",
+    )
     ap.add_argument("--out", default="docs/generated/sixway.md")
     a = ap.parse_args()
     mx = parse_matrix(os.path.join(ROOT, a.matrix))
@@ -133,17 +147,23 @@ def main():
     L = []
     A = L.append
     A("# 性能对比：标准库 vs CANN 原生算子 vs 自研 kernel（全网格 49 点）\n")
-    A("> **复现脚本**：[`scripts/gen_stdlib_doc.py`](../scripts/gen_stdlib_doc.py)"
-      "（本文是它的输出）· [`scripts/bench_stdlib.py`](../scripts/bench_stdlib.py) "
-      "· [`scripts/bench_native_npu.py`](../scripts/bench_native_npu.py) "
-      "· [`scripts/repro.sh sixway`](../scripts/repro.sh)。\n")
+    A("> **复现脚本**：[`scripts/gen_stdlib_doc.py`]("
+      f"{_blob('scripts/gen_stdlib_doc.py')})"
+      "（本文是它的输出）· [`scripts/bench_stdlib.py`]("
+      f"{_blob('scripts/bench_stdlib.py')}) "
+      "· [`scripts/bench_native_npu.py`]("
+      f"{_blob('scripts/bench_native_npu.py')}) "
+      "· [`scripts/repro.sh sixway`]("
+      f"{_blob('scripts/repro.sh')})。\n")
     A("> **NPU = Ascend910_9382（48 AIV）**；numpy/torch 跑在 x86 CPU 上"
       "（`numpy 1.26.4`, `torch 2.10.0+cpu`）。所有时间单位 µs，**reps=20**。\n")
     A("> * **numpy / torch(CPU)**、**`aclRfft1D`**、**自研 v1** 三列本轮同场实测："
       "`scripts/bench_stdlib.py perf`、`build/baseline_rfft <n> <b> 1`（内部 reps=50）、"
       "`AB_FFT_O=build/fft_radix2_v1.o ./build/fft_check <n> <b> 20`（3 轮取 min-of-means）。")
+    native_wins = sum(r["cur"] <= r["nat"] for r in rows)
     A("> * **CANN 原生复数 FFT**（`torch.fft.fft` 走 torch_npu）与 **自研当前** 取自 "
-      f"`{a.matrix}`（同网格、同 reps=20、3 轮 min-of-means，**49:0**）。")
+      f"`{a.matrix}`（同网格、同 reps=20、3 轮 min-of-means，"
+      f"**{native_wins}:{len(rows) - native_wins}**）。")
     A("> * **`aclRfft1D`** 是实->复 rfft（`norm=1` 唯一合法），变换不同，**仅作参照**，"
       "不参与胜负统计。")
     A("> * ⚠️ 主机共享、`nproc=1` 且 `loadavg≈24`：CPU 两列有 **±15% 的轮间抖动**，"

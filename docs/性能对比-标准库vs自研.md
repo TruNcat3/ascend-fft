@@ -1,5 +1,9 @@
 # 性能对比：标准库 vs CANN 原生算子 vs 自研 kernel（全网格 49 点）
 
+> **历史存档提示**：本文保留早期快照的展开表，不是当前发布结论。当前请阅读
+> [实验结果](benchmarks/results.md) 和 [发布矩阵](generated/current_matrix.md)，它们统一引用
+> `ascend910_9382-revalidation-20261010`。
+
 > **复现脚本**：[`scripts/gen_stdlib_doc.py`](../scripts/gen_stdlib_doc.py)（本文是它的输出）· [`scripts/bench_stdlib.py`](../scripts/bench_stdlib.py) · [`scripts/bench_native_npu.py`](../scripts/bench_native_npu.py) · [`scripts/repro.sh sixway`](../scripts/repro.sh)。
 > **全量索引**：[`scripts/repro.sh --doc <文档名片段>`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。
 > **NPU = Ascend910_9382（48 AIV）**；numpy/torch 跑在 x86 CPU 上（`numpy 1.26.4`, `torch 2.10.0+cpu`）。所有时间单位 µs，**reps=20**。

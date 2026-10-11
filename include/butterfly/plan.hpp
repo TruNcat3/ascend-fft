@@ -32,13 +32,14 @@ public:
     // 把旋转因子/位反转索引写到 device（幂等，(n, 折叠系数 D) 不变则不重传）。
     // batch 决定批折叠系数 D（见 bfly::foldDFor），故必须一起传；省略时按 D 上界预生成。
     int prepare(uint32_t n, uint32_t batch = 0xFFFFFFFFu);
-    // 执行一次 n×batch 的复数 fp32 前向 FFT
+    // 执行一次 n×batch 的复数 fp32 前向 FFT。n 为 2 的幂且 64..4096，
+    // 还需满足当前硬件 UB；batch 必须为正，输入/输出指针不可为空。非法输入返回 -8。
     int run(const float* in, float* out, uint32_t n, uint32_t batch);
     // r2c：in [batch][n] 实数；out [batch][n+2] = n/2+1 个交错复数（numpy.fft.rfft 稠密布局）。
-    // 需要与 kernelPath 同目录的 fft_real.o（缺失返回 -1）；n 偶数且 128..8192。
+    // 需要与 kernelPath 同目录的 fft_real.o（缺失返回 -1）；n 为 2 的幂且 128..8192。
     int runR2C(const float* in, float* out, uint32_t n, uint32_t batch);
     // c2r：in [batch][n+2] 半谱（Nyquist 虚部须为 0，与 fft_check::genHalfInput 同约定）；
-    // out [batch][n] 实数（含 1/n，口径同 numpy.fft.irfft）。n 偶数且 64..4096。
+    // out [batch][n] 实数（含 1/n，口径同 numpy.fft.irfft）。n 为 2 的幂且 64..4096。
     int runC2R(const float* in, float* out, uint32_t n, uint32_t batch);
     // 实测 µs（含同步），成功时回填 candidate 的 Metric 并把状态置 Measured
     int measure(uint32_t n, uint32_t batch, Metric* out);
@@ -48,6 +49,8 @@ private:
     explicit Plan(Candidate c);   // 定义在 butterfly.cpp（Impl 需完整类型）
     // prepare 的实现体：sign>0 时旋转因子取反（c2r 的 +i 约定，与内核 xflip 位配套）
     int prepareSign(uint32_t n, uint32_t batch, int sign);
+    bool validShape(uint32_t n, uint32_t batch, bool realInput = false,
+                    bool checkOffset = true) const;
     Candidate cand_;
     std::vector<Transform> tf_;
     struct Impl;
@@ -61,6 +64,7 @@ public:
     Context();
     ~Context();
 
+    // Configuration errors return -4; repeated initialization returns -9.
     int init(const std::string& profilePath, const std::string& spacePath,
              const std::string& kernelPath);
     const Hardware& hardware() const { return hw_; }

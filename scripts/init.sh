@@ -24,6 +24,7 @@ while [ $# -gt 0 ]; do
 done
 
 fail=0; warn=0
+PROFILE=$AB_PROFILE
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 PASS() { printf '  \033[32m[ PASS ]\033[0m %s\n' "$*"; }
 WARN() { printf '  \033[33m[ WARN ]\033[0m %s\n' "$*"; warn=$((warn+1)); }
@@ -66,6 +67,14 @@ PY
 if [ "$NPU_OK" = "yes" ]; then
   SOC=$("$AB_PY" -c 'import torch_npu;print(torch_npu.npu.get_device_name(0))' 2>/dev/null || echo "?")
   PASS "NPU 设备      npu:0  $SOC"
+  if "$AB_PY" scripts/check_hardware_profile.py "$PROFILE" \
+       --device-name "$SOC" --target-soc "$AB_SOC" >/dev/null; then
+    PASS "硬件 profile  $PROFILE 与设备、编译目标 $AB_SOC 匹配"
+  elif [ "${AB_ALLOW_PROFILE_MISMATCH:-0}" = "1" ]; then
+    WARN "硬件 profile 与设备 $SOC 或编译目标 $AB_SOC 不匹配；AB_ALLOW_PROFILE_MISMATCH=1 已显式覆盖"
+  else
+    FAIL "硬件 profile 与设备 $SOC 或编译目标 $AB_SOC 不匹配；请重新探测/标定，或审阅后显式设置 AB_ALLOW_PROFILE_MISMATCH=1"
+  fi
 else
   FAIL "torch.npu.is_available() = False（驱动或 torch_npu 不匹配）"
 fi
@@ -78,7 +87,7 @@ else
 fi
 
 # --- 设计空间 / profile JSON ---
-for f in config/ascend910_93_profile.json config/butterfly_space.json; do
+for f in "$PROFILE" config/butterfly_space.json; do
   if [ -f "$f" ]; then PASS "配置          $f"
   else FAIL "缺配置 $f"; fi
 done

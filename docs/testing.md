@@ -58,6 +58,22 @@ python3 scripts/run_stress.py --oom-probe --device 0  # 显式 opt-in，仅限�
 python3 scripts/run_test_profile.py future-long-fft  # 明确拒绝，不能伪装成已支持
 ```
 
+长 FFT 已实现路径的独立验收与边界消融入口如下，不代表 `future-long-fft` 整层完成：
+
+```bash
+python3 scripts/collect_long_fft_evidence.py --boundary device        # separate，六段
+python3 scripts/collect_long_fft_evidence.py --boundary device-fused  # fused，五段
+python3 scripts/collect_boundary_attribution.py                       # separate/fused 配对消融
+python3 tests/test_pp2_dispatch.py                                    # pp2 静态候选与回退契约
+```
+
+`AB_LT_PIPE=pp2` 仅为显式 opt-in 的 `64×32` 半 tile、resident `K=256` 完整双缓冲
+原型，与 `128×32` 的 `nb/pp` 分属不同模型族。两次独立 session 的 device-chain 门禁
+仅决定候选资格；pageable E2E 归档不能替代 pinned E2E 放行，当前驱动上 `65536×47`
+的 pinned E2E 存在 IOMMU 失败，`production_ready` 仍为 false，生产默认不自动切换。
+入口、合法性约束与范围说明见[内核设计](design/kernels.md)及
+[性能模型](design/performance-model.md)。
+
 ## 硬件拐点与总点数对照
 
 Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 batch 外，应固定检查
@@ -151,10 +167,10 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   由 `scripts/bench_long_baseline.py` 采集为
   `results/evidence/long-fft-baseline/baseline.json`（清洁树才允许发布），
   文档表由 `--check` 校验、`tests/test_long_baseline.py`（7 用例）锁定，见
-  [长 FFT 同尺寸基线](generated/long-fft-baseline.md)。P1-B：R2C/C2R 已按 5-trial 对称协议重采
-  56/56 行，发布进新不可变快照 `ascend910_9382-cann9.0.0-v2`（含 `raw_trials`、协议、
-  raw/derived 哈希与 UTC 起止），新汇总见[当前结果 · 实数变换](benchmarks/results.md)；
-  旧 min 口径的 1.91x/3.35x 不再被引用。独立模型验证仍待完成。
+  [长 FFT 同尺寸基线](generated/long-fft-baseline.md)。P1-B：C2C、E2E、应用 shape 与 R2C/C2R 已在
+  `ascend910_9382-revalidation-20261010` 中按加固门禁重采；R2C/C2R 使用 5-trial 对称协议，
+  快照包含逐 trial raw、协议、raw/derived 哈希与 UTC 起止。新汇总见
+  [当前结果](benchmarks/results.md)；旧 min 口径和旧快照倍率不再被引用。独立模型验证仍待完成。
 - P2：分段长 FFT 后端（G1）已实现（宿主四步 Cooley-Tukey + 设备行 FFT，8192..65536
   验收抽样与动态输入证据见 `results/evidence/long-fft-acceptance/` 与长 FFT 计划的
   G0/G1 落地记录）。架构描述符合法性层（addendum step 2）已落地：

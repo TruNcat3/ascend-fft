@@ -278,8 +278,11 @@ def main():
             nd = d.get("dev_mean", float("nan"))
             oe = o.get("e2e_mean", float("nan"))
             ne = d.get("e2e_mean", float("nan"))
-            bd = br.get("dev_mean", float("nan"))
-            be = br.get("e2e_mean", float("nan"))
+            # 裸 CANN 未跑（--app 或 --no-bare）时 bare_* 置 None 而非 NaN：
+            # publish_results.py 的 schema v3 校验拒绝 *_us=NaN，且
+            # canonical JSON 序列化 allow_nan=False；None = 「未测量」。
+            bd = br.get("dev_mean") if run_bare else None
+            be = br.get("e2e_mean") if run_bare else None
             dr, er = ratio(od, nd), ratio(oe, ne)
             rel = o.get("maxRel", float("nan"))
             ok = "PASS" if (o.get("ok") and nat_ok and (bare_ok or not run_bare)) else "FAIL"
@@ -296,16 +299,16 @@ def main():
                 "nat_first_us": d.get("first_us", float("nan")),
                 "maxRel": rel, "ok": bool(o.get("ok") and nat_ok and (bare_ok or not run_bare)),
                 "xfer_share": (1 - od / oe) if (oe == oe and od == od and oe > 0) else float("nan"),
-                # ---- 裸 CANN aclRfft1D（实->复，仅参照）----
+                # ---- 裸 CANN aclRfft1D（实->复，仅参照；未跑时为 None）----
                 "bare_dev": bd,
-                "bare_dev_mean": br.get("dev_min", float("nan")),
+                "bare_dev_mean": br.get("dev_min") if run_bare else None,
                 "bare_e2e": be,
-                "bare_e2e_min": br.get("e2e_min", float("nan")),
-                "bare_first_us": br.get("first_us", float("nan")),
-                "bare_maxRel": br.get("maxRel", float("nan")),
-                "bare_ok": bool(br.get("ok", False)),
-                "nat_vs_bare_dev": ratio(bd, nd),
-                "ours_vs_bare_e2e": ratio(be, oe),
+                "bare_e2e_min": br.get("e2e_min") if run_bare else None,
+                "bare_first_us": br.get("first_us") if run_bare else None,
+                "bare_maxRel": br.get("maxRel") if run_bare else None,
+                "bare_ok": bool(br.get("ok", False)) if run_bare else None,
+                "nat_vs_bare_dev": ratio(bd, nd) if run_bare else None,
+                "ours_vs_bare_e2e": ratio(be, oe) if run_bare else None,
                 # 搬运量（字节，H2D + D2H）：c2c 为 16n·B；rfft 为 4n·B + 8(n/2+1)·B
                 "xfer_bytes_c2c": 16 * n * b,
                 "xfer_bytes_rfft": 4 * n * b + 8 * (n // 2 + 1) * b,
@@ -337,11 +340,14 @@ def main():
 
     dev_w = [r for r in rows if r["dev_ratio"] == r["dev_ratio"]]
     e2e_w = [r for r in rows if r["e2e_ratio"] == r["e2e_ratio"]]
-    bare_w = [r for r in rows if r["bare_dev"] == r["bare_dev"] and r["bare_e2e"] == r["bare_e2e"]]
+    bare_w = [r for r in rows
+              if isinstance(r["bare_dev"], (int, float)) and r["bare_dev"] == r["bare_dev"]
+              and isinstance(r["bare_e2e"], (int, float)) and r["bare_e2e"] == r["bare_e2e"]]
 
     def geo(vals):
         import math
-        vals = [v for v in vals if v == v and v > 0]
+        vals = [v for v in vals
+                if isinstance(v, (int, float)) and v == v and v > 0]
         return pow(math.prod(vals), 1 / len(vals)) if vals else float("nan")
 
     L.append("")
@@ -381,7 +387,8 @@ def main():
                         "shapes": pairs, "reps": a.reps, "rounds": rounds,
                         "bare_run": bool(run_bare),
                         "generated": time.strftime("%Y-%m-%d %H:%M:%S")}},
-              open(a.json, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+              open(a.json, "w", encoding="utf-8"), ensure_ascii=False, indent=1,
+              allow_nan=False)
     print(txt)
     print(f"\n-> {a.out}\n-> {a.json}", file=sys.stderr)
     return 0 if all(r["ok"] for r in rows) else 1

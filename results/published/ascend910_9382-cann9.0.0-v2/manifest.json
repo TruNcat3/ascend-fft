@@ -4,7 +4,7 @@
   "commit": "0fa7fe8190997d2fabba30fd0736ef026e02aed7",
   "created_utc": "2026-10-08T14:30:24.943880+00:00",
   "derived_artifact_hashes": {
-    "generated/comparison.md": "afe9b41034bc3eb0c59fc7dca4fd0acf3d9a9af8353b71d739f943bf5d4a4908",
+    "generated/comparison.md": "f3543aa526c4c09fc7c3fd647b5aee9a142a12a47735b738f22f0530117dac97",
     "generated/matrix.md": "fb3e679aaf4ad5e2535dd0fb2fd356d56ed98b540b87cf19f6cdd5df542581af",
     "matrix.csv": "5e748aa623d5e83eac2a412c9814549d7835f5fd3379f955f844b02dc9bfa58a"
   },
@@ -96,7 +96,13 @@
     }
   },
   "provenance": "trial5-symmetric-protocol-v2",
+  "provenance_limitations": [
+    "The source worktree was dirty and its patch was not archived.",
+    "The hardware identifier and SoC fields were not captured by the original run.",
+    "Use this snapshot as historical evidence, not as an exactly reproducible release artifact."
+  ],
   "provenance_note": "R2C/C2R re-measured under the symmetric 5-trial per-trial-median protocol (P1-B); matrix/sixway/e2e artifacts re-published unchanged from the legacy snapshot with archived audit evidence.",
+  "publication_status": "legacy-unverified",
   "published_artifacts": {
     "e2e.json": "9d73001c043cbb949fc0910e163cf89c258fa71bff802fb95a4c886550cd3772",
     "e2e_app.json": "dcc3fc5d2b71796e26086dad22353921fd7b07e24d314deb2a3c6296fcabacf4",

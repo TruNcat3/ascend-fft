@@ -1,0 +1,54 @@
+{
+  "c2c_matrix": {
+    "correctness": "every trial PASS and maxRel <= 1e-4 against CPU reference",
+    "direction": "forward",
+    "operator": "fft",
+    "placement": "out-of-place",
+    "precision": "fp32",
+    "raw_trials": "trials.csv",
+    "reps": 20,
+    "rounds": 3,
+    "runner_order_seed": 0,
+    "runner_orders": [
+      [
+        "native",
+        "self"
+      ],
+      [
+        "native",
+        "self"
+      ],
+      [
+        "self",
+        "native"
+      ]
+    ],
+    "runners": [
+      "ascend-fft",
+      "cann-native"
+    ],
+    "shape_grid": {
+      "batch": [
+        1,
+        4,
+        16,
+        64,
+        256,
+        1024,
+        4096
+      ],
+      "n": [
+        64,
+        128,
+        256,
+        512,
+        1024,
+        2048,
+        4096
+      ]
+    },
+    "statistic": "minimum of per-trial means; per-trial minimum retained separately",
+    "timing": "device-only synchronized execution",
+    "transform": "c2c"
+  }
+}

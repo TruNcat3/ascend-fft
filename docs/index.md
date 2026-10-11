@@ -1,6 +1,6 @@
 # 文档入口
 
-Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实践。它以统一 Plan、参数化设计空间和硬件实测选型为基础，目标是逐步覆盖不同精度、长度、批量、变换语义和 Ascend 硬件。当前发布版的已验证范围单独记录在[支持范围](reference/support.md)，不作为项目的最终边界。文档按任务组织；历史探索不是使用本库的前置条件。
+Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend NPU 上的迁移实例。它以统一 Plan、参数化设计空间和硬件实测选型为基础，在声明的实验范围内展示可复现的 FFT 加速；不把一台 SoC、一个长度网格的结果外推为所有硬件的全局最优。当前发布版的已验证范围单独记录在[支持范围](reference/support.md)，历史探索不是使用本库的前置条件。
 
 它是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 混合空间-时间映射方法的 Ascend 迁移实例：继承架构范式，但针对 AIV、UB、MTE 和 GM 独立实现物理 lowering，不复用 CUDA kernel。
 
@@ -13,8 +13,8 @@ Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实�
     阅读顺序：FFT 依赖图 → 二维空间/时间映射 → Ascend AIV/UB/MTE/GM lowering →
     profile、模型与实测共同选择 Plan。点击可查看可编辑 SVG；
     <span class="doc-diagram__links"><a href="figures/method_layers.pdf">PDF</a> ·
-    <a href="design/motivation.md">设计动机</a> ·
-    <a href="design/architecture.md">架构细化</a></span>。
+    <a href="design/motivation/">设计动机</a> ·
+    <a href="design/architecture/">架构细化</a></span>。
   </figcaption>
 </figure>
 
@@ -27,8 +27,8 @@ Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实�
          alt="Ascend-FFT 在 Ascend910_9382 上相对 CANN 原生基线的 C2C device-only、C2C end-to-end 和应用 end-to-end 几何均值 speedup 柱状图">
   </a>
   <figcaption>
-    当前发布快照的性能摘要；完整点数、协议、胜平负和限制见
-    <a href="benchmarks/results.md">实验结果</a>。这张图是测量结果，不代表跨硬件或未验证长度的保证。
+    当前加固发布快照的性能摘要；完整点数、协议、胜平负和限制见
+    <a href="benchmarks/results/">实验结果</a>。这张图是测量结果，不代表跨硬件或未验证长度的保证。
   </figcaption>
 </figure>
 
@@ -68,6 +68,14 @@ Ascend-FFT 是面向 Ascend NPU 的高性能 FFT 算子库与跨平台方法实�
 ## 修改工程
 
 [工程结构](development/repository-layout.md) → [增加设计点](development/adding-design-points.md) → [验证与发布](development/validation-and-release.md)。定位瓶颈时查阅[profiling](development/profiling.md)。
+
+## 当前发布口径
+
+`ascend910_9382-revalidation-20261010` 是当前文档唯一引用的性能快照：C2C device-only
+几何均值 **1.62x**（49 点中 48 点严格领先），C2C E2E **1.36x**，应用 shape E2E
+**1.42x**。这次迁移的验收目标是“在预先声明的矩阵内完成正确性、同语义基线和收益展示”，
+不是无限扩大设计空间后追求每个硬件/尺寸的极限。已声明矩阵中的回退点必须保留并进入后续
+优化清单；不允许用删点、改统计口径或只报告均值来掩盖它们。
 
 ## 后续方向
 
