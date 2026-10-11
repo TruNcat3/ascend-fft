@@ -1,7 +1,7 @@
 # Ascend-FFT —— 便捷入口，实际构建逻辑在 scripts/build.sh
 SHELL   := /bin/bash
 AB      := ./scripts/build.sh
-.PHONY: all kernel check test limits rfft probe simt bw stride cube \
+.PHONY: all kernel check test limits desc rfft probe simt bw stride cube \
         init quick matrix hwprobe profile repro clean help
 
 all:        ## 编译 kernel + 全部 host 目标 + Stride 探针
@@ -10,6 +10,8 @@ kernel:     ## 只编译 device kernel（.o）
 	$(AB) kernel
 check:      ## fft_check 正确性/计时器
 	$(AB) check
+desc:       ## 架构描述符合法性自测（addendum §2，纯 g++）
+	$(AB) desc
 test:       ## test_framework
 	$(AB) test
 limits:     ## test_limits（18 项硬件/ABI 门禁）

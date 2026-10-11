@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 source scripts/env.sh
 mkdir -p build
 
-KERN=(fft_radix2 fft_radix2_v1 fft_radix2_v2 fft_real)
+KERN=(fft_radix2 fft_radix2_v1 fft_radix2_v2 fft_real fft_long)
 HOST=(fft_check test_framework test_limits baseline_rfft)
 # 本 SoC 可编译的探针 kernel（probe_simt 单独放 simt 目标：无 SIMT，预期编译失败）
 PROBE=(probe_hw gather_probe)
@@ -29,6 +29,10 @@ for t in "${targets[@]}"; do
     kernel) do_kernel "${KERN[@]}" ;;
     check)  echo "  cxx   src/host/fft_check.cpp"
             ab_cxx src/host/fft_check.cpp -o build/fft_check ;;
+    desc)   echo "  cxx   tests/test_descriptors.cpp"
+            g++ -O2 -std=c++17 -Wall -I"$AB_ROOT/include" \
+                tests/test_descriptors.cpp -o build/test_descriptors
+            build/test_descriptors ;;
     test)   echo "  cxx   tests/test_framework.cpp"
             ab_cxx tests/test_framework.cpp src/framework/butterfly.cpp src/framework/reference.cpp -o build/test_framework ;;
     limits) echo "  cxx   tests/test_limits.cpp"
@@ -60,6 +64,10 @@ for t in "${targets[@]}"; do
       do_kernel "${KERN[@]}"
       echo "  cxx   src/host/fft_check.cpp"
       ab_cxx src/host/fft_check.cpp -o build/fft_check
+      echo "  cxx   tests/test_descriptors.cpp"
+      g++ -O2 -std=c++17 -Wall -I"$AB_ROOT/include" \
+          tests/test_descriptors.cpp -o build/test_descriptors
+      build/test_descriptors >/dev/null
       echo "  cxx   tests/test_framework.cpp"
       ab_cxx tests/test_framework.cpp src/framework/butterfly.cpp src/framework/reference.cpp -o build/test_framework
       echo "  cxx   tests/test_limits.cpp"
