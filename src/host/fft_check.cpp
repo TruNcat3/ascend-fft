@@ -373,7 +373,13 @@ int main(int argc, char** argv){
                n, (unsigned long long)0xFFFFFFFFull/(2ull*(uint64_t)n));
         return 2;
     }
-    CK(aclInit(nullptr)); CK(aclrtSetDevice(0));
+    CK(aclInit(nullptr));
+    {   // AB_DEVICE_ID：共享机多卡时切卡（缺省 0，保持既有行为）
+        const char* devEnv = getenv("AB_DEVICE_ID");
+        int devId = 0;
+        if(devEnv && *devEnv) devId = atoi(devEnv);
+        CK(aclrtSetDevice(devId));
+    }
     aclrtStream s=nullptr; CK(aclrtCreateStream(&s));
     // boot = aclInit + SetDevice + CreateStream（进程级一次性）；plan = 之后的数据准备
     const auto tBoot1=std::chrono::steady_clock::now();
