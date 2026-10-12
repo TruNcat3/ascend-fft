@@ -20,6 +20,8 @@ venv/
 !/results/published/**
 !/results/evidence/
 !/results/evidence/**
+!/results/profiles/
+!/results/profiles/**
 /site/
 /tmp/
 /mindstudio_profiler_output/
