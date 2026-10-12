@@ -1,6 +1,6 @@
 # PR 7：迁移验收与后续优化收敛
 
-本计划承接已关闭的 PR 6。PR 6 的稳定迁移路径已经有独立发布快照和完整矩阵支撑；其
+本计划承接已关闭的 [PR 6](https://github.com/TruNcat3/ascend-fft/pull/6)。PR 6 的稳定迁移路径已经有独立发布快照和完整矩阵支撑；其
 `static`、`pipe` 和 `fused` 变体仍属于边界优化实验，不能作为当前迁移成果的必要前提。
 
 ## 目标和边界
@@ -46,6 +46,10 @@ naive Ascend lowering
 至少报告 kernel time、端到端时间、GM/UB 搬运量、AIV/MTE 利用率、正确性和配置选择原因。
 消融只用于解释方法，不替代完整发布矩阵，也不要求每个局部消融都超过 CANN。
 
+代表点必须包含当前 C2C `N=1024,batch=4096` 的 `0.96x` 边界点，以及发布快照中最慢的
+R2C 大 batch 点。对每个点同时记录固定 CANN baseline、稳定路径、模型选择、有限搜索最优点
+和选择损失。这样既能解释方法的平均收益，也能说明已知负点为什么没有被当前映射消除。
+
 ### A3. 规模压力切片
 
 为验证方法不是只适用于当前小尺寸，按实现能力选择少量点：
@@ -75,7 +79,8 @@ batch = 1, 16, 256
 
 ### B1. Static paired writer
 
-目标是减少 R2C 后处理中的 GM 边界和非连续写回。当前 Round-4 结果显示 vectorized
+目标是减少 R2C 后处理中的 GM 边界和非连续写回。[PR 6 Round-4 记录](https://github.com/TruNcat3/ascend-fft/blob/03fab4897a2cb577ef49c3ee6f1198a7a4d701ff/docs/design/r1-round3-summary.md#round-4-results-2026-10-12)
+显示 vectorized
 interleave 可以改善原型，但仍慢于稳定 separate path。
 
 下一轮必须先完成：
@@ -115,9 +120,9 @@ compute-ready -> writer consumes -> store-done -> buffer reusable
 | 门禁 | 要求 |
 |---|---|
 | 正确性 | 每个 trial 通过既有数值契约，失败不得进入 timing 汇总 |
-| 选择闭包 | 每个候选集合显式包含 incumbent，搜索结果不得劣于稳定路径 |
-| 稳定收益 | 新候选相对 incumbent 的 median 至少提升 2% 才晋升 |
-| 重复性 | 至少 5 个独立 trial，报告 median、p10、p90、CV 和 raw 值 |
+| 选择闭包 | 每个候选集合显式包含 incumbent；独立复测若未达到晋升门槛则选择 incumbent |
+| 稳定收益 | 候选与 incumbent 在相同执行顺序中配对测量，median 至少提升 2% 才晋升 |
+| 重复性 | 至少 5 个独立 session 的配对 trial，报告 median、p10、p90、CV 和 raw 值；分位数只作描述，不当作显著性证明 |
 | 多 chunk | 所有声明长度覆盖单 chunk 和多 chunk 边界 |
 | 可追溯性 | 保存 requested/resolved mapping、kernel 名称、版本和选择原因 |
 | 回归 | 完整 C2C/R2C/C2R/E2E 矩阵无 correctness 或 incumbent 回退 |
@@ -142,7 +147,6 @@ B1/B2/B3 各自满足 C 门禁后，才能进入模型和 dispatch 候选；没�
 
 - 新的 immutable migration-validation snapshot；
 - A1 的完整矩阵、A2 的消融图和 A3 的规模压力表（若实现支持）；
-- 每个 R1 变体的 raw trials、trace/profile 和失败分类；
+- 每个 R1（real-transform boundary optimization）变体的 raw trials、trace/profile 和失败分类；
 - 更新后的支持矩阵、性能摘要、路线图和复现命令；
 - 明确区分“已验证迁移成果”和“未收敛优化前沿”的发布说明。
-

@@ -46,7 +46,7 @@ PR 7 将工作分成两层：先在最终发布提交上复验当前 C2C/R2C/C2R
 和可选的大尺寸压力切片增强迁移展示；之后才分别处理 PR 6 的边界 writer。详细测试矩阵、
 预期产物和晋升门槛见[PR 7：迁移验收与后续优化收敛](benchmarks/pr7-migration-convergence.md)。
 
-当前版本可以在 A1/A4 完成后作为迁移案例发布，不需要等待所有 fused 或 persistent pipeline
+当前版本可以在 A1/A2/A4 完成后作为迁移案例发布，不需要等待所有 fused 或 persistent pipeline
 实验达到最优。未收敛的候选必须显式标记为 experimental，并在失败时回退 incumbent。
 
 ## 1. 近期工程闭环
