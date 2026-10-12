@@ -36,6 +36,19 @@ batch 的最高性能产品库。近期工作应优先收敛：在已声明实�
 边界点，R2C 也有若干大 batch 负点。它们是实验范围内剩余的定向优化目标，不应被扩展性任务
 淹没。
 
+## PR 6 的处理与 PR 7 的收敛边界
+
+PR 6 已关闭。其稳定迁移证据已经由发布快照覆盖；`static paired writer`、MTE 流水和
+`fused epilogue` 则保留为研究型优化前沿。关闭 PR 6 不撤回稳定 baseline，也不把尚未通过
+正确性、ownership 或 raw provenance 门禁的实现放入默认路径。
+
+PR 7 将工作分成两层：先在最终发布提交上复验当前 C2C/R2C/C2R/E2E 证据，再用小型架构消融
+和可选的大尺寸压力切片增强迁移展示；之后才分别处理 PR 6 的边界 writer。详细测试矩阵、
+预期产物和晋升门槛见[PR 7：迁移验收与后续优化收敛](benchmarks/pr7-migration-convergence.md)。
+
+当前版本可以在 A1/A4 完成后作为迁移案例发布，不需要等待所有 fused 或 persistent pipeline
+实验达到最优。未收敛的候选必须显式标记为 experimental，并在失败时回退 incumbent。
+
 ## 1. 近期工程闭环
 
 ### 自动硬件 profile 与模型版本化

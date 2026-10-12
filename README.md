@@ -166,6 +166,8 @@ plan->run(host_input, host_output, 4096, 64);
 
 完整导航见 [GitHub Pages](https://truncat3.github.io/ascend-fft/) 或 [`docs/index.md`](docs/index.md)。
 后续工程实现、能力扩展和测试验收见[未来计划](docs/roadmap.md)。
+当前迁移案例的复验、消融、规模压力测试以及 PR 6 遗留边界优化的门禁见
+[PR 7 迁移验收与后续优化](docs/benchmarks/pr7-migration-convergence.md)。
 分层测试、硬件拐点与待扩展负载见[测试策略](docs/testing.md)。
 长 FFT 的容量、延迟、吞吐、消融与应用验收矩阵见[目的化实验计划](docs/benchmarks/long-fft-plan.md)
 及其[预声明数据表](docs/generated/long-fft-tables.md)，其中 `N=65536` 是下一阶段核心验收点；
