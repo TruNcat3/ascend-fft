@@ -74,3 +74,32 @@ for (uint32_t i = 0; i < revLen / 2; i++) {
 - `c6c2e14`: R1-A contract + R1-B static paired writer
 - `8ae6579`: R1-C pipelined (WIP)
 - `ba9d37f`: R1-D fused epilogue (WIP)
+
+## Round-4 Results (2026-10-12)
+
+### R1-B: Static Paired Writer Ablation
+| Variant | Median (µs) | Δ vs base | Correctness |
+|---------|-------------|-----------|-------------|
+| base | 336.2 | — | PASS |
+| norev (skip reverse swap) | 279.6 | -17% | FAIL |
+| nostore (vectorize interleave) | 264.8 | -21% | PASS |
+| nobar (remove barriers) | 336.0 | -0.1% | PASS |
+| nogather (scalar Gather) | 497.7 | +48% | PASS |
+| combo (nostore+norev) | 207.8 | -38% | FAIL |
+
+**Applied nostore optimization**: 336.2µs → 266.4µs (21% improvement)
+**Conclusion**: Not promoted. Still 2.2× slower than baseline post (123µs).
+
+### R1-C: Pipe Race Condition Fix
+**Root cause**: `PipeBarrier<PIPE_MTE2>` after initial DataCopy was insufficient.
+**Fix**: Restore `PipeBarrier<PIPE_ALL>` after initial z0 DataCopy.
+**Result**: batch=1,5,47,48,49,64 all PASS. Median: 316.3µs.
+**Conclusion**: Not promoted. 2.6× slower than baseline. PIPE_ALL overhead > pipelining benefit.
+
+### R1-D: Fused Kernel Bottleneck
+**Analysis**: `kfft_r2c_fwd` bottleneck is `simple_fft` (scalar O(n²)), not writer logic.
+**Conclusion**: Not promoted. 1361µs (11× slower than baseline). Need vectorized FFT from `kfft_fwd` (out of PR scope).
+
+### Convergence Status
+All 14 targets still <1.0×. Worst: r2c 128×4096 = 0.43×.
+Full test suite: 324 Python + 33 C++ PASS.
