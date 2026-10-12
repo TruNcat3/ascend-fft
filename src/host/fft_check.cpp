@@ -536,12 +536,14 @@ int main(int argc, char** argv){
     }
     void *dIn=nullptr,*dOut=nullptr,*dA=nullptr,*dB=nullptr,*dTwR=nullptr,*dTwI=nullptr,
          *dIdx=nullptr,*dPW=nullptr,*dTw2R=nullptr,*dTw2I=nullptr,*dIdx2=nullptr,
-         *dWB=nullptr;
+         *dWB=nullptr,*dR2cW=nullptr;
     CK(aclrtMalloc(&dIn,  inElems*4u,  ACL_MEM_MALLOC_NORMAL_ONLY));
     CK(aclrtMalloc(&dOut, outElems*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
     if(isR2C){                                    // Z：内层 FFT 输出（n float/行）
         CK(aclrtMalloc(&dA, inElems*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
         CK(aclrtMalloc(&dPW, (size_t)2u*pPad*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
+        // r2c 融合内核需要的 r2c 旋转因子表
+        CK(aclrtMalloc(&dR2cW, (size_t)2u*pPad*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
     }else if(isC2R){                              // A：满谱；B：kfft_fwd 反号输出
         CK(aclrtMalloc(&dA, elements*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
         CK(aclrtMalloc(&dB, elements*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
@@ -574,6 +576,16 @@ int main(int argc, char** argv){
         CK(aclrtMemcpy(dPW, (size_t)pPad*4u, pwr.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
         CK(aclrtMemcpy((char*)dPW + (size_t)pPad*4u, (size_t)pPad*4u,
                        pwi.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+        // r2c 融合内核的合并旋转因子表：[fftWr | fftWi | r2cWr | r2cWi]
+        // fftWr/fftWi 来自 pp1.twr/twi（内层 FFT 用）
+        // r2cWr/r2cWi 来自 pwr/pwi（r2c 后处理用）
+        CK(aclrtMemcpy(dR2cW, (size_t)pPad*4u, pp1.twr.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+        CK(aclrtMemcpy((char*)dR2cW + (size_t)pPad*4u, (size_t)pPad*4u,
+                       pp1.twi.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+        CK(aclrtMemcpy((char*)dR2cW + 2u*(size_t)pPad*4u, (size_t)pPad*4u,
+                       pwr.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+        CK(aclrtMemcpy((char*)dR2cW + 3u*(size_t)pPad*4u, (size_t)pPad*4u,
+                       pwi.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
     }
 
     aclrtBinHandle b=nullptr;
@@ -583,31 +595,47 @@ int main(int argc, char** argv){
 
     // 实数内核（同一 .o 内三个内核同签名，argSize=40）
     aclrtBinHandle rb=nullptr;
-    aclrtFuncHandle fPrep=nullptr, fPost=nullptr;
+    aclrtFuncHandle fPrep=nullptr, fPost=nullptr, fFwd=nullptr;
     if(isReal){
         const char* ropath = getenv("AB_REAL_O")?getenv("AB_REAL_O"):"build/fft_real.o";
         CK(aclrtBinaryLoadFromFile(ropath, nullptr, &rb));
         if(isR2C){
-            // AB_R2C_PAIRED=1 时使用 paired-post 内核（k 和 m-k 同时计算）
-            // AB_R2C_STATIC=1 时使用 static paired writer（R1-B 原型）
+            // AB_R2C_FUSED=1 时使用融合内核（R1-D）
             // AB_R2C_PIPE=1 时使用 pipelined static paired writer（R1-C）
-            const bool usePipe = getenv("AB_R2C_PIPE") && atoi(getenv("AB_R2C_PIPE"))==1;
-            const bool useStatic = !usePipe && getenv("AB_R2C_STATIC") && atoi(getenv("AB_R2C_STATIC"))==1;
-            const bool usePaired = !usePipe && !useStatic && getenv("AB_R2C_PAIRED") && atoi(getenv("AB_R2C_PAIRED"))==1;
-            // static/pipe 内核在单独的 .o 文件中
-            if(usePipe){
+            // AB_R2C_STATIC=1 时使用 static paired writer（R1-B 原型）
+            // AB_R2C_PAIRED=1 时使用 paired-post 内核（k 和 m-k 同时计算）
+            const bool useFused = getenv("AB_R2C_FUSED") && atoi(getenv("AB_R2C_FUSED"))==1;
+            const bool usePipe = !useFused && getenv("AB_R2C_PIPE") && atoi(getenv("AB_R2C_PIPE"))==1;
+            const bool useStatic = !useFused && !usePipe && getenv("AB_R2C_STATIC") && atoi(getenv("AB_R2C_STATIC"))==1;
+            const bool usePaired = !useFused && !usePipe && !useStatic && getenv("AB_R2C_PAIRED") && atoi(getenv("AB_R2C_PAIRED"))==1;
+            // fused 内核在单独的 .o 文件中
+            if(useFused){
+                const char* fpath = getenv("AB_R2C_FWD_O")?getenv("AB_R2C_FWD_O"):"build/fft_r2c_fwd.o";
+                CK(aclrtBinaryLoadFromFile(fpath, nullptr, &rb));
+                CK(aclrtBinaryGetFunction(rb, "kfft_r2c_fwd", &fFwd));
+                printf("r2c: using fused epilogue kernel (kfft_r2c_fwd)\n");
+                // 融合内核替代 kfft_fwd + kfft_r2c_post
+                fPost = nullptr;  // 不使用 separate post
+            }
+            else if(usePipe){
                 const char* ppath = getenv("AB_REAL_PIPE_O")?getenv("AB_REAL_PIPE_O"):"build/fft_real_pipe.o";
                 CK(aclrtBinaryLoadFromFile(ppath, nullptr, &rb));
+                CK(aclrtBinaryGetFunction(rb, "kfft_r2c_post_pipe", &fPost));
+                printf("r2c: using pipelined static paired writer kernel\n");
             }
             else if(useStatic){
                 const char* spath = getenv("AB_REAL_STATIC_O")?getenv("AB_REAL_STATIC_O"):"build/fft_real_static.o";
                 CK(aclrtBinaryLoadFromFile(spath, nullptr, &rb));
+                CK(aclrtBinaryGetFunction(rb, "kfft_r2c_post_static", &fPost));
+                printf("r2c: using static paired writer kernel\n");
             }
-            const char* kname = usePipe ? "kfft_r2c_post_pipe" : (useStatic ? "kfft_r2c_post_static" : (usePaired ? "kfft_r2c_post_paired" : "kfft_r2c_post"));
-            CK(aclrtBinaryGetFunction(rb, kname, &fPost));
-            if(usePipe) printf("r2c: using pipelined static paired writer kernel\n");
-            else if(useStatic) printf("r2c: using static paired writer kernel\n");
-            else if(usePaired) printf("r2c: using paired-post kernel\n");
+            else if(usePaired){
+                CK(aclrtBinaryGetFunction(rb, "kfft_r2c_post_paired", &fPost));
+                printf("r2c: using paired-post kernel\n");
+            }
+            else{
+                CK(aclrtBinaryGetFunction(rb, "kfft_r2c_post", &fPost));
+            }
         }
         else{
             CK(aclrtBinaryGetFunction(rb,"kfft_c2r_prep",&fPrep));
@@ -991,8 +1019,16 @@ int main(int argc, char** argv){
         }
         float dm=-1.f;
         if(!e) e=aclrtRecordEvent(ev0, s);
-        if(isR2C)      { e=issueFwd(dA,dIn);
-                         if(!e) e=issueReal(fPost,dOut,dA, dPW,(char*)dPW+(size_t)pPad*4); }
+        if(isR2C)      {
+            if(fFwd) {
+                // 融合内核：一次发射完成 FFT + r2c post
+                // 需要传递 FFT twiddles 和 r2c twiddles
+                e=issueReal(fFwd,dOut,dIn, dPW, dR2cW);
+            } else {
+                e=issueFwd(dA,dIn);
+                if(!e) e=issueReal(fPost,dOut,dA, dPW,(char*)dPW+(size_t)pPad*4);
+            }
+        }
         else if(isC2R) { e=issueReal(fPrep,dA,dIn);     if(!e) e=issueFwd(dB,dA);
                          if(!e) e=issueReal(fPost,dOut,dB); }
         else           { e=issueFwd(dOut,dIn); }
