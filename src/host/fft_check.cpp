@@ -590,16 +590,23 @@ int main(int argc, char** argv){
         if(isR2C){
             // AB_R2C_PAIRED=1 时使用 paired-post 内核（k 和 m-k 同时计算）
             // AB_R2C_STATIC=1 时使用 static paired writer（R1-B 原型）
-            const bool useStatic = getenv("AB_R2C_STATIC") && atoi(getenv("AB_R2C_STATIC"))==1;
-            const bool usePaired = !useStatic && getenv("AB_R2C_PAIRED") && atoi(getenv("AB_R2C_PAIRED"))==1;
-            // static 内核在单独的 .o 文件中
-            if(useStatic){
+            // AB_R2C_PIPE=1 时使用 pipelined static paired writer（R1-C）
+            const bool usePipe = getenv("AB_R2C_PIPE") && atoi(getenv("AB_R2C_PIPE"))==1;
+            const bool useStatic = !usePipe && getenv("AB_R2C_STATIC") && atoi(getenv("AB_R2C_STATIC"))==1;
+            const bool usePaired = !usePipe && !useStatic && getenv("AB_R2C_PAIRED") && atoi(getenv("AB_R2C_PAIRED"))==1;
+            // static/pipe 内核在单独的 .o 文件中
+            if(usePipe){
+                const char* ppath = getenv("AB_REAL_PIPE_O")?getenv("AB_REAL_PIPE_O"):"build/fft_real_pipe.o";
+                CK(aclrtBinaryLoadFromFile(ppath, nullptr, &rb));
+            }
+            else if(useStatic){
                 const char* spath = getenv("AB_REAL_STATIC_O")?getenv("AB_REAL_STATIC_O"):"build/fft_real_static.o";
                 CK(aclrtBinaryLoadFromFile(spath, nullptr, &rb));
             }
-            const char* kname = useStatic ? "kfft_r2c_post_static" : (usePaired ? "kfft_r2c_post_paired" : "kfft_r2c_post");
+            const char* kname = usePipe ? "kfft_r2c_post_pipe" : (useStatic ? "kfft_r2c_post_static" : (usePaired ? "kfft_r2c_post_paired" : "kfft_r2c_post"));
             CK(aclrtBinaryGetFunction(rb, kname, &fPost));
-            if(useStatic) printf("r2c: using static paired writer kernel\n");
+            if(usePipe) printf("r2c: using pipelined static paired writer kernel\n");
+            else if(useStatic) printf("r2c: using static paired writer kernel\n");
             else if(usePaired) printf("r2c: using paired-post kernel\n");
         }
         else{
