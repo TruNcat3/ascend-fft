@@ -47,7 +47,7 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_static(
     const uint32_t twLen  = ((mHalf + 1u) + 7u) & ~7u;  // 旋转因子表按 8 倍数上取整
 
     TPipe pipe;
-    TBuf<TPosition::VECCALC> bZ, bWr, bWi, bT, bTmp, bStg;
+    TBuf<TPosition::VECCALC> bZ, bWr, bWi, bT, bTmp, bStg, bPair;
     pipe.InitBuffer(bZ, ub32(n * sizeof(float)));
     pipe.InitBuffer(bWr, ub32(twLen * sizeof(float)));
     pipe.InitBuffer(bWi, ub32(twLen * sizeof(float)));
@@ -59,6 +59,8 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_static(
     // 每个 fragment 2*(mHalf+1) floats，上取整到 8
     const uint32_t fragLen = ((mHalf + 1u) + 3u) & ~3u;  // 上取整到 4 复数槽
     pipe.InitBuffer(bStg, ub32(4u * fragLen * sizeof(float)));  // forward + reverse
+    // 交错表 tPair：dst[2i]=4i, dst[2i+1]=4*(kChunk+i)（矢量 Gather 交错用）
+    pipe.InitBuffer(bPair, ub32(2u * kChunk * sizeof(uint32_t)));
 
     LocalTensor<float> zr    = bZ.Get<float>();
     LocalTensor<float> wrr   = bWr.Get<float>(), wri = bWi.Get<float>();
@@ -75,14 +77,20 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_static(
     // Forward/Reverse fragments
     LocalTensor<float> stg = bStg.Get<float>();
     LocalTensor<float> fwd = stg, rev = stg[2u * fragLen];
+    LocalTensor<uint32_t> tPair = bPair.Get<uint32_t>();
 
     // ---- 表（批次循环外一次建好，全批共用）----
     // tA[k] = k 的字节偏移，tB[k] = (m-k) 的字节偏移，tW[k] = k 的 float 偏移
     // 注意：k=0 时 b=Z[0]（不是 Z[m]，因为 Z 只有 m 个元素）
     for (uint32_t k = 0; k <= mHalf; k++) {
         tA.SetValue(k, k * 8u);                    // Z[k] 的字节偏移（复数）
-        tB.SetValue(k, (k == 0u) ? 0u : ((m - k) * 8u));  // Z[m-k] 的字节偏移（k=0 时用 Z[0]）
+        tB.SetValue(k, (k == 0u) ? 0u : ((m - k) * 8u));  // Z[m-k] 的字节偏移（k=0 时用 Z[0])
         tW.SetValue(k, k * 4u);                    // W[k] 的 float 偏移
+    }
+    // 交错表：dst[2i]=4i（oR 的 float 偏移）, dst[2i+1]=4*(kChunk+i)（oI 的 float 偏移）
+    for (uint32_t i = 0; i < kChunk; i++) {
+        tPair.SetValue(2u * i,     4u * i);
+        tPair.SetValue(2u * i + 1u, 4u * (kChunk + i));
     }
     GlobalTensor<float> gwrr, gwri;
     gwrr.SetGlobalBuffer(wrrGm, twLen);
@@ -134,11 +142,8 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_static(
             // X[k] = E + t（forward fragment，交错复数布局）
             Add(oR, er, tre, len);
             Add(oI, ei, tim, len);
-            // 写入 forward fragment（交错复数）
-            for (uint32_t i = 0; i < len; i++) {
-                fwd.SetValue(2u * i,     oR.GetValue(i));
-                fwd.SetValue(2u * i + 1u, oI.GetValue(i));
-            }
+            // 矢量 Gather 交错：dst[2i]=oR[i], dst[2i+1]=oI[i]（替代标量 SetValue）
+            Gather(fwd, oR, tPair, 0u, 2u * len);
 
             // X[m-k] = conj(E - t)（reverse fragment，交错复数布局）
             // 注意：k=0 时 X[0] 实数（只写 forward）；k=m/2 时自配对只写一次（只写 forward）
