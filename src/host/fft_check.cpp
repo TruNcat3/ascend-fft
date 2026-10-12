@@ -587,7 +587,13 @@ int main(int argc, char** argv){
     if(isReal){
         const char* ropath = getenv("AB_REAL_O")?getenv("AB_REAL_O"):"build/fft_real.o";
         CK(aclrtBinaryLoadFromFile(ropath, nullptr, &rb));
-        if(isR2C) CK(aclrtBinaryGetFunction(rb,"kfft_r2c_post",&fPost));
+        if(isR2C){
+            // AB_R2C_PAIRED=1 时使用 paired-post 内核（k 和 m-k 同时计算）
+            const bool usePaired = getenv("AB_R2C_PAIRED") && atoi(getenv("AB_R2C_PAIRED"))==1;
+            const char* kname = usePaired ? "kfft_r2c_post_paired" : "kfft_r2c_post";
+            CK(aclrtBinaryGetFunction(rb, kname, &fPost));
+            if(usePaired) printf("r2c: using paired-post kernel\n");
+        }
         else{
             CK(aclrtBinaryGetFunction(rb,"kfft_c2r_prep",&fPrep));
             CK(aclrtBinaryGetFunction(rb,"kfft_c2r_post",&fPost));
