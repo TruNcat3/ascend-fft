@@ -1,0 +1,2 @@
+Device_id,OP Type,Core Type,Count,Total Time(us),Min Time(us),Avg Time(us),Max Time(us),Ratio(%)
+0,kfft_r2c_fwd,AI_VECTOR_CORE,51,69432.313,1358.613,1361.418,1417.732,100
