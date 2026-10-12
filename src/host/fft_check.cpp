@@ -589,10 +589,18 @@ int main(int argc, char** argv){
         CK(aclrtBinaryLoadFromFile(ropath, nullptr, &rb));
         if(isR2C){
             // AB_R2C_PAIRED=1 时使用 paired-post 内核（k 和 m-k 同时计算）
-            const bool usePaired = getenv("AB_R2C_PAIRED") && atoi(getenv("AB_R2C_PAIRED"))==1;
-            const char* kname = usePaired ? "kfft_r2c_post_paired" : "kfft_r2c_post";
+            // AB_R2C_STATIC=1 时使用 static paired writer（R1-B 原型）
+            const bool useStatic = getenv("AB_R2C_STATIC") && atoi(getenv("AB_R2C_STATIC"))==1;
+            const bool usePaired = !useStatic && getenv("AB_R2C_PAIRED") && atoi(getenv("AB_R2C_PAIRED"))==1;
+            // static 内核在单独的 .o 文件中
+            if(useStatic){
+                const char* spath = getenv("AB_REAL_STATIC_O")?getenv("AB_REAL_STATIC_O"):"build/fft_real_static.o";
+                CK(aclrtBinaryLoadFromFile(spath, nullptr, &rb));
+            }
+            const char* kname = useStatic ? "kfft_r2c_post_static" : (usePaired ? "kfft_r2c_post_paired" : "kfft_r2c_post");
             CK(aclrtBinaryGetFunction(rb, kname, &fPost));
-            if(usePaired) printf("r2c: using paired-post kernel\n");
+            if(useStatic) printf("r2c: using static paired writer kernel\n");
+            else if(usePaired) printf("r2c: using paired-post kernel\n");
         }
         else{
             CK(aclrtBinaryGetFunction(rb,"kfft_c2r_prep",&fPrep));
