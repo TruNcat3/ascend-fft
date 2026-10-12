@@ -107,7 +107,7 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_pipe(
         GlobalTensor<float> gz;
         gz.SetGlobalBuffer(z + (uint32_t)firstB * n, n);
         DataCopy(z0, gz, n);
-        PipeBarrier<PIPE_MTE2>();
+        PipeBarrier<PIPE_ALL>();  // 确保 z0 就绪（与 static 一致）
     }
 
     // 流水线主循环：处理 batch[b] 时，预取 batch[b+nblk] 到另一个缓冲
@@ -121,21 +121,17 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_pipe(
 
         const uint32_t rowOff = (uint32_t)b * strideF;
 
-        // 等待上一批的 MTE3 完成（如果有的话），再预取下一批
-        // 否则下一批的 MTE2 会与上一批的 MTE3 竞争同一 UB 缓冲
-        if (iter > 0) {
-            PipeBarrier<PIPE_ALL>();
-        }
+        // 不加屏障：ping-pong 用不同缓冲区，zr/fwd/rev 与 zrNext/fwdNext/revNext 无冲突
+        // 下一轮的 Gather 由 L158 的 PIPE_MTE2 保护，DataCopy 由 L197 的 PIPE_V 保护
 
         // 预取下一批数据（与当前批的计算并行）
         // 注意：只预取到 zrNext，不覆盖当前批正在使用的 zr
+        // 不加屏障：下一轮的 Gather 由 L158 的 PIPE_MTE2 保护
         int64_t nextB = b + nblk;
         if (nextB < (int64_t)batch) {
             GlobalTensor<float> gzNext;
             gzNext.SetGlobalBuffer(z + (uint32_t)nextB * n, n);
             DataCopy(zrNext, gzNext, n);
-            // 只等待 MTE2 完成，不等待 MTE3（流水线关键）
-            PipeBarrier<PIPE_MTE2>();
         }
 
         GlobalTensor<float> gout;
@@ -155,7 +151,7 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_pipe(
             // Gather twiddles W[k]
             Gather(wv0, wrr, tW[k], 0u, len);
             Gather(wv1, wri, tW[k], 0u, len);
-            PipeBarrier<PIPE_V>();    // 等待 MTE2 完成，开始计算
+            PipeBarrier<PIPE_MTE2>();    // 等待 MTE2 完成（Gather 是 MTE2），开始矢量计算
 
             // E = (a + conj(b))/2
             Add(er, ar, br, len);  Muls(er, er, 0.5f, len);
@@ -196,18 +192,19 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_pipe(
             }
             PipeBarrier<PIPE_V>();    // 等待计算完成，开始写回
 
-            // ---- 发布：两个连续 MTE3 DataCopy（每个 chunk 写到对应偏移）----
+            // ---- 发布：先写 forward（完整 padded length），等完成，再写 reverse（覆盖 padding）----
+            // Forward padding (complex 33-35) overlaps with reverse valid data (complex 33-35).
+            // Fix: write forward first with PipeBarrier<PIPE_MTE3>, then reverse overwrites padding.
+
             // 1. Forward fragment: X[k..k+len-1] -> out[k..k+len-1]
             gout.SetGlobalBuffer(out + rowOff + 2u * fwdOff, 2u * lenO);
             DataCopy(gout, fwd, 2u * lenO);
 
+            // 等待 forward DataCopy 完成，再写 reverse（确保 reverse 覆盖 forward padding）
+            PipeBarrier<PIPE_MTE3>();
+
             // 2. Reverse fragment: X[m], X[m-1], ..., X[mHalf+1] -> out[mHalf+1..m]
-            //    UB 中存储顺序：rev[0]=X[m], rev[1]=X[m-1], ..., rev[mHalf-1]=X[mHalf+1]
-            //    GM 中需要正向连续：out[mHalf+1], out[mHalf+2], ..., out[m]
-            //    需要反转后写出
             if (mHalf >= 1) {
-                // 反转 reverse fragment（交错复数布局）
-                // revLen = mHalf（包含 X[m] 和 X[m-1]..X[mHalf+1]）
                 const uint32_t revLen = mHalf;
                 for (uint32_t i = 0; i < revLen / 2; i++) {
                     const uint32_t j = revLen - 1 - i;
@@ -218,15 +215,13 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_pipe(
                     rev.SetValue(2u * j,     tmp0);
                     rev.SetValue(2u * j + 1u, tmp1);
                 }
-                // 写入 GM：out[mHalf+1..m]
-                // reverse chunk 偏移：rev[0..kChunk-1] -> out[mHalf+1..mHalf+kChunk], rev[kChunk..] -> out[mHalf+1+kChunk..]
                 const uint32_t revLenO = (revLen + 3u) & ~3u;
-                const uint32_t revOff = revBase + k;  // reverse chunk 在行内的起始复数槽
+                const uint32_t revOff = revBase + k;
                 gout.SetGlobalBuffer(out + rowOff + 2u * revOff, 2u * revLenO);
                 DataCopy(gout, rev, 2u * revLenO);
             }
+
             // 故意不加屏障：让本组的 MTE3 与下一组的 MTE2 重叠
-            // （下一组的 MTE2 写 zrNext，与本组的 MTE3 读 fwd/rev 不冲突）
         }
     }
 }
