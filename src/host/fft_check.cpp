@@ -542,8 +542,10 @@ int main(int argc, char** argv){
     if(isR2C){                                    // Z：内层 FFT 输出（n float/行）
         CK(aclrtMalloc(&dA, inElems*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
         CK(aclrtMalloc(&dPW, (size_t)2u*pPad*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
-        // r2c 融合内核需要的 r2c 旋转因子表
-        CK(aclrtMalloc(&dR2cW, (size_t)2u*pPad*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
+        // r2c 融合内核需要的合并旋转因子表：[fftWr | fftWi | r2cWr | r2cWi]
+        // 每段 twPadFused floats，twPadFused = ((m+1)+15)&~15（与 kernel 一致）
+        const uint32_t twPadFused = (((n >> 1) + 1u) + 15u) & ~15u;
+        CK(aclrtMalloc(&dR2cW, (size_t)4u*twPadFused*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
     }else if(isC2R){                              // A：满谱；B：kfft_fwd 反号输出
         CK(aclrtMalloc(&dA, elements*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
         CK(aclrtMalloc(&dB, elements*4u, ACL_MEM_MALLOC_NORMAL_ONLY));
@@ -577,15 +579,25 @@ int main(int argc, char** argv){
         CK(aclrtMemcpy((char*)dPW + (size_t)pPad*4u, (size_t)pPad*4u,
                        pwi.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
         // r2c 融合内核的合并旋转因子表：[fftWr | fftWi | r2cWr | r2cWi]
-        // fftWr/fftWi 来自 pp1.twr/twi（内层 FFT 用）
-        // r2cWr/r2cWi 来自 pwr/pwi（r2c 后处理用）
-        CK(aclrtMemcpy(dR2cW, (size_t)pPad*4u, pp1.twr.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
-        CK(aclrtMemcpy((char*)dR2cW + (size_t)pPad*4u, (size_t)pPad*4u,
-                       pp1.twi.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
-        CK(aclrtMemcpy((char*)dR2cW + 2u*(size_t)pPad*4u, (size_t)pPad*4u,
-                       pwr.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
-        CK(aclrtMemcpy((char*)dR2cW + 3u*(size_t)pPad*4u, (size_t)pPad*4u,
-                       pwi.data(), (size_t)pPad*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+        // fftWr/fftWi：canonical FFT 旋转因子 W_m^k = exp(-2πik/m)（simple_fft 用）
+        // r2cWr/r2cWi：r2c 旋转因子 W_n^k = exp(-2πik/n)（pair math 用）
+        {
+            const uint32_t mLocal = n >> 1;
+            const uint32_t twPadFused = ((mLocal + 1u) + 15u) & ~15u;
+            std::vector<float> cWr(twPadFused, 0.f), cWi(twPadFused, 0.f);
+            for(uint32_t k=0; k<mLocal; k++){
+                double ang = -2.0*M_PI*(double)k/(double)mLocal;
+                cWr[k]=(float)std::cos(ang); cWi[k]=(float)std::sin(ang);
+            }
+            CK(aclrtMemcpy(dR2cW, (size_t)twPadFused*4u, cWr.data(),
+                           (size_t)twPadFused*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+            CK(aclrtMemcpy((char*)dR2cW + (size_t)twPadFused*4u, (size_t)twPadFused*4u,
+                           cWi.data(), (size_t)twPadFused*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+            CK(aclrtMemcpy((char*)dR2cW + 2u*(size_t)twPadFused*4u, (size_t)twPadFused*4u,
+                           pwr.data(), (size_t)twPadFused*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+            CK(aclrtMemcpy((char*)dR2cW + 3u*(size_t)twPadFused*4u, (size_t)twPadFused*4u,
+                           pwi.data(), (size_t)twPadFused*4u, ACL_MEMCPY_HOST_TO_DEVICE));
+        }
     }
 
     aclrtBinHandle b=nullptr;
@@ -1022,8 +1034,8 @@ int main(int argc, char** argv){
         if(isR2C)      {
             if(fFwd) {
                 // 融合内核：一次发射完成 FFT + r2c post
-                // 需要传递 FFT twiddles 和 r2c twiddles
-                e=issueReal(fFwd,dOut,dIn, dPW, dR2cW);
+                // ex0 = combined twiddle table [fftWr | fftWi | r2cWr | r2cWi]
+                e=issueReal(fFwd,dOut,dIn, dR2cW, nullptr);
             } else {
                 e=issueFwd(dA,dIn);
                 if(!e) e=issueReal(fPost,dOut,dA, dPW,(char*)dPW+(size_t)pPad*4);

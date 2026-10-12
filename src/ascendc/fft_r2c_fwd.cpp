@@ -195,8 +195,9 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_fwd(
             }
             else if (k < mHalf) {
                 // X[m-k] = conj(E - t) = (Re(E-t), -Im(E-t))
+                // Im(conj(E-t)) = -Im(E-t) = -(ei - tim) = tim - ei
                 rev.SetValue(2u * k,     er - tre);
-                rev.SetValue(2u * k + 1u, -(tim - ei));  // -Im(E-t) = Im(t)-Im(E)
+                rev.SetValue(2u * k + 1u, tim - ei);  // -Im(E-t) = Im(t)-Im(E)
             }
         }
         PipeBarrier<PIPE_ALL>();

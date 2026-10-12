@@ -144,6 +144,8 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_pipe(
         for (uint32_t k = 0; k <= mHalf; k += kChunk) {
             const uint32_t len  = ((mHalf + 1u - k) < kChunk) ? (mHalf + 1u - k) : kChunk;
             const uint32_t lenO = (len + 3u) & ~3u;   // DataCopy 上取整到 4 槽
+            const uint32_t fwdOff = k;                 // forward chunk 在行内的起始复数槽
+            const uint32_t revBase = mHalf + 1u;       // reverse 在行内的起始复数槽
 
             // Gather a = Z[k], b = Z[m-k]
             Gather(ar,  zr, tA[k], 0u, len);
@@ -193,36 +195,38 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_pipe(
                 }
             }
             PipeBarrier<PIPE_V>();    // 等待计算完成，开始写回
-        }
 
-        // ---- 发布：两个连续 MTE3 DataCopy ----
-        // 1. Forward fragment: X[0..mHalf] -> out[0..mHalf]
-        gout.SetGlobalBuffer(out + rowOff, 2u * fragLen);
-        DataCopy(gout, fwd, 2u * fragLen);
+            // ---- 发布：两个连续 MTE3 DataCopy（每个 chunk 写到对应偏移）----
+            // 1. Forward fragment: X[k..k+len-1] -> out[k..k+len-1]
+            gout.SetGlobalBuffer(out + rowOff + 2u * fwdOff, 2u * lenO);
+            DataCopy(gout, fwd, 2u * lenO);
 
-        // 2. Reverse fragment: X[m], X[m-1], ..., X[mHalf+1] -> out[mHalf+1..m]
-        //    UB 中存储顺序：rev[0]=X[m], rev[1]=X[m-1], ..., rev[mHalf-1]=X[mHalf+1]
-        //    GM 中需要正向连续：out[mHalf+1], out[mHalf+2], ..., out[m]
-        //    需要反转后写出
-        if (mHalf >= 1) {
-            // 反转 reverse fragment（交错复数布局）
-            // revLen = mHalf（包含 X[m] 和 X[m-1]..X[mHalf+1]）
-            const uint32_t revLen = mHalf;
-            for (uint32_t i = 0; i < revLen / 2; i++) {
-                const uint32_t j = revLen - 1 - i;
-                float tmp0 = rev.GetValue(2u * i);
-                float tmp1 = rev.GetValue(2u * i + 1u);
-                rev.SetValue(2u * i,     rev.GetValue(2u * j));
-                rev.SetValue(2u * i + 1u, rev.GetValue(2u * j + 1u));
-                rev.SetValue(2u * j,     tmp0);
-                rev.SetValue(2u * j + 1u, tmp1);
+            // 2. Reverse fragment: X[m], X[m-1], ..., X[mHalf+1] -> out[mHalf+1..m]
+            //    UB 中存储顺序：rev[0]=X[m], rev[1]=X[m-1], ..., rev[mHalf-1]=X[mHalf+1]
+            //    GM 中需要正向连续：out[mHalf+1], out[mHalf+2], ..., out[m]
+            //    需要反转后写出
+            if (mHalf >= 1) {
+                // 反转 reverse fragment（交错复数布局）
+                // revLen = mHalf（包含 X[m] 和 X[m-1]..X[mHalf+1]）
+                const uint32_t revLen = mHalf;
+                for (uint32_t i = 0; i < revLen / 2; i++) {
+                    const uint32_t j = revLen - 1 - i;
+                    float tmp0 = rev.GetValue(2u * i);
+                    float tmp1 = rev.GetValue(2u * i + 1u);
+                    rev.SetValue(2u * i,     rev.GetValue(2u * j));
+                    rev.SetValue(2u * i + 1u, rev.GetValue(2u * j + 1u));
+                    rev.SetValue(2u * j,     tmp0);
+                    rev.SetValue(2u * j + 1u, tmp1);
+                }
+                // 写入 GM：out[mHalf+1..m]
+                // reverse chunk 偏移：rev[0..kChunk-1] -> out[mHalf+1..mHalf+kChunk], rev[kChunk..] -> out[mHalf+1+kChunk..]
+                const uint32_t revLenO = (revLen + 3u) & ~3u;
+                const uint32_t revOff = revBase + k;  // reverse chunk 在行内的起始复数槽
+                gout.SetGlobalBuffer(out + rowOff + 2u * revOff, 2u * revLenO);
+                DataCopy(gout, rev, 2u * revLenO);
             }
-            // 写入 GM：out[mHalf+1..m]
-            const uint32_t revLenO = (revLen + 3u) & ~3u;
-            gout.SetGlobalBuffer(out + rowOff + 2u * (mHalf + 1u), 2u * revLenO);
-            DataCopy(gout, rev, 2u * revLenO);
+            // 故意不加屏障：让本组的 MTE3 与下一组的 MTE2 重叠
+            // （下一组的 MTE2 写 zrNext，与本组的 MTE3 读 fwd/rev 不冲突）
         }
-        // 故意不加屏障：让本组的 MTE3 与下一组的 MTE2 重叠
-        // （下一组的 MTE2 写 zrNext，与本组的 MTE3 读 fwd/rev 不冲突）
     }
 }

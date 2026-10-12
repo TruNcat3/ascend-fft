@@ -104,9 +104,13 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_static(
 
         // ---- 一次遍历 k=0..mHalf，同时产出 X[k] 和 X[m-k] ----
         // R1-B: 非流水版本，先证明正确性
+        // chunk 偏移：forward[0..kChunk-1] -> out[0..kChunk-1], forward[kChunk..] -> out[kChunk..]
+        // reverse 同理：每个 chunk 写到对应偏移
         for (uint32_t k = 0; k <= mHalf; k += kChunk) {
             const uint32_t len  = ((mHalf + 1u - k) < kChunk) ? (mHalf + 1u - k) : kChunk;
             const uint32_t lenO = (len + 3u) & ~3u;   // DataCopy 上取整到 4 槽
+            const uint32_t fwdOff = k;                 // forward chunk 在行内的起始复数槽
+            const uint32_t revBase = mHalf + 1u;       // reverse 在行内的起始复数槽
 
             // Gather a = Z[k], b = Z[m-k]
             Gather(ar,  zr, tA[k], 0u, len);
@@ -165,8 +169,8 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_static(
             PipeBarrier<PIPE_ALL>();
 
             // 1. Forward fragment: X[0..mHalf] -> out[0..mHalf]
-            //    位置：rowOff + 0 到 rowOff + 2*mHalf（复数槽）
-            gout.SetGlobalBuffer(out + rowOff, 2u * lenO);
+            //    chunk 偏移：每个 chunk 写到对应位置（k=0..kChunk-1, kChunk..2*kChunk-1, ...）
+            gout.SetGlobalBuffer(out + rowOff + 2u * fwdOff, 2u * lenO);
             DataCopy(gout, fwd, 2u * lenO);
 
             // 2. Reverse fragment: X[m], X[m-1], ..., X[mHalf+1] -> out[mHalf+1..m]
@@ -187,8 +191,10 @@ extern "C" __global__ __aicore__ __vector__ void kfft_r2c_post_static(
                     rev.SetValue(2u * j + 1u, tmp1);
                 }
                 // 写入 GM：out[mHalf+1..m]
+                // reverse chunk 偏移：rev[0..kChunk-1] -> out[mHalf+1..mHalf+kChunk], rev[kChunk..] -> out[mHalf+1+kChunk..]
                 const uint32_t revLenO = (revLen + 3u) & ~3u;
-                gout.SetGlobalBuffer(out + rowOff + 2u * (mHalf + 1u), 2u * revLenO);
+                const uint32_t revOff = revBase + k;  // reverse chunk 在行内的起始复数槽
+                gout.SetGlobalBuffer(out + rowOff + 2u * revOff, 2u * revLenO);
                 DataCopy(gout, rev, 2u * revLenO);
             }
         }
