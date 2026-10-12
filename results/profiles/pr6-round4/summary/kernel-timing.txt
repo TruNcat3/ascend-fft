@@ -1,0 +1,24 @@
+# PR #6 Round-4 Kernel Timing Summary
+# Target: 128 x 4096, 51 runs each
+# Profiled: 2026-10-12 via msprof
+# Environment: Ascend910_9382, CANN 9.0.0
+
+## Baseline (kfft_fwd + kfft_r2c_post)
+  kfft_fwd:       34.5 µs avg  (51 tasks)
+  kfft_r2c_post: 123.2 µs avg  (51 tasks)
+  Total device:   8043 µs (chain of 51 pairs)
+
+## Static Paired (kfft_fwd + kfft_r2c_post_static)
+  kfft_fwd:            33.0 µs avg  (51 tasks)
+  kfft_r2c_post_static: 304.3 µs avg  (51 tasks)
+  Total device:        17205 µs
+
+## Fused (kfft_r2c_fwd)
+  kfft_r2c_fwd: 1361.4 µs avg  (51 tasks)
+  Total device:  69432 µs
+
+## Key Finding
+Static paired writer is 2.5x slower than baseline post kernel.
+Root cause: baseline uses L/U segment split + double buffering;
+static uses single-chunk paired writer without overlap.
+Fused kernel bottleneck is scalar simple_fft (O(n^2)), not writer logic.
