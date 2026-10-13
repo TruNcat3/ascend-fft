@@ -15,6 +15,7 @@ FIGURES = ROOT / "docs" / "figures"
 DIAGRAMS = (
     "method_layers",
     "fft_space_time_example",
+    "hybrid_unfolding_example",
     "flow_core_space",
     "ascend_data_path_detail",
     "kplane_layout_example",

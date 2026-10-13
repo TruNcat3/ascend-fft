@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">N=16 FFT 的混合空间时间展开实例</title>
+  <desc id="desc">一个十六点 FFT 被分成两组四点子图。图中先展示四乘四数据分解，再以 Us=2、Ts=2、Ud=4、Td=2 覆盖四级阶段和每级八个蝶形，最后展示两个阶段角色流水两个数据包、在线重排并复用到第二个阶段折叠的时间线。底部明确该图是方法教学候选，跨 AIV 的双角色流水尚未在 Ascend 生产路径中实现。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#425466"/>
+    </marker>
+    <style>
+      .title{font:700 29px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#17212b}
+      .subtitle{font:14px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#475569}
+      .head{font:700 18px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#17212b}
+      .body{font:14px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#334155}
+      .small{font:12px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#52606d}
+      .tiny{font:11px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#52606d}
+      .mono{font:13px 'Noto Sans Mono CJK SC','DejaVu Sans Mono',monospace;fill:#243447}
+      .tag{font:700 12px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif}
+      .panel{fill:#fff;stroke:#cbd5e1;stroke-width:2}
+      .arrow{stroke:#425466;stroke-width:2;fill:none;marker-end:url(#arrow)}
+      .thin{stroke:#7a8a9e;stroke-width:1.4;fill:none}
+      .dash{stroke:#7a8a9e;stroke-width:1.5;stroke-dasharray:6 5;fill:none}
+    </style>
+  </defs>
+
+  <rect width="1440" height="900" rx="18" fill="#f8fafc"/>
+  <text x="42" y="48" class="title">一个完整例子：N=16 FFT 如何同时展开阶段维度与数据维度</text>
+  <text x="42" y="77" class="subtitle">教学点 (Us, Ts, Ud, Td) = (2, 2, 4, 2)：空间资源形成 2×4 单元，时间上复用 2 个阶段折叠和 2 个数据包。</text>
+
+  <!-- Panel 1: concrete factorization -->
+  <rect x="35" y="105" width="355" height="675" rx="12" class="panel"/>
+  <text x="57" y="140" class="head">1  把依赖图变成统一子图</text>
+  <text x="57" y="166" class="body">N=16=4×4，K=4 个 radix-2 阶段</text>
+  <text x="57" y="189" class="small">行是第一组 4 点子图 Qj；每格是一个输入。</text>
+
+  <g>
+    <text x="58" y="228" class="mono">Q0</text><text x="58" y="268" class="mono">Q1</text>
+    <text x="58" y="308" class="mono">Q2</text><text x="58" y="348" class="mono">Q3</text>
+    <g fill="#eaf3fb" stroke="#4d8fbd">
+      <rect x="91" y="204" width="52" height="32" rx="5"/><rect x="145" y="204" width="52" height="32" rx="5"/><rect x="199" y="204" width="52" height="32" rx="5"/><rect x="253" y="204" width="52" height="32" rx="5"/>
+      <rect x="91" y="244" width="52" height="32" rx="5"/><rect x="145" y="244" width="52" height="32" rx="5"/><rect x="199" y="244" width="52" height="32" rx="5"/><rect x="253" y="244" width="52" height="32" rx="5"/>
+      <rect x="91" y="284" width="52" height="32" rx="5"/><rect x="145" y="284" width="52" height="32" rx="5"/><rect x="199" y="284" width="52" height="32" rx="5"/><rect x="253" y="284" width="52" height="32" rx="5"/>
+      <rect x="91" y="324" width="52" height="32" rx="5"/><rect x="145" y="324" width="52" height="32" rx="5"/><rect x="199" y="324" width="52" height="32" rx="5"/><rect x="253" y="324" width="52" height="32" rx="5"/>
+    </g>
+    <g class="tiny" text-anchor="middle">
+      <text x="117" y="225">x0</text><text x="171" y="225">x4</text><text x="225" y="225">x8</text><text x="279" y="225">x12</text>
+      <text x="117" y="265">x1</text><text x="171" y="265">x5</text><text x="225" y="265">x9</text><text x="279" y="265">x13</text>
+      <text x="117" y="305">x2</text><text x="171" y="305">x6</text><text x="225" y="305">x10</text><text x="279" y="305">x14</text>
+      <text x="117" y="345">x3</text><text x="171" y="345">x7</text><text x="225" y="345">x11</text><text x="279" y="345">x15</text>
+    </g>
+  </g>
+
+  <path d="M198 365V389" class="arrow"/>
+  <rect x="70" y="398" width="285" height="54" rx="8" fill="#edf7ed" stroke="#4f8b55"/>
+  <text x="91" y="421" class="body">第一阶段折叠：4 个同构 4 点依赖子图</text>
+  <text x="91" y="441" class="small">Q0/Q1 一包，Q2/Q3 一包</text>
+
+  <path d="M212 452V476" class="arrow"/>
+  <rect x="70" y="485" width="285" height="65" rx="8" fill="#fff4df" stroke="#c58b22"/>
+  <text x="91" y="509" class="body">边界：twiddle + 消费者次序重排</text>
+  <text x="91" y="530" class="small">Rk 依赖多个 Qj，必须按 readiness 交接</text>
+
+  <path d="M212 550V574" class="arrow"/>
+  <rect x="70" y="583" width="285" height="74" rx="8" fill="#f2ecf8" stroke="#7750a3"/>
+  <text x="91" y="607" class="mono">R0=[Z(0,0),Z(1,0),Z(2,0),Z(3,0)]</text>
+  <text x="91" y="629" class="small">R1..R3 按 k2 聚合同一消费者所需值</text>
+  <text x="91" y="649" class="small">这一步改变 layout，不改变 FFT 数学语义</text>
+
+  <path d="M212 657V681" class="arrow"/>
+  <rect x="70" y="690" width="285" height="54" rx="8" fill="#edf7ed" stroke="#4f8b55"/>
+  <text x="91" y="713" class="body">第二阶段折叠：复用同类 4 点依赖子图</text>
+  <text x="91" y="733" class="small">得到自然序要求下的 X[k2+4k1]</text>
+
+  <!-- Panel 2: four-factor tiling -->
+  <rect x="410" y="105" width="420" height="675" rx="12" class="panel"/>
+  <text x="432" y="140" class="head">2  四个因子覆盖同一迭代域</text>
+  <text x="432" y="166" class="body">横向 4 个阶段，纵向每阶段 8 个蝶形</text>
+  <text x="432" y="189" class="small">粗框是一轮空间 tile；虚线表示下一轮时间复用。</text>
+
+  <g text-anchor="middle" class="small">
+    <text x="525" y="221">s0</text><text x="589" y="221">s1</text><text x="653" y="221">s2</text><text x="717" y="221">s3</text>
+  </g>
+  <g class="tiny" text-anchor="end">
+    <text x="480" y="250">b0</text><text x="480" y="286">b1</text><text x="480" y="322">b2</text><text x="480" y="358">b3</text>
+    <text x="480" y="394">b4</text><text x="480" y="430">b5</text><text x="480" y="466">b6</text><text x="480" y="502">b7</text>
+  </g>
+  <g stroke="#b9c6d3">
+    <g fill="#e7f6ee">
+      <rect x="493" y="229" width="62" height="34"/><rect x="557" y="229" width="62" height="34"/>
+      <rect x="493" y="265" width="62" height="34"/><rect x="557" y="265" width="62" height="34"/>
+      <rect x="493" y="301" width="62" height="34"/><rect x="557" y="301" width="62" height="34"/>
+      <rect x="493" y="337" width="62" height="34"/><rect x="557" y="337" width="62" height="34"/>
+    </g>
+    <g fill="#f3f7fb">
+      <rect x="621" y="229" width="62" height="34"/><rect x="685" y="229" width="62" height="34"/>
+      <rect x="621" y="265" width="62" height="34"/><rect x="685" y="265" width="62" height="34"/>
+      <rect x="621" y="301" width="62" height="34"/><rect x="685" y="301" width="62" height="34"/>
+      <rect x="621" y="337" width="62" height="34"/><rect x="685" y="337" width="62" height="34"/>
+    </g>
+    <g fill="#fff7e8">
+      <rect x="493" y="373" width="62" height="34"/><rect x="557" y="373" width="62" height="34"/>
+      <rect x="493" y="409" width="62" height="34"/><rect x="557" y="409" width="62" height="34"/>
+      <rect x="493" y="445" width="62" height="34"/><rect x="557" y="445" width="62" height="34"/>
+      <rect x="493" y="481" width="62" height="34"/><rect x="557" y="481" width="62" height="34"/>
+    </g>
+    <g fill="#f5f0fa">
+      <rect x="621" y="373" width="62" height="34"/><rect x="685" y="373" width="62" height="34"/>
+      <rect x="621" y="409" width="62" height="34"/><rect x="685" y="409" width="62" height="34"/>
+      <rect x="621" y="445" width="62" height="34"/><rect x="685" y="445" width="62" height="34"/>
+      <rect x="621" y="481" width="62" height="34"/><rect x="685" y="481" width="62" height="34"/>
+    </g>
+  </g>
+  <rect x="492" y="228" width="128" height="144" rx="5" fill="none" stroke="#34824a" stroke-width="3"/>
+  <rect x="620" y="228" width="128" height="144" rx="5" class="dash"/>
+  <rect x="492" y="372" width="128" height="144" rx="5" class="dash"/>
+  <rect x="620" y="372" width="128" height="144" rx="5" class="dash"/>
+  <path d="M493 206H619" class="thin"/><path d="M493 201V211M619 201V211" class="thin"/>
+  <text x="556" y="199" text-anchor="middle" class="tag" fill="#246b38">Us=2：两个阶段位置</text>
+  <path d="M476 229V371" class="thin"/><path d="M471 229H481M471 371H481" class="thin"/>
+  <text x="450" y="293" text-anchor="middle" class="tag" fill="#246b38" transform="rotate(-90 450 293)">Ud=4：四个蝶形</text>
+  <text x="621" y="540" text-anchor="middle" class="body">Ts=2 个阶段折叠 × Td=2 个数据包</text>
+
+  <rect x="443" y="566" width="354" height="72" rx="8" fill="#f8fafc" stroke="#d2dbe5"/>
+  <text x="462" y="591" class="mono">Us·Ts = 2·2 = K = 4</text>
+  <text x="462" y="615" class="mono">Ud·Td = 4·2 = N/2 = 8</text>
+  <text x="646" y="591" class="mono">Us·Ud = 8 spatial cells</text>
+  <text x="646" y="615" class="mono">Ts·Td = 4 ideal tiles</text>
+  <rect x="443" y="656" width="354" height="83" rx="8" fill="#fff4df" stroke="#d6a13c"/>
+  <text x="462" y="680" class="body">不是“展开越多越快”</text>
+  <text x="462" y="702" class="small">实际还需支付流水填充/排空、重排、同步、</text>
+  <text x="462" y="722" class="small">bank conflict 与尾部；硬件模型决定该点是否合法。</text>
+
+  <!-- Panel 3: role pipeline timeline -->
+  <rect x="850" y="105" width="555" height="675" rx="12" class="panel"/>
+  <text x="872" y="140" class="head">3  同构子图怎样形成混合数据流</text>
+  <text x="872" y="166" class="body">不同数据包错峰占用两个阶段角色；角色随后服务下一折叠。</text>
+
+  <text x="872" y="204" class="tag" fill="#7750a3">阶段折叠 0：s0 → s1</text>
+  <g text-anchor="middle" class="small">
+    <text x="1049" y="216">t0</text><text x="1165" y="216">t1</text><text x="1281" y="216">t2</text>
+  </g>
+  <text x="875" y="258" class="body">role 0 / s0</text><text x="875" y="316" class="body">role 1 / s1</text>
+  <g stroke="#7750a3">
+    <rect x="995" y="231" width="106" height="43" rx="7" fill="#f2ecf8"/><rect x="1111" y="231" width="106" height="43" rx="7" fill="#f2ecf8"/>
+    <rect x="1111" y="289" width="106" height="43" rx="7" fill="#f2ecf8"/><rect x="1227" y="289" width="106" height="43" rx="7" fill="#f2ecf8"/>
+  </g>
+  <g text-anchor="middle" class="small">
+    <text x="1048" y="257">Q0 + Q1</text><text x="1164" y="257">Q2 + Q3</text>
+    <text x="1164" y="315">Q0 + Q1</text><text x="1280" y="315">Q2 + Q3</text>
+  </g>
+  <path d="M1101 253H1111M1217 253L1227 310" class="thin"/>
+  <text x="995" y="352" class="small">稳态重叠：role 0 处理下一包时，role 1 完成上一包。</text>
+
+  <path d="M1126 365V389" class="arrow"/>
+  <rect x="907" y="398" width="440" height="74" rx="8" fill="#fff4df" stroke="#c58b22"/>
+  <text x="930" y="423" class="body">折叠边界：twiddle + 在线重排 + readiness</text>
+  <text x="930" y="445" class="small">Qj 的输出按下一消费者 Rk 聚合；不能只等单个 Qj 就启动 Rk。</text>
+  <text x="930" y="463" class="tiny">若 residence 允许，状态留在片上；否则该边界会物化到更高层存储。</text>
+  <path d="M1126 472V496" class="arrow"/>
+
+  <text x="872" y="521" class="tag" fill="#2374ab">阶段折叠 1：同一角色复用为 s2 → s3（Ts=2）</text>
+  <g text-anchor="middle" class="small">
+    <text x="1049" y="549">t3</text><text x="1165" y="549">t4</text><text x="1281" y="549">t5</text>
+  </g>
+  <text x="875" y="591" class="body">role 0 / s2</text><text x="875" y="649" class="body">role 1 / s3</text>
+  <g stroke="#2374ab">
+    <rect x="995" y="564" width="106" height="43" rx="7" fill="#eaf3fb"/><rect x="1111" y="564" width="106" height="43" rx="7" fill="#eaf3fb"/>
+    <rect x="1111" y="622" width="106" height="43" rx="7" fill="#eaf3fb"/><rect x="1227" y="622" width="106" height="43" rx="7" fill="#eaf3fb"/>
+  </g>
+  <g text-anchor="middle" class="small">
+    <text x="1048" y="590">R0 + R1</text><text x="1164" y="590">R2 + R3</text>
+    <text x="1164" y="648">R0 + R1</text><text x="1280" y="648">R2 + R3</text>
+  </g>
+  <path d="M1101 586H1111M1217 586L1227 643" class="thin"/>
+
+  <rect x="907" y="699" width="440" height="49" rx="8" fill="#f2ecf8" stroke="#9a78bd"/>
+  <text x="929" y="721" class="body">计算核心 P 可替换，但不能伪造 Us</text>
+  <text x="929" y="740" class="small">radix-4/FFT4 若融合两级，必须按实际物理角色重新记录 Us。</text>
+
+  <!-- Claim boundary -->
+  <rect x="35" y="810" width="1370" height="61" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="52" y="824" width="363" height="33" rx="16" fill="#e7f6ee"/>
+  <text x="70" y="846" class="tag" fill="#21663d">当前已实现：单 AIV / UB 驻留、阶段时间复用与数据映射</text>
+  <rect x="431" y="824" width="302" height="33" rx="16" fill="#fbe8e8" stroke="#b34a4a" stroke-dasharray="5 4"/>
+  <text x="450" y="846" class="tag" fill="#8a3030">NOT LOWERED：跨 AIV 的 Us=2 驻留角色流水</text>
+  <text x="758" y="837" class="small">方法抽象来源：cuButterfly；Ascend 实现状态以本仓库为准。</text>
+  <text x="758" y="856" class="small">教学实例，不是当前 N=16 部署配置，也不包含任何性能预测。</text>
+</svg>
