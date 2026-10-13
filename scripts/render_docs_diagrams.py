@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIGURES = ROOT / "docs" / "figures"
 DIAGRAMS = (
     "method_layers",
+    "roofline_insight",
     "fft_space_time_example",
     "hybrid_unfolding_example",
     "flow_core_space",

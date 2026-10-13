@@ -87,6 +87,11 @@ legal_H(C_ij) = lowering(C_ij, hardware H) # 再由目标硬件判定能否实�
 
 ## 当前生产数据通路
 
+从 [Roofline 流量账本](motivation.md#roofline-insight) 看，下面的关键不是
+“一个 kernel 融合了几级”，而是这些级之间是否发生完整数组的 GM 物化。短路径在一个 AIV 的
+私有 UB 中完成阶段循环，阶段时间复用没有增加 GM execution group；长路径则仍有设备 GM 边界。
+`Us/Ts` 描述服务组织，`residence` 决定这种组织是否真的减少高层流量，二者不能互相替代。
+
 ```text
 GM 交错复数输入
    → DataCopy 到 UB
