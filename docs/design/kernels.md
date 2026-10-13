@@ -3,32 +3,38 @@
 计算核心是 [映射空间](architecture.md) 的一个选择项，而不是新的架构范式。这里“核心属于流映射
 空间中的可替换选项、而不是方法本身”的分层观点来自
 [cuButterfly](https://github.com/TruNcat3/cuButterfly)。当前生产路径使用 radix-2 FFT，并在
-平面级融合相邻阶段为 radix-4；Cube 是已验证基础指令的研究选项，尚非生产 FFT backend。
+平面级融合相邻阶段为 radix-4；AIC Cube lowering 只有基础指令探针，尚非生产 FFT backend。
 
 ## 为什么核心不是本项目唯一的优化对象
 
 一个 FFT 实现至少有两个可独立变化的部分：
 
-1. **局部计算核心**：在一个已经准备好的块中完成蝶形，例如 radix-2、radix-4、向量复乘或
-   Cube DFT。它关注指令吞吐、复数乘法、数据类型、寄存器/UB 使用和局部数值误差。
+1. **局部算法核心**：在一个已经准备好的块中完成蝶形，例如 radix-2、radix-4、矩阵形式
+   小型 DFT 或专用局部 FFT。它规定局部计算公式及依赖结构。
 2. **计算流组织**：决定块如何进入 UB、哪些阶段连续复用、多个数据块如何时间遍历、阶段边界
    是否落 GM、如何重排，以及生产者和消费者如何交接。它关注依赖、搬运、同步、填充/排空和
    稳态吞吐。
 
+算法核心还必须经过第三层的**硬件 lowering**：例如用 AIV Vector 完成 radix 蝶形，或用 AIC
+Cube 完成矩阵形式 DFT，并落实存储层级、对齐、布局、所有权与同步。lowering 会改变资源成本，
+但它不是与 radix 并列的算法核心。
+
 cuButterfly 的主贡献放在第二部分，是因为第一部分通常已有大量与硬件绑定的成熟技术；重新发明
  一个局部 radix 并不能说明跨算子、跨硬件的编排规律。Ascend-FFT 因此优先复用/实现合法的
- radix-2 与局部 radix-4，同时把核心留成可替换的 `ProcessingUnit`。未来可以接入更好的向量、
- Cube 或专用 FFT 核心，只要它满足同一 lowering contract。
+ radix-2 与局部 radix-4，同时把核心留成可替换的 `ProcessingUnit`。未来可以接入矩阵形式 DFT
+ 或专用局部 FFT，再分别选择 AIV Vector、AIC Cube 等合法实现，只要满足同一 lowering contract。
 
 这不是说核心不重要。核心和流组织是**正交选择、资源耦合**：同一个 radix-2 放入不同的 tile/
- boundary/pipeline，GM 和同步成本会不同；同一个流组织替换 radix-4 或 Cube，UB、对齐、尾部和
- 指令成本也会不同。因此性能报告必须区分“固定核心比较流”和“固定流比较核心”，不能把联合
+ boundary/pipeline，GM 和同步成本会不同；同一个流组织把 radix-4 换成矩阵形式小型 DFT，并为
+ 后者选择 AIC Cube lowering 时，UB/L1/L0、对齐、尾部和指令成本也会改变。因此性能报告必须
+ 区分“固定核心比较流”和“固定流比较核心”，不能把联合
  搜索的结果直接写成单一层次的收益。
 
 ```text
 候选 = 架构映射（分段/Us/Ts/Ud/Td/layout/residence/pipeline）
-      × 计算核心（radix/vector/Cube/专用 FFT core）
+      × 算法核心（radix/矩阵形式小型 DFT/专用局部 FFT）
       -- capability + lowering contract 过滤
+         （AIV Vector / AIC Cube / 对齐 / 存储 / 所有权 / 同步）
       -- 模型预排序
       -- correctness 后实测回填
 ```

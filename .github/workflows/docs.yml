@@ -47,9 +47,8 @@ jobs:
           if test -f results/published/ascend910_9382-migration-20261012/manifest.json; then
             python scripts/publish_results.py --check --snapshot ascend910_9382-migration-20261012
           fi
-          if test -f results/published/ascend910_9382-migration-20261013/manifest.json; then
-            python scripts/publish_results.py --check --snapshot ascend910_9382-migration-20261013
-          fi
+          test -f results/published/ascend910_9382-migration-20261013/manifest.json
+          python scripts/publish_results.py --check --snapshot ascend910_9382-migration-20261013
       - run: mkdocs build --strict
       - name: Check deployed asset links
         run: python scripts/check_docs_assets.py site --site-prefix /ascend-fft/

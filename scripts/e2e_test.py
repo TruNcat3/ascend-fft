@@ -126,6 +126,8 @@ def main():
     ns = [int(x) for x in a.ns.split(",")]
     bs = [int(x) for x in a.bs.split(",")]
     rounds = max(1, a.rounds)
+    native_reps = max(a.reps, 20)
+    bare_reps = max(a.reps, 10)
     started_utc = datetime.now(timezone.utc).isoformat()
     raw_rounds = []          # 逐轮原始记录：每 (party, n, b, round) 一行
     ours, nat, bare, boot, plan = {}, {}, {}, {}, {}
@@ -139,7 +141,7 @@ def main():
     for rnd in range(rounds):
         for nm, ns_s, bs_s in runs:
             out = sh(f"{PY} scripts/bench_native_npu.py --ns {ns_s} --bs {bs_s} "
-                     f"--reps {max(a.reps, 20)} --e2e"
+                     f"--reps {native_reps} --e2e"
                      + (f" --input {nm}" if nm else ""))
             for ln in out.splitlines():
                 m = re.match(r"NATIVE n=(\d+) b=(\d+) native_us=([\d.]+) native_mean_us=([\d.]+) "
@@ -188,7 +190,7 @@ def main():
                r"maxRel=([\d.eE+-]+) (\w+)")
         for n, b in pairs:
                 cmd = (f"./build/baseline_rfft {n} {b} 1 {abenv.work()}/ab_bare.bin "
-                       f"--e2e --reps={max(a.reps, 10)}")
+                       f"--e2e --reps={bare_reps}")
                 d = bare.setdefault((n, b), {})
                 for rnd in range(rounds):
                     m = re.search(pat, sh(cmd, timeout=1800))
@@ -283,8 +285,10 @@ def main():
     L.append(("#应用负载端到端对比：H2D + 变换 + D2H（自研 vs CANN 原生）\n"
               if a.app else
               "# 端到端对比：H2D + 变换 + D2H（自研 vs CANN 原生 vs 裸 CANN C API）\n"))
-    L.append(f"> 硬件 Ascend910_9382（48 AIV）；reps={a.reps}；`--rounds {rounds}` "
-             f"逐点 min-of-means（与 `matrix_test.py` 同口径）。\n")
+    L.append(f"> 硬件 Ascend910_9382（48 AIV）；`--rounds {rounds}` 逐点 "
+             f"min-of-means；native/self/bare 每轮重复数为 "
+             f"{native_reps}/{a.reps}/{bare_reps if run_bare else 'n/a'}。"
+             f"各路分组执行，未随机交错。\n")
     if a.app:
         names = ["ofdm", "radar", "dl"] if a.app == "all" else [a.app]
         L.append("> **应用负载模式** `--app " + a.app + "`：三方都喂**应用形状的输入**"
@@ -356,7 +360,8 @@ def main():
                 "xfer_share": (1 - od / oe) if (oe == oe and od == od and oe > 0) else float("nan"),
                 # ---- 裸 CANN aclRfft1D（实->复，仅参照；未跑时为 None）----
                 "bare_dev": bd,
-                "bare_dev_mean": br.get("dev_min") if run_bare else None,
+                "bare_dev_mean": br.get("dev_mean") if run_bare else None,
+                "bare_dev_min": br.get("dev_min") if run_bare else None,
                 "bare_e2e": be,
                 "bare_e2e_min": br.get("e2e_min") if run_bare else None,
                 "bare_first_us": br.get("first_us") if run_bare else None,
@@ -446,7 +451,13 @@ def main():
     prov["ended_utc"] = datetime.now(timezone.utc).isoformat()
     json.dump({"rows": rows, "raw_rounds": raw_rounds,
                "meta": {"ns": ns, "bs": bs, "app": a.app or None,
-                        "shapes": pairs, "reps": a.reps, "rounds": rounds,
+                        "shapes": pairs, "reps": a.reps,
+                        "runner_reps": {"native": native_reps,
+                                        "self": a.reps,
+                                        "bare": bare_reps if run_bare else None},
+                        "execution_order": "native_all_then_bare_by_shape_then_self_by_shape",
+                        "interleaved": False,
+                        "rounds": rounds,
                         "bare_run": bool(run_bare),
                         "provenance": prov,
                         "generated": time.strftime("%Y-%m-%d %H:%M:%S")}},

@@ -25,6 +25,19 @@ class AttributionTests(unittest.TestCase):
         self.assertIn("项目与作者: about.md", config)
         self.assertIn("stylesheets/extra.css", config)
 
+    def test_upstream_concept_links_use_the_live_default_branch(self):
+        for relative in ("docs/index.md", "docs/design/architecture.md"):
+            content = (ROOT / relative).read_text()
+            self.assertIn("cuButterfly/blob/main/figures/cubutterfly_concept.svg", content)
+            self.assertNotIn("cuButterfly/blob/master/figures/cubutterfly_concept.svg", content)
+
+    def test_algorithm_core_and_hardware_lowering_are_not_conflated(self):
+        motivation = (ROOT / "docs/design/motivation.md").read_text()
+        architecture = (ROOT / "docs/design/architecture.md").read_text()
+        self.assertIn("算法核心空间 P", motivation)
+        self.assertIn("hardware lowering 是对每个格子的门禁", architecture)
+        self.assertNotIn("计算核心空间 P = {radix-2, radix-4, vector, Cube", motivation)
+
 
 if __name__ == "__main__":
     unittest.main()

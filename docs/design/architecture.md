@@ -22,29 +22,29 @@ Ascend lowering：AIV 矢量指令 / 私有 UB / MTE 搬运
 
 “架构映射”说明资源怎样组织与复用；“计算核心选型”说明其中执行哪种蝶形算术；“lowering”说明该核心如何合法地使用指令、布局和同步。三者分层，但资源成本相互影响，必须共同筛选。
 
-## 两个正交设计轴
+## 流编排与计算核心如何组成候选
+
+这里有**两个可选择的集合**，不是三条相交的坐标轴：
 
 ```text
-                         算法核心 P
-                   radix-2   radix-4   专用局部 FFT
-                       │         │            │
-流编排 A ──────────────┼─────────┼────────────┼──→ 潜在候选
- (Us,Ts,Ud,Td,          │         │            │
-  分段/layout/         │         │            │
-  residence/pipeline)  │         │            │
-                             ↓
-               硬件 lowering：Vector / Cube / SIMT
-               指令、对齐、布局、所有权与同步契约
-                             ↓
-                          合法候选
+A = {A_i}：完整流编排
+    = 分段 + Us/Ts/Ud/Td + layout + residence + pipeline + boundary
+
+P = {P_j}：局部算法核心
+    = radix-2 / radix-4 / 矩阵形式小型 DFT / 专用局部 FFT
+
+C_ij = (A_i, P_j)                         # 先组合成概念候选
+legal_H(C_ij) = lowering(C_ij, hardware H) # 再由目标硬件判定能否实现
 ```
 
-图中的每个交点都是一个潜在设计点，而不是“换一个核心就自动得到更好的实现”。交点只有在
-以下条件同时满足时才可执行：局部核心能处理该块、数据布局和对齐合法、UB/workspace 足够、
-阶段依赖和跨 AIV 交接有真实同步/所有权方案。当前通过 `enumerate()` 的候选过滤和
-`makePlan()` 的装载检查落实这些限制，尚无公开的 `query_lowering()` API。
-未来可查询的 lowering contract 应进一步把“抽象上可行”与“已有可执行实现”分开；
-未实现的交点不能进入可部署候选的性能排序。
+因此，下图应**按行、按列、按单元格**阅读：
+
+1. 先选一行 `A_i`，它描述数据从 GM 进入片上、经过哪些阶段、何时重排和写回的完整组织；
+2. 再选一列 `P_j`，它只描述已经准备好的局部数据块采用哪种蝶形/DFT 算法核心；
+3. 单元格 `C_ij` 是二者的组合。底部的 hardware lowering 是对每个格子的门禁，**不是第三条
+   自由设计轴**。它检查 AIV/AIC 所有权、Vector/Cube 指令、对齐、布局、UB、传输和同步；
+4. 只有绿色/可执行单元格进入成本模型、正确性门禁和实测排序。灰色格只是方法空间中的设想，
+   不能因为抽象上存在就计入已实现候选。
 
 这也规定了实验归因方式：
 
@@ -55,26 +55,31 @@ Ascend lowering：AIV 矢量指令 / 私有 UB / MTE 搬运
 | lowering 消融 | 同一个算法核心与流编排 | Vector/Cube 等硬件实现、指令与布局 | 相同算术在不同物理实现上的收益与代价 |
 | 联合搜索 | 合法候选集合 | `A × P` 中的多个交点 | 硬件上最终应部署哪个组合，但不能单独归因 |
 
-当前 Ascend-FFT 的 radix-2/局部 radix-4 是 `P` 轴上的一个已落地组合；长 FFT 的 separate/fused
-边界、分段和设备交接属于 `A` 轴。后续加入更快的局部核心不会取代这套架构，反而可以作为同一
-流编排中的新候选进行比较。
+当前 Ascend-FFT 的 radix-2 和局部 radix-4 是 `P` 集合中的已落地核心；短 FFT 的单 AIV/UB
+驻留组织以及长 FFT 的 separate/fused 边界、分段和设备交接是不同的 `A`。后续加入更快的局部
+核心不会取代这套架构，而是在相同行中增加新的可比较单元格。
 
 <figure class="doc-diagram">
   <a href="../../figures/flow_core_space.svg">
     <img src="../../figures/flow_core_space.svg" loading="lazy"
-         alt="Ascend FFT 流组织与 radix、Cube 和专用核心的 capability 矩阵，区分生产、探针、未 lowering 和未来候选">
+         alt="Ascend FFT 候选矩阵：行是完整流编排，列是局部算法核心，每个交点经硬件 lowering 门禁后标为生产、探针、未实现或未来候选">
   </a>
   <figcaption>
-    `A × P` 交点必须经过 lowering contract。图中特别把向量指令、布局和所有权列为 lowering 属性，
-    不再把 vector 与 radix 错画成同一级算术核心。
+    先按行选流编排 `A_i`，再按列选局部算法核心 `P_j`；单元格 `C_ij` 必须经过目标硬件的
+    lowering contract。Vector/Cube 是实现机制，不与 radix 并列为算法核心。
     <span class="doc-diagram__links"><a href="../../figures/flow_core_space.svg">SVG</a> ·
     <a href="../../figures/flow_core_space.pdf">PDF</a></span>
   </figcaption>
 </figure>
 
-图的组织方式承接 [cuButterfly 概念图](https://github.com/TruNcat3/cuButterfly/blob/master/figures/cubutterfly_concept.svg)
+图的组织方式承接 [cuButterfly 概念图](https://github.com/TruNcat3/cuButterfly/blob/main/figures/cubutterfly_concept.svg)
 和其 `D × S → Ud/Td/Us/Ts → hardware realization` 设计总览；这里把 GPU 的 grid/CTA/warp
 节点替换为 Ascend 的 AIV/UB/MTE/GM，并把未实现的跨 AIV 阶段角色明确标为 `NOT LOWERED`。
+
+一个已落地例子是：选择“单 AIV、UB 驻留”的流编排，再选择“局部 radix-4 + radix-2 尾级”
+核心；在 Ascend910_9382 上，lowering 检查 AIV 私有 UB、32 B 对齐、K-plane/planar 交换和
+同步后得到生产候选。反例是“跨 AIV 驻留阶段角色 + 矩阵形式小型 DFT”：算法上可以描述，
+但当前没有跨 AIV 数据传输和 AIC/AIV 交接实现，因此必须停在 `NOT LOWERED`，不能参与排名。
 
 ## 当前生产数据通路
 

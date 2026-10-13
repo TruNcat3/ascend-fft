@@ -7,7 +7,7 @@
 | 找不到ccec/头文件 | 设置完整`AB_CANN`，检查工具包环境 |
 | torch_npu import失败或NPU不可用 | 选择正确`AB_PY`，核对驱动/CANN/torch/torch_npu兼容 |
 | 无msprof | 普通执行可继续，profiling须设置`AB_MSPROF` |
-| Context初始化失败 | `-1`ACL、`-2`设备0、`-3`stream创建 |
+| Context初始化失败 | `-1` ACL、`-2` 设备0、`-3` stream创建、`-4` 配置校验、`-9` 重复初始化 |
 | select返回空指针 | 保存log；检查长度、UB、布局、kernel装载及正确性原因 |
 | 实数执行返回-1 | 检查主kernel同目录`fft_real.o`或设置`AB_REAL_O` |
 | 执行返回-3 | 检查空闲内存，减小batch或排查共租户 |

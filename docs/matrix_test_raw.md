@@ -1,7 +1,8 @@
-> ⚠️ **本文是早期批折叠实验的历史存档**，**表格数据一字不改**，
-> 用来对照早期迭代。当前加固快照的最新矩阵（**48:1**，`--rounds 3` min-of-means，
-> η 均值 7.7%）见 **`docs/matrix_test_a7.md`**，一键复现见
-> **`scripts/one_click_test.sh`**。
+> ⚠️ **本文是早期批折叠实验的历史存档**，**表格数据一字不改**，仅用于对照早期迭代。
+> 文中“48:1”和 `docs/matrix_test_a7.md` 是当时状态，不是当前结果。现行结论请看
+> [实验设计与结果汇总](benchmarks/results.md)和
+> [`20261013` 发布矩阵](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/matrix.csv)；
+> 当前 49 点为 47/0/2 严格胜/平/负，按 ±5% 工程带为 46/2/1。
 
 # 矩阵测试：n × batch 全网格（自研 kfft_fwd vs CANN 原生复数 FFT）
 

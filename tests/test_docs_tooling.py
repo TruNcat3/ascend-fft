@@ -86,6 +86,22 @@ class PublicationTests(unittest.TestCase):
         self.assertIn("minimum device_chain span within", text)
         self.assertNotIn('"statistic": "per-trial median', text)
 
+    def test_e2e_collector_names_minimum_and_records_runner_protocol(self):
+        text = (ROOT / "scripts" / "e2e_test.py").read_text()
+        self.assertIn('"bare_dev_min": br.get("dev_min")', text)
+        self.assertNotIn('"bare_dev_mean": br.get("dev_min")', text)
+        self.assertIn('"bare_dev_mean": br.get("dev_mean")', text)
+        self.assertIn('"runner_reps": {"native": native_reps', text)
+        self.assertIn(
+            '"execution_order": "native_all_then_bare_by_shape_then_self_by_shape"', text)
+        self.assertIn('"interleaved": False', text)
+
+    def test_current_headline_snapshot_is_a_required_ci_input(self):
+        workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text()
+        snapshot = "results/published/ascend910_9382-migration-20261013/manifest.json"
+        self.assertIn(f"test -f {snapshot}", workflow)
+        self.assertNotIn(f"if test -f {snapshot}", workflow)
+
     def test_incomplete_run_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary) / "run"

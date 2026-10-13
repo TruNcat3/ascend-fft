@@ -1,16 +1,109 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="690" viewBox="0 0 1200 690" role="img" aria-labelledby="title desc">
-  <title id="title">Flow organization and processing-unit capability space</title>
-  <desc id="desc">A capability matrix separates production Ascend FFT flow organizations from processing units and proposed lowerings. Vector instructions and layouts are shown as lowering properties, not arithmetic cores.</desc>
-  <defs><style>.t{font:700 27px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.h{font:700 17px Inter,Segoe UI,Arial,sans-serif;fill:#17212b}.b{font:14px Inter,Segoe UI,Arial,sans-serif;fill:#334155}.s{font:12px Inter,Segoe UI,Arial,sans-serif;fill:#52606d}.ok{fill:#dff3e5;stroke:#4c9560;stroke-width:2}.probe{fill:#fff0cf;stroke:#c58b22;stroke-width:2}.future{fill:#eef1f5;stroke:#8895a7;stroke-width:1.5;stroke-dasharray:5 4}.tag{font:700 12px Inter,Segoe UI,Arial,sans-serif}</style></defs>
-  <rect width="1200" height="690" rx="16" fill="#f8fafc"/><text x="48" y="48" class="t">Architecture A × processing unit P × lowering contract</text><text x="48" y="76" class="b">A capability map, not a claim that every conceptual intersection has a production kernel.</text>
-  <rect x="45" y="108" width="1110" height="410" rx="12" fill="#fff" stroke="#cbd5e1"/><rect x="45" y="108" width="300" height="410" rx="12" fill="#eef5fb" stroke="#cbd5e1"/>
-  <text x="65" y="143" class="h">Flow organization A</text><text x="365" y="143" class="h">radix-2</text><text x="555" y="143" class="h">local radix-4</text><text x="755" y="143" class="h">AIC / Cube DFT</text><text x="957" y="143" class="h">specialized FFT core</text>
-  <line x1="345" y1="108" x2="345" y2="518" stroke="#cbd5e1"/><line x1="535" y1="108" x2="535" y2="518" stroke="#cbd5e1"/><line x1="735" y1="108" x2="735" y2="518" stroke="#cbd5e1"/><line x1="935" y1="108" x2="935" y2="518" stroke="#cbd5e1"/><line x1="45" y1="164" x2="1155" y2="164" stroke="#cbd5e1"/><line x1="45" y1="276" x2="1155" y2="276" stroke="#cbd5e1"/><line x1="45" y1="388" x2="1155" y2="388" stroke="#cbd5e1"/>
-  <text x="65" y="199" class="h">single-AIV, UB-resident FFT</text><text x="65" y="222" class="b">Ts stage reuse + Ud/Td batch mapping</text><text x="65" y="244" class="s">current production short path</text>
-  <rect x="370" y="183" width="140" height="70" rx="8" class="ok"/><text x="397" y="212" class="h">PRODUCTION</text><text x="394" y="235" class="s">planar stages</text><rect x="560" y="183" width="150" height="70" rx="8" class="ok"/><text x="590" y="212" class="h">PRODUCTION</text><text x="577" y="235" class="s">local stage fusion</text><rect x="760" y="183" width="150" height="70" rx="8" class="probe"/><text x="811" y="212" class="h">PROBE</text><text x="777" y="235" class="s">not an FFT backend</text><rect x="960" y="183" width="170" height="70" rx="8" class="future"/><text x="1008" y="212" class="h">FUTURE</text><text x="979" y="235" class="s">requires callable core</text>
-  <text x="65" y="311" class="h">segmented long FFT</text><text x="65" y="334" class="b">device/host boundary + consumer layout</text><text x="65" y="356" class="s">current experimental path</text>
-  <rect x="370" y="295" width="140" height="70" rx="8" class="ok"/><text x="397" y="324" class="h">EXECUTABLE</text><text x="393" y="347" class="s">segment core</text><rect x="560" y="295" width="150" height="70" rx="8" class="ok"/><text x="589" y="324" class="h">EXECUTABLE</text><text x="580" y="347" class="s">local fusion</text><rect x="760" y="295" width="150" height="70" rx="8" class="future"/><text x="787" y="324" class="h">NOT LOWERED</text><text x="785" y="347" class="s">data path missing</text><rect x="960" y="295" width="170" height="70" rx="8" class="future"/><text x="1010" y="324" class="h">FUTURE</text><text x="976" y="347" class="s">same flow contract</text>
-  <text x="65" y="423" class="h">cross-AIV resident stage roles</text><text x="65" y="446" class="b">producer/consumer overlap + handoff</text><text x="65" y="468" class="s">method-space target, not production</text>
-  <rect x="370" y="407" width="140" height="70" rx="8" class="future"/><text x="388" y="436" class="h">NOT LOWERED</text><text x="389" y="459" class="s">needs real transport</text><rect x="560" y="407" width="150" height="70" rx="8" class="future"/><text x="579" y="436" class="h">NOT LOWERED</text><text x="579" y="459" class="s">same dependency</text><rect x="760" y="407" width="150" height="70" rx="8" class="future"/><text x="787" y="436" class="h">NOT LOWERED</text><text x="788" y="459" class="s">AIC/AIV handoff</text><rect x="960" y="407" width="170" height="70" rx="8" class="future"/><text x="1010" y="436" class="h">FUTURE</text><text x="987" y="459" class="s">candidate only</text>
-  <rect x="45" y="546" width="1110" height="98" rx="12" fill="#fff4df" stroke="#c58b22"/><text x="65" y="578" class="h">Lowering properties are evaluated for every intersection</text><text x="65" y="604" class="b">AIV/AIC ownership · vector instruction shape · K-plane/planar layout · 32 B alignment · UB/workspace</text><rect x="916" y="558" width="214" height="42" rx="21" fill="#fbe8e8"/><text x="947" y="584" class="tag" fill="#8a3030">illegal points never enter ranking</text><text x="65" y="627" class="s">MTE boundary · synchronization. “Vector” is a lowering mechanism, not a peer radix; whole-transform libraries remain external baselines.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">流编排与算法核心组成候选，硬件 lowering 负责合法性过滤</title>
+  <desc id="desc">矩阵的行是完整流编排，列是局部算法核心。每个单元格是一个概念候选，再由 Ascend 硬件 lowering 检查所有权、指令、布局、对齐、存储、传输和同步；只有合法且已实现的候选进入模型、正确性和实测排序。</desc>
+  <defs>
+    <style>
+      .title{font:700 28px "Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#17212b}
+      .head{font:700 17px "Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#17212b}
+      .body{font:14px "Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#334155}
+      .small{font:12px "Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#52606d}
+      .tag{font:700 13px "Noto Sans CJK SC","Microsoft YaHei",sans-serif}
+      .ok{fill:#dff3e5;stroke:#4c9560;stroke-width:2}
+      .probe{fill:#fff0cf;stroke:#c58b22;stroke-width:2}
+      .future{fill:#eef1f5;stroke:#8895a7;stroke-width:1.5;stroke-dasharray:5 4}
+    </style>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="720" rx="16" fill="#f8fafc"/>
+  <text x="48" y="48" class="title">候选不是三条轴：选一行 A，再选一列 P</text>
+  <text x="48" y="77" class="body">单元格 C(i,j)=(A(i),P(j)) 只是概念候选；hardware lowering 是逐格门禁，不是第三个自由设计轴。</text>
+
+  <rect x="45" y="108" width="1190" height="422" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="45" y="108" width="315" height="422" rx="12" fill="#eef5fb" stroke="#cbd5e1"/>
+  <rect x="45" y="108" width="1190" height="58" rx="12" fill="#f4f7fa" stroke="#cbd5e1"/>
+  <text x="64" y="143" class="head">1 组合候选：流编排行 A × 算法核心列 P</text>
+
+  <line x1="360" y1="166" x2="360" y2="530" stroke="#cbd5e1"/>
+  <line x1="565" y1="166" x2="565" y2="530" stroke="#cbd5e1"/>
+  <line x1="775" y1="166" x2="775" y2="530" stroke="#cbd5e1"/>
+  <line x1="1005" y1="166" x2="1005" y2="530" stroke="#cbd5e1"/>
+  <line x1="45" y1="220" x2="1235" y2="220" stroke="#cbd5e1"/>
+  <line x1="45" y1="323" x2="1235" y2="323" stroke="#cbd5e1"/>
+  <line x1="45" y1="426" x2="1235" y2="426" stroke="#cbd5e1"/>
+
+  <text x="64" y="199" class="head">完整流编排 A（每行）</text>
+  <text x="407" y="199" class="head">radix-2</text>
+  <text x="610" y="199" class="head">局部 radix-4</text>
+  <text x="812" y="190" class="head">矩阵形式小型 DFT</text>
+  <text x="823" y="210" class="small">可尝试 AIV / AIC lowering</text>
+  <text x="1047" y="190" class="head">专用局部 FFT</text>
+  <text x="1082" y="210" class="small">未来接入</text>
+
+  <text x="64" y="251" class="head">单 AIV、UB 驻留</text>
+  <text x="64" y="274" class="body">Ts 阶段复用 + Ud/Td batch 映射</text>
+  <text x="64" y="297" class="small">当前短 FFT 生产流</text>
+  <rect x="389" y="239" width="147" height="64" rx="8" class="ok"/>
+  <text x="431" y="267" class="tag" fill="#245c35">生产</text>
+  <text x="418" y="289" class="small">planar 阶段</text>
+  <rect x="594" y="239" width="152" height="64" rx="8" class="ok"/>
+  <text x="635" y="267" class="tag" fill="#245c35">生产</text>
+  <text x="617" y="289" class="small">局部阶段融合</text>
+  <rect x="811" y="239" width="158" height="64" rx="8" class="probe"/>
+  <text x="862" y="267" class="tag" fill="#7c5312">探针</text>
+  <text x="829" y="289" class="small">尚非 FFT backend</text>
+  <rect x="1035" y="239" width="170" height="64" rx="8" class="future"/>
+  <text x="1091" y="267" class="tag" fill="#52606d">未来</text>
+  <text x="1055" y="289" class="small">需要可调用局部核心</text>
+
+  <text x="64" y="354" class="head">分段长 FFT</text>
+  <text x="64" y="377" class="body">段边界 + consumer layout</text>
+  <text x="64" y="400" class="small">当前实验流；边界仍在 GM 物化</text>
+  <rect x="389" y="342" width="147" height="64" rx="8" class="ok"/>
+  <text x="418" y="370" class="tag" fill="#245c35">可执行</text>
+  <text x="416" y="392" class="small">复用分段核心</text>
+  <rect x="594" y="342" width="152" height="64" rx="8" class="ok"/>
+  <text x="622" y="370" class="tag" fill="#245c35">可执行</text>
+  <text x="619" y="392" class="small">局部融合</text>
+  <rect x="811" y="342" width="158" height="64" rx="8" class="future"/>
+  <text x="838" y="370" class="tag" fill="#52606d">未 lowering</text>
+  <text x="841" y="392" class="small">缺少完整数据通路</text>
+  <rect x="1035" y="342" width="170" height="64" rx="8" class="future"/>
+  <text x="1091" y="370" class="tag" fill="#52606d">未来</text>
+  <text x="1056" y="392" class="small">沿用相同流合同</text>
+
+  <text x="64" y="457" class="head">跨 AIV 驻留阶段角色</text>
+  <text x="64" y="480" class="body">producer / consumer 重叠 + 交接</text>
+  <text x="64" y="503" class="small">方法空间目标，不是当前生产能力</text>
+  <rect x="389" y="445" width="147" height="64" rx="8" class="future"/>
+  <text x="406" y="473" class="tag" fill="#52606d">未 lowering</text>
+  <text x="412" y="495" class="small">缺少真实传输</text>
+  <rect x="594" y="445" width="152" height="64" rx="8" class="future"/>
+  <text x="610" y="473" class="tag" fill="#52606d">未 lowering</text>
+  <text x="614" y="495" class="small">相同依赖问题</text>
+  <rect x="811" y="445" width="158" height="64" rx="8" class="future"/>
+  <text x="827" y="473" class="tag" fill="#52606d">未 lowering</text>
+  <text x="830" y="495" class="small">缺 AIC/AIV 交接</text>
+  <rect x="1035" y="445" width="170" height="64" rx="8" class="future"/>
+  <text x="1091" y="473" class="tag" fill="#52606d">未来</text>
+  <text x="1061" y="495" class="small">仅为概念候选</text>
+
+  <rect x="45" y="558" width="845" height="126" rx="12" fill="#fff4df" stroke="#c58b22"/>
+  <text x="65" y="590" class="head">2 hardware lowering 门禁：对每个 C(i,j) 和目标硬件 H 检查</text>
+  <text x="65" y="619" class="body">AIV/AIC 所有权 · Vector/Cube 指令形状 · K-plane/planar 布局 · 32 B 对齐</text>
+  <text x="65" y="645" class="body">UB/L1/L0/workspace · MTE/GM 边界 · 数据传输 · 同步与缓冲所有权</text>
+  <rect x="638" y="654" width="224" height="24" rx="12" fill="#fbe8e8"/>
+  <text x="658" y="671" class="tag" fill="#8a3030">非法或未实现：不进入排名</text>
+
+  <line x1="899" y1="621" x2="936" y2="621" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="950" y="558" width="285" height="126" rx="12" fill="#e8f1fb" stroke="#5f87b3"/>
+  <text x="970" y="590" class="head">3 合法且已实现的候选</text>
+  <text x="970" y="620" class="body">成本模型预排序</text>
+  <text x="1091" y="620" class="body">→</text>
+  <text x="1115" y="620" class="body">正确性门禁</text>
+  <text x="970" y="650" class="body">设备实测回填</text>
+  <text x="1091" y="650" class="body">→</text>
+  <text x="1115" y="650" class="body">选择 Plan</text>
 </svg>

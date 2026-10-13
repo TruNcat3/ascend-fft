@@ -15,7 +15,7 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 混合空�
 
 1. **C2C 主矩阵**：同卡、同语义的 device-only 路径是否获得总体收益？
 2. **端到端与应用 shape**：加入 H2D/D2H 后收益保留多少，在代表性 shape 上是否成立？
-3. **R2C/C2R**：同一计算流方法迁移到实数变换后，相对严格基线表现如何？
+3. **R2C/C2R**：同一计算流方法迁移到实数变换后，相对严格基线和次级对照表现如何？
 4. **规模切片**：当前实现能否正确运行到 `N=65536`，其延迟如何随长度和 batch 变化？
 
 统计合同、可比性等级和 correctness gate 见[测量协议](methodology.md)。速度比统一定义为
@@ -25,16 +25,21 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 混合空�
 
 ![六类同卡实验的几何均值 speedup 汇总；每根柱子标注自己的同语义基线](../figures/overview_performance.png)
 
-| 实验 | 严格基线 | 点数 | 几何均值 | 严格胜/平/负 | ±5% 胜/平/负 |
-|---|---|---:|---:|---:|---:|
-| C2C device-only | CANN 原生复数 FFT（`torch_npu`） | 49 | **1.555x** | 47/0/2 | 46/2/1 |
-| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.442x** | 47/0/2 | 45/4/0 |
-| 应用 shape end-to-end | 同上，OFDM / Radar / DL 代理 shape | 12 | **1.422x** | 12/0/0 | 12/0/0 |
-| R2C device-only | `torch.fft.rfft`（torch_npu） | 49 | **1.180x** | 39/0/10 | 34/7/8 |
-| R2C device-only | `aclRfft1D` | 42 | **1.858x** | 37/0/5 | 36/1/5 |
-| C2R device-only | `torch.fft.irfft`（torch_npu） | 49 | **1.868x** | 47/0/2 | 45/2/2 |
+| 实验 | 比较基线 | 可比性 | 点数 | 几何均值 | 严格胜/平/负 | ±5% 胜/平/负 |
+|---|---|---:|---:|---:|---:|---:|
+| C2C device-only | CANN 原生复数 FFT（`torch_npu`） | A | 49 | **1.555x** | 47/0/2 | 46/2/1 |
+| C2C end-to-end | 同上，pinned H2D + FFT + D2H | A* | 49 | **1.442x** | 47/0/2 | 45/4/0 |
+| 应用 shape end-to-end | 同上，OFDM / Radar / DL 代理 shape | A* | 12 | **1.422x** | 12/0/0 | 12/0/0 |
+| R2C device-only | `torch.fft.rfft`（torch_npu） | A | 49 | **1.180x** | 39/0/10 | 34/7/8 |
+| R2C device-only | `aclRfft1D` | B | 42 | **1.858x** | 37/0/5 | 36/1/5 |
+| C2R device-only | `torch.fft.irfft`（torch_npu） | A | 49 | **1.868x** | 47/0/2 | 45/2/2 |
 
-严格胜负按速度比是否严格大于 1 统计；±5% 带宽把 `0.95x..1.05x` 视为工程持平。
+`A*` 表示变换语义、设备、精度、shape、计时区间和 min-of-means 汇总一致，但当前归档的
+native/self 内层重复数分别为 20/10，且没有交错执行；这两行保留为同语义对比，同时明确其
+采样限制。ACL 行为 B 级，因为它与 R2C/Torch 主实验的统计协议不同。
+
+“严格胜负”中的“严格”只表示按速度比是否严格大于 1 计数，不表示该行必然属于 A 级基线；
+±5% 带宽把 `0.95x..1.05x` 视为工程持平。
 二者回答不同问题，不能互换。几何均值保留全部有效点，包括负点。
 
 ## 可以得出的结论

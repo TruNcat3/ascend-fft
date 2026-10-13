@@ -17,7 +17,7 @@
 | 原生C2C | torch.fft.fft经torch_npu执行，不是公开CANN C2C C API |
 | aclRfft1D | CANN实数到复数接口，不能无条件当作C2C基线 |
 | v1 | 本仓标量旋转因子历史kernel，不是外部库 |
-| device-only | 准备后的kernel启动加同步口径，须查看具体协议 |
+| device-only | 准备后的稳态变换/API 调用到同步，不含显式 H2D/D2H；可能含 dispatch 或必要 executor 构造，须查看具体协议 |
 | E2E | H2D、变换、D2H；通常不含plan和输入生成 |
 | pinned | 锁页主机内存，各基线须采用相同传输口径 |
 | min-of-means | 多轮各取均值，再取最小轮均值 |

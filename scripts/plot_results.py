@@ -139,7 +139,7 @@ def fig_overview(rows, e2rows, approws, realrows, out):
         ("C2C\nend-to-end", geo([r["e2e_ratio"] for r in e2rows]), "CANN native", len(e2rows)),
         ("Applications\nend-to-end", geo([r["e2e_ratio"] for r in approws]), "CANN native", len(approws)),
         ("R2C\ndevice-only", geo(r2c_torch), "torch.rfft", sum(v is not None for v in r2c_torch)),
-        ("R2C\ndevice-only", geo(r2c_acl), "aclRfft1D", sum(v is not None for v in r2c_acl)),
+        ("R2C\ndevice-only", geo(r2c_acl), "aclRfft1D [B]", sum(v is not None for v in r2c_acl)),
         ("C2R\ndevice-only", geo(c2r_torch), "torch.irfft", sum(v is not None for v in c2r_torch)),
     ]
     groups = [g for g in groups if g[1] == g[1]]
@@ -164,7 +164,7 @@ def fig_overview(rows, e2rows, approws, realrows, out):
     fig.suptitle("Ascend-FFT performance summary", x=.06, y=.98, ha="left",
                  fontsize=19, fontweight="bold")
     ax.set_title(
-        "Ascend910_9382, FP32; each bar names its same-device semantic baseline",
+        "Ascend910_9382, FP32; each bar names its baseline; ACL uses a B-level aggregation protocol",
         loc="left", fontsize=11, color=COLORS["neutral"], pad=12)
     ax.grid(axis="y", color=COLORS["grid"], linewidth=.8, alpha=.65)
     ax.set_axisbelow(True)
