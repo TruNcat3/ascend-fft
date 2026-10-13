@@ -38,6 +38,19 @@ class AttributionTests(unittest.TestCase):
         self.assertIn("hardware lowering 是对每个格子的门禁", architecture)
         self.assertNotIn("计算核心空间 P = {radix-2, radix-4, vector, Cube", motivation)
 
+    def test_hybrid_unfolding_example_preserves_claim_boundary(self):
+        motivation = (ROOT / "docs/design/motivation.md").read_text()
+        figure = ROOT / "docs/figures/hybrid_unfolding_example.svg"
+        self.assertTrue(figure.is_file())
+        self.assertIn("(Us, Ts, Ud, Td) = (2, 2, 4, 2)", motivation)
+        self.assertIn("Qj = [x[j], x[j+4], x[j+8], x[j+12]]", motivation)
+        self.assertIn("NOT LOWERED", motivation)
+        figure_text = figure.read_text()
+        self.assertIn("方法抽象来源：cuButterfly", figure_text)
+        self.assertIn("教学实例，不是当前 N=16 部署配置", figure_text)
+        renderer = (ROOT / "scripts/render_docs_diagrams.py").read_text()
+        self.assertIn('"hybrid_unfolding_example"', renderer)
+
 
 if __name__ == "__main__":
     unittest.main()

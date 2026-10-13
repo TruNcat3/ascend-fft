@@ -111,6 +111,75 @@ a = (Us, Ts, Ud, Td, layout, residence, pipeline, processing_unit)
   </figcaption>
 </figure>
 
+<a id="hybrid-unfolding-example"></a>
+### 一个完整的混合展开例子
+
+上一张图分别解释四个因子；下面把它们组合到一个可逐项核对的教学点。取一个前向、无归一化的
+`N=16=4×4` FFT。它有 `K=log2(N)=4` 个 radix-2 阶段，每个阶段有 `N/2=8` 个蝶形。选择：
+
+```text
+(Us, Ts, Ud, Td) = (2, 2, 4, 2)
+Us * Ts = 2 * 2 = K
+Ud * Td = 4 * 2 = N/2
+```
+
+这里没有把 batch 计入 `Ud/Td`；示例只讨论一个 transform 内的蝶形数据维度。batch 是额外的
+独立工作维度，可以在硬件 lowering 时再分配给 AIV 或折入时间循环。
+
+| 因子 | 本例中的具体含义 |
+|---|---|
+| `Us=2` | 一个折叠中有两个明确的阶段服务位置，负责 `s0→s1` 或 `s2→s3`；两者之间必须存在可观察的数据交接 |
+| `Ts=2` | 同一组阶段位置先服务前两个阶段，完成边界重排后再复用为后两个阶段 |
+| `Ud=4` | 同一时刻处理四个蝶形，即两个独立 FFT4 子图各自的两个蝶形 |
+| `Td=2` | 先流过 `Q0/Q1`，再复用相同数据通路处理 `Q2/Q3`；第二个阶段折叠同理 |
+
+<figure class="doc-diagram">
+  <a href="../../figures/hybrid_unfolding_example.svg">
+    <img src="../../figures/hybrid_unfolding_example.svg" loading="lazy"
+         alt="十六点 FFT 的完整混合数据流例子：四乘四子图分解、Us=2 Ts=2 Ud=4 Td=2 的空间时间覆盖，以及两个阶段角色流水数据包、在线重排并复用到第二折叠的时间线">
+  </a>
+  <figcaption>
+    阅读顺序从左到右：先形成四个同构 4 点子图，再用 `2×4` 个空间计算单元覆盖一个 tile，
+    最后让两个数据包错峰通过两个阶段角色，并在消费者就绪后重排进入下一阶段折叠。该实例按
+    <a href="https://github.com/TruNcat3/cuButterfly/blob/main/docs/hardware_mapping_methodology.md">cuButterfly 四因素方法</a>
+    特例化为 FFT；SVG 中的数值用于解释映射，不是当前 Ascend 的部署参数或性能数据。
+    <span class="doc-diagram__links"><a href="../../figures/hybrid_unfolding_example.svg">SVG</a> ·
+    <a href="../../figures/hybrid_unfolding_example.pdf">PDF</a></span>
+  </figcaption>
+</figure>
+
+数据依赖可以用具体索引检查。第一组子图为：
+
+```text
+WM = exp(-2*pi*i/M)
+Qj = [x[j], x[j+4], x[j+8], x[j+12]],  j = 0..3
+F[j,k2] = sum(n2=0..3) x[j+4*n2] * W4^(n2*k2)
+```
+
+`Q0/Q1` 和 `Q2/Q3` 形成两个时间数据包。每个 `Qj` 经一个包含两级的 4 点依赖子图后得到
+`F[j,k2]`，边界融合
+`W16^(j*k2)` twiddle 并按下一消费者重排为：
+
+```text
+Z[j,k2] = F[j,k2] * W16^(j*k2)
+Rk2 = [Z[0,k2], Z[1,k2], Z[2,k2], Z[3,k2]]
+X[k2+4*k1] = sum(j=0..3) Z[j,k2] * W4^(j*k1)
+```
+
+于是第二个阶段折叠可以复用同一类服务位置处理 `R0..R3`。关键点是：某个 `Rk2` 依赖多个
+`Qj` 的对应输出，所以“在线重排”仍需满足消费者 readiness；它不是任意单个 `Qj` 完成后立即
+启动全部后续计算，也不是零成本操作。
+
+在忽略填充/排空、重排、同步和 bank conflict 时，该点有 `Us×Ud=8` 个空间蝶形单元和
+`Ts×Td=4` 个理想 tile 步。这个计数只用于解释工作怎样分配，不能直接当作性能预测。特别是，
+`Us=2` 要求两个阶段位置同时驻留并有真实交接；把两级串行执行或融合进一个 radix-4 核心，
+不能自动记作阶段空间展开。
+
+当前 Ascend 短 FFT 生产路径实现的是单 AIV 私有 UB 中的状态驻留、阶段时间循环、矢量数据并行
+和 batch 映射；它没有实现图中跨 AIV 的 `Us=2` 生产者/消费者角色。后者仍是 `NOT LOWERED`
+的方法候选。长 FFT 已实现的 twiddle/转置融合边界仍会在 GM 物化，也不能据此声称完整图已经
+片上驻留。
+
 这个分析适用于具有分层蝶形依赖的计算，但不意味着所有算子的数值语义、重排和核心成本相同，也不意味着任何硬件上混合流水必然优于成熟库。相关工作已有多种融合、分块和流水技术；本仓库的主张是把这些选择放入统一、可约束和可测量的映射空间，而不是宣称此前没有任何相关分析。
 
 ## 6. Ascend 映射：保留范式，重建物理实现
