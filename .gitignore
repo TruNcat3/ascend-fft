@@ -16,6 +16,7 @@ venv/
 /results/
 !/results/
 /results/*
+!/results/README.md
 !/results/published/
 !/results/published/**
 !/results/evidence/

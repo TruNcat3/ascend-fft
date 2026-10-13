@@ -42,6 +42,19 @@ scripts/repro.sh --doc benchmarks/results.md
 `r2c_c2r.json` 已合并主网格和 `N=64/8192` 补充采集；补充采集的独立文件也保留在同一目录。
 这些链接是审计入口，不要求读者先浏览历史 PR 或生成大表。
 
+## 不可变快照勘误
+
+发布目录按哈希保持不可变，因此发现标签不精确时不就地改 JSON。`20261013` 的三项已知勘误
+集中记录在 [`results/published/README.md`](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/README.md)：
+
+- `scale_slice.json` 的统计标签应为“trial 内 `device_chain` 最小值，再跨 3 个 trial 取中位数”；
+- `e2e.json` 的旧字段 `bare_dev_mean` 实际保存 `dev_min`；新采集器改为正确的 mean，并另存
+  `bare_dev_min`；
+- E2E 命令虽然写 `--reps 10`，采集器实际使用 native/self/ACL = 20/10/10，并按分组顺序执行。
+
+这些问题不改变原始 timing、correctness、正文所用的 `bare_dev`、几何均值或胜平负计数；它们
+限制的是协议标签和波动解释。下一次发布必须使用修正后的采集器并生成新的 snapshot ID。
+
 ## 发布结果
 
 一次运行只产生候选结果。确认硬件、协议和正确性后，再显式发布：

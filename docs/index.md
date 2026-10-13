@@ -18,7 +18,7 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
   </figcaption>
 </figure>
 
-图示的二维展开和反馈闭环借鉴 [cuButterfly 的概念图与设计总览](https://github.com/TruNcat3/cuButterfly/blob/master/figures/cubutterfly_concept.svg)，
+图示的二维展开和反馈闭环借鉴 [cuButterfly 的概念图与设计总览](https://github.com/TruNcat3/cuButterfly/blob/main/figures/cubutterfly_concept.svg)，
 但本页节点已特例化为 FFT、AIV、UB、MTE、GM 和 Ascend 的 lowering 状态；图中标注的生产、探针和未来状态以本仓库代码与证据为准。
 
 <figure class="doc-diagram doc-diagram--compact">
@@ -28,7 +28,8 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
   </a>
   <figcaption>
     当前加固发布快照的性能摘要；完整点数、协议、胜平负和限制见
-    <a href="benchmarks/results/">实验结果</a>。这张图是测量结果，不代表跨硬件或未验证长度的保证。
+    <a href="benchmarks/results/">实验结果</a>。每根柱子使用各自标注的对照；其中 ACL 是异统计
+    协议的 B 级次级对照。这张图不代表跨硬件或未验证长度的保证。
   </figcaption>
 </figure>
 
@@ -75,7 +76,7 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
 
 ## 当前发布口径
 
-`ascend910_9382-migration-20261013` 是当前文档唯一引用的性能快照：C2C device-only
+`ascend910_9382-migration-20261013` 是当前 headline 性能结论唯一采用的快照：C2C device-only
 几何均值 **1.555x**，C2C E2E **1.442x**，应用 shape E2E **1.422x**；R2C/C2R
 相对 torch_npu 分别为 **1.180x / 1.868x**。C2C 49 点中有 47 个严格领先、2 个回退；
 按 ±5% 带宽统计为 46/2/1。所有负点都保留在分项页面和 raw 数据中。`8192..65536` 规模切片无外部基线，

@@ -13,7 +13,7 @@
 | 长度 N | 128..8192 的二次幂，7 个长度 | 64..4096 的二次幂，7 个长度 |
 | Batch | 1、4、16、64、256、1024、4096 | 同左 |
 | Torch 基线 | 同卡 `torch.fft.rfft` / torch_npu | 同卡 `torch.fft.irfft` / torch_npu |
-| 额外严格基线 | 裸 CANN `aclRfft1D`，42 个共同支持点 | 未纳入其他严格基线 |
+| 次级对照（B 级） | 裸 CANN `aclRfft1D`，42 个同语义共同支持点，但统计协议不同 | 未纳入其他对照 |
 
 硬件为 Ascend910_9382，软件为 CANN 9.0.0，计时为 device-only。每侧每点 3 个独立 trial，
 每个 trial 丢弃 warmup 后取计时样本中位数，再取跨 trial 中位数；重复次数随总点数为
@@ -22,7 +22,8 @@
 自研侧每个 trial 保留正确性状态与误差；Torch 侧按 shape 做一次独立参考预检后计时，
 **不是逐 trial 正确性检查**。ACL 基线来自同次运行的 `e2e.json`，其采集与汇总协议仍为
 3轮 min-of-means；虽然设备、变换和形状匹配，统计规则并不与 Torch 的 median 完全相同，
-因此两种 R2C 基线分开报告。
+因此 ACL 属于同语义但异统计协议的 B 级次级对照，两种 R2C 基线分开报告，ACL 行不与 A 级
+Torch 行合并为一个总体均值。
 
 ## 全网格收益与负点
 

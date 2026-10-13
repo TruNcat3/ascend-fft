@@ -150,7 +150,8 @@ def main():
     A("")
     A("**比值定义**：`速度比 = 原生耗时 ÷ 自研耗时`，**>1 表示自研更快**。\n")
     A("**两种口径**：")
-    A("- **device-only**：只计 kernel 发射 + 同步（含 launch 开销），不含数据搬运；")
+    A("- **device-only**：准备后的稳态变换/API 调用到同步，不含显式 H2D/D2H；不同 API "
+      "可能包含 dispatch 或每次调用必需的 executor 构造，不能等同于纯 kernel 吞吐；")
     A("- **端到端 E2E**：H2D + 变换 + D2H，不含进程启动与输入生成。")
     A("")
 
@@ -293,11 +294,12 @@ def main():
           f"最大 **{max(sh) * 100:.0f}%** |")
         A("")
         geo_dev_e2e = geo([v["dev"] for v in dw]) if dw else float("nan")
-        A("> ⚠️ 上表的 `device-only` 是 **e2e_test 自己那一轮**（`reps=10`）顺带测的，"
-          "与 [图1/表1](#表1-49-点详表含迷你条条越长越快) 的 `matrix_test`（`reps=20`、"
+        A("> ⚠️ 上表的 `device-only` 是 **e2e_test 自己那一轮**顺带测的；归档采集实际为"
+          "自研每轮 10 次、native 每轮 20 次，均按 3 轮 min-of-means 汇总但未交错。它与 "
+          "[图1/表1](#表1-49-点详表含迷你条条越长越快) 的 `matrix_test`（双方 `reps=20`、"
           f"另一时段）是两次独立测量，几何均值 {geo_dev_e2e:.2f}× vs "
           f"{geo([r['ratio'] for r in mx]):.2f}× —— 差异在本机负载抖动范围内，"
-          "**两列都各自与同轮的对手同口径**，跨表不要混引。\n")
+          "跨表不要混引，也不要把 E2E 附带 device 列称为完全对称采样。\n")
 
         # §6.1 的口径随数据现算，避免写死过期数字
         small_win = [(k, v) for k, v in e2.items() if k[1] <= 256 and k[0] <= 1024]

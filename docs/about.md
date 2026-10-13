@@ -13,9 +13,10 @@ Ascend NPU，并独立实现 AscendC kernel、硬件映射、性能模型与实�
 
 这里的迁移对象是**方法层的计算流编排**，不是某个 CUDA 计算核心的移植。我们优化的是
 “数据如何流经局部计算”：阶段/数据的空间展开、时间复用、布局交接、片上驻留和流水；局部
-“计算是什么”则作为可替换的 processing-unit 选项。radix-2、radix-4、Cube 或其他成熟 FFT
-核心都可以在满足 Ascend 的对齐、UB、指令和同步 lowering contract 后接入。二者在概念上正交、
-在物理资源上耦合，因此性能收益必须用相同流组织比较核心，或用相同核心比较流组织，不能把
+“计算是什么”则作为可替换的 processing-unit 选项。radix-2、radix-4、矩阵形式小型 DFT 或
+其他成熟局部 FFT 核心都可以在满足 Ascend 的 AIV Vector/AIC Cube、对齐、存储和同步 lowering
+contract 后接入。流编排和算法核心在概念上正交、在物理资源上耦合，因此性能收益必须用相同
+流组织比较核心，或用相同核心比较流组织，不能把
 局部核心改进自动归因于混合数据流方法。
 
 本仓库关于 Roofline、依赖导致的流水问题、空间/时间展开边界、流与核心的正交分层及其详细
@@ -27,7 +28,8 @@ Ascend NPU，并独立实现 AscendC kernel、硬件映射、性能模型与实�
 **方法范围**：
 
 - 主研究对象：架构映射、计算流、参数搜索和合法 lowering contract；
-- 可替换空间：局部 radix/FFT/Cube/向量计算核心；
+- 可替换空间：局部 radix、矩阵形式 DFT 或专用 FFT 算法核心；
+- 硬件实现：AIV Vector、AIC Cube、存储布局、对齐、所有权与同步 lowering；
 - 平台贡献：AscendC、AIV/UB/MTE/GM 映射、硬件 profile 和可复核实验归档。
 
 ## 作者与联系

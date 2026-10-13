@@ -14,7 +14,8 @@ cuButterfly 的[跨平台迁移清单](https://github.com/TruNcat3/cuButterfly/b
 
 - [Huawei CANN](https://www.hiascend.com/software/cann)：运行时、编译器和原生算子环境。
 - [torch_npu](https://github.com/Ascend/pytorch)：当前严格可比的复数 C2C FFT 调用路径。
-- `aclRfft1D`：CANN 提供的实数 FFT C API，只用于 R2C 或调用固定开销参照。
+- `aclRfft1D`：CANN 提供的实数 FFT C API；当前 R2C 快照与其变换语义一致，但采样和
+  汇总协议不同，因此只作为 B 级次要对照，不与 torch_npu 的 A 级结果合并。
 
 ## GPU 与通用高性能库
 

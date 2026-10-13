@@ -68,20 +68,21 @@ cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个
 
 ![Ascend-FFT performance overview](docs/figures/overview_performance.png)
 
-| 工作负载 | 严格基线 | 点数 | 几何均值 speedup |
-|---|---|---:|---:|
-| C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **1.56x** |
-| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.44x** |
-| 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.42x** |
-| R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | 49 | **1.18x** |
-| R2C device-only | `aclRfft1D`（同卡同语义） | 42 | **1.86x** |
-| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | 49 | **1.87x** |
+| 工作负载 | 比较基线 | 可比性 | 点数 | 几何均值 speedup |
+|---|---|---:|---:|---:|
+| C2C device-only | CANN 原生复数 FFT（torch_npu） | A | 49 | **1.56x** |
+| C2C end-to-end | 同上，pinned H2D + FFT + D2H | A* | 49 | **1.44x** |
+| 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | A* | 12 | **1.42x** |
+| R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | A | 49 | **1.18x** |
+| R2C device-only | `aclRfft1D`（同卡同语义、异统计协议） | B | 42 | **1.86x** |
+| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | A | 49 | **1.87x** |
 
 <!-- END GENERATED: benchmark-summary -->
 
 数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照
 [`ascend910_9382-migration-20261013`](results/published/ascend910_9382-migration-20261013/)。
-当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；device-only 有 47 个点严格领先、
+`A*` 表示语义和计时区间一致，但当前归档的两侧内层重复数不同；ACL 行是单独报告的 B 级
+次级对照，不与 A 级结果合并。当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；device-only 有 47 个点严格领先、
 2 个点回退，最低点为 `N=1024,batch=4096`（0.942x）；按 ±5% 带宽统计为 46/2/1。
 C2C E2E 为 1.442x，应用 shape 为 1.422x 且 12/12 点严格领先。R2C/C2R 使用 3-trial 对称计时协议；
 相对 torch_npu 的几何均值分别为 1.180x 和 1.868x，负点完整保留在热图和 raw 数据中。
@@ -124,7 +125,7 @@ C2C E2E 为 1.442x，应用 shape 为 1.422x 且 12/12 点严格领先。R2C/C2R
 - 支持 C++17 的 host 编译器。
 - 基线和绘图需要带 `torch`、`torch_npu` 的 Python。
 
-### 三条命令
+### 初始化与快速验证
 
 ```bash
 scripts/init.sh --check          # 环境和硬件体检
@@ -216,4 +217,5 @@ scripts/repro.sh r2c-c2r
 ## License
 
 Ascend-FFT 使用 [Apache License 2.0](LICENSE)。CANN 与 Ascend 工具链不随本仓库分发，
-适用其各自许可证。
+适用其各自许可证。项目版权声明见 [`NOTICE`](NOTICE)，机构标识和上游代码的许可边界见
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
