@@ -1,0 +1,203 @@
+{
+  "build_artifact_sha256": {
+    "build/baseline_rfft": "78158ac9ef6615d161442a70da54ceec4cc524a1b3256ed58cef9aae97e8ccae",
+    "build/bw_probe": "85de620e2ed2ac5945cc91651efb20ded0f9578b1881a52b002d539ac8b6c4f9",
+    "build/cube_probe": "111774acc252d41e957951c98a71f4b9e0d4996aeeaf0d3a69a3b918fbb58cb4",
+    "build/cube_probe.o": "f78e0e41c31478c098318ddd5653196854b8499b7d9d4027443b8c87f05337cb",
+    "build/fft_check": "61c8a692fe630b195b9a31202340db26d8a649d238291eed32a84f2d62714f68",
+    "build/fft_long.o": "a11ee1ea5d055e2225854a513990453f10a10b9d9f7f184bfc9dbfd52eb2dc26",
+    "build/fft_r2c_fwd.o": "c94d0151001c9510992add22c307b3fbbac5b8105123269e234c872605f83c3b",
+    "build/fft_radix2.o": "d7c20c72bccaa70f64b547061d9e5e8d77d0ef57b9fc10b08a74ed8e3fcb1d50",
+    "build/fft_radix2_v1.o": "2e3c9041d0e3337d26cd7c3d65f22c33953a8c7f924d1af4a9a2b87c58db9bb1",
+    "build/fft_radix2_v2.o": "d7a0a72185eab7adea6f834249e3c4ca615b622e1a233a473b3c5adaca045e2d",
+    "build/fft_real.o": "5fc46ac998ef12c6458b70a76ab1077c7621431d38d59cbf34d3c993849c4100",
+    "build/fft_real_pipe.o": "e7b65759db5cf88d8966aae7708187974f732811cdd2513f0a83c21ba038a88e",
+    "build/fft_real_static.o": "796f52a0ed47811504445c39142d8826c2d197bd806f22e28370e76f0c5e74d2",
+    "build/gather_probe": "bc6462433cbbb0905ee44d884d9a80b24b854f2d593ae9a8f9eb26d8d440477a",
+    "build/gather_probe.o": "ddae181de727e860cfed84df5b1da3a1d4fe3b65602c285beda62cb2a3079424",
+    "build/launch": "5ce02b2fa4024f49422cccd101352f3ea34367ca1f48f72f5197b3e653fb0ff2",
+    "build/mmad_f32.o": "9c4785b6519f82b3bdc247116c6d700df98af368784813c8c6a975dbf4651290",
+    "build/mmad_host": "6c1ff6ce9b62dc57140d5de850720720fd0f97fd086d6478858160c90cc10aab",
+    "build/probe_hw.o": "808a6f9919efe70910dbc29bf1202a44425fb2ac993699727fddbf72cde44be2",
+    "build/profile": "1929a2d4c44497882676e8da0923dbd781472dc9deb3fd1b581b0c6571b8f102",
+    "build/stride_probe": "194f5a8023efeece1da6ab3f8bd09a9b103209530c6999a1d1422ff0fdf542d6",
+    "build/stride_probe.o": "92f2811b35b1f3e5b8d5f78c33f9339e9079c908b36662ba30839666f2fe3781",
+    "build/test_descriptors": "08ab6f4fc90e433c41c66e73cd2d0fb58f5ccdcce063c457c1e510223dc277de",
+    "build/test_framework": "d26fcd8c7b2f6b7ca73840ae951acdcbc0eb0d5f96c348e61768a4ae483e6322",
+    "build/test_limits": "9dca3892c34449b03a04b3f74a64433b13ac2d7e9ed5629d331311d14a28b911"
+  },
+  "cann_path": "/usr/local/Ascend/ascend-toolkit/latest",
+  "cann_version": "9.0.0",
+  "commit": "0d0f89f5173d11c7d7bed6dd16e731a1a920232c",
+  "compiler_target": "Ascend910_9382",
+  "created_utc": "2026-10-13T01:12:59.888860+00:00",
+  "derived_artifact_hashes": {
+    "generated/comparison.md": "2d3ee5b12d935acbfae8f3e0712225efefde5695c2458b2eedaa81c5a7525025",
+    "generated/matrix.md": "2f64ed050f1d9ab9cdee7e74ab7d694aa687b34e08d92e7d998adf40fa20fdca",
+    "matrix.csv": "310d71409091e47831c2fa52257d8e9ff593e4d41e90e6a9d83ab644a17c56ba"
+  },
+  "dirty": false,
+  "ended_utc": "2026-10-13T01:13:01.146566+00:00",
+  "experiments": [
+    {
+      "command": "python3 scripts/matrix_test.py --reps 20 --rounds 3 --out results/runs/20261012T160000Z-pr7-migration/matrix.md",
+      "ended_utc": "2026-10-13T01:12:59.888860+00:00",
+      "exit_code": 0,
+      "name": "matrix",
+      "started_utc": "2026-10-13T01:12:59.888860+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --reps 10 --rounds 3 --out results/runs/20261012T160000Z-pr7-migration/e2e.md --json results/runs/20261012T160000Z-pr7-migration/e2e.json",
+      "ended_utc": "2026-10-13T01:13:00.623875+00:00",
+      "exit_code": 0,
+      "name": "e2e",
+      "started_utc": "2026-10-13T01:13:00.623875+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --app all --reps 10 --rounds 3 --no-bare --out results/runs/20261012T160000Z-pr7-migration/e2e_app.md --json results/runs/20261012T160000Z-pr7-migration/e2e_app.json",
+      "ended_utc": "2026-10-13T01:13:00.712859+00:00",
+      "exit_code": 0,
+      "name": "e2e-app",
+      "started_utc": "2026-10-13T01:13:00.712859+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/bench_r2c_c2r.py --trials 3 --ns 128,256,512,1024,2048,4096 --bs 1,4,16,64,256,1024,4096 --out results/runs/20261012T160000Z-pr7-migration/r2c_c2r.json",
+      "ended_utc": "2026-10-13T01:13:00.794175+00:00",
+      "exit_code": 0,
+      "name": "r2c-c2r",
+      "started_utc": "2026-10-13T01:13:00.794175+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/bench_r2c_c2r.py --trials 3 --ns 64,8192 --bs 1,4,16,64,256,1024,4096 --out results/runs/20261012T160000Z-pr7-migration/r2c_c2r_suppl.json && python3 scripts/merge_r2c_supp.py results/runs/20261012T160000Z-pr7-migration/r2c_c2r.json results/runs/20261012T160000Z-pr7-migration/r2c_c2r_suppl.json",
+      "ended_utc": "2026-10-13T01:13:00.878438+00:00",
+      "exit_code": 0,
+      "name": "r2c-c2r-supplement",
+      "started_utc": "2026-10-13T01:13:00.878438+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/gen_stdlib_doc.py --matrix results/runs/20261012T160000Z-pr7-migration/matrix.md --out results/runs/20261012T160000Z-pr7-migration/sixway.md",
+      "ended_utc": "2026-10-13T01:13:00.968008+00:00",
+      "exit_code": 0,
+      "name": "sixway",
+      "started_utc": "2026-10-13T01:13:00.968008+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/ab_test.py --base build/fft_radix2_v1.o --cand build/fft_radix2_v2.o --points 1024x4096,4096x4096,64x4096,128x4 --reps 50 --rounds 3 --json results/runs/20261012T160000Z-pr7-migration/ablation_v1_v2.json; python3 scripts/ab_test.py --base build/fft_radix2_v2.o --cand build/fft_radix2.o --points 1024x4096,4096x4096,64x4096,128x4 --reps 50 --rounds 3 --json results/runs/20261012T160000Z-pr7-migration/ablation_v2_current.json; AB_DIR=r2c ladder n=128x4096 via AB_FFT_O={v1,v2,current}",
+      "ended_utc": "2026-10-13T01:13:01.053548+00:00",
+      "exit_code": 0,
+      "name": "ablation",
+      "started_utc": "2026-10-13T01:13:01.053548+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "ab_prof results/runs/20261012T160000Z-pr7-migration/profiles/<point>_<level> --task-time=on -- fft_check (2 points x 3 levels, msprof); summarized by scripts/sum_prof.py",
+      "ended_utc": "2026-10-13T01:13:01.146566+00:00",
+      "exit_code": 0,
+      "name": "ablation-profile",
+      "started_utc": "2026-10-13T01:13:01.146566+00:00",
+      "status": "complete"
+    }
+  ],
+  "hardware_id": "2bb203072e12",
+  "npu_smi": "+------------------------------------------------------------------------------------------------------------------+\n| npu-smi 26.1.1                              Version: 26.1.1                                                      |\n+---------------------------+---------------+----------------------------------------------------------------------+\n| NPU   Name                | Health        | Power(W)             Temp(C)                 Hugepages-Usage(page)   |\n| Chip  Phy-ID              | Bus-Id        | AICore(%)            Memory-Usage(MB)        HBM-Usage(MB)           |\n+==============",
+  "profile_mismatch_override": false,
+  "protocol": {
+    "c2c_matrix": {
+      "correctness": "every trial PASS and maxRel <= 1e-4 against CPU reference",
+      "direction": "forward",
+      "operator": "fft",
+      "placement": "out-of-place",
+      "precision": "fp32",
+      "raw_trials": "trials.csv",
+      "reps": 20,
+      "rounds": 3,
+      "runner_order_seed": 0,
+      "runner_orders": [
+        [
+          "native",
+          "self"
+        ],
+        [
+          "native",
+          "self"
+        ],
+        [
+          "self",
+          "native"
+        ]
+      ],
+      "runners": [
+        "ascend-fft",
+        "cann-native"
+      ],
+      "shape_grid": {
+        "batch": [
+          1,
+          4,
+          16,
+          64,
+          256,
+          1024,
+          4096
+        ],
+        "n": [
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096
+        ]
+      },
+      "statistic": "minimum of per-trial means; per-trial minimum retained separately",
+      "timing": "device-only synchronized execution",
+      "transform": "c2c"
+    }
+  },
+  "published_artifacts": {
+    "e2e.json": "9356eb58800407685c1e34093424d3dcae41f73363c87ff362942c3e1c9e0479",
+    "e2e_app.json": "1549e6d009b1c6b7ae11d0034553ae392b53d8cf5bc12df896acdade9a36afa2",
+    "matrix.csv": "310d71409091e47831c2fa52257d8e9ff593e4d41e90e6a9d83ab644a17c56ba",
+    "matrix.md": "8eea6bca5b9ab8c70388ebd1be18c4f9f5805ccb8ec154d0c510deba21040e9b",
+    "protocol.json": "0e64a717105e7b9126cd7d7197b066d1b72c8c7ceef577d5f8c36e5a3efac1e6",
+    "r2c_c2r.json": "48bbe541b015e9d56f7af9a38a36a22e71f239b0e404df0d6bf2bb3b5e8782b2",
+    "r2c_c2r.raw_trials.csv": "fd63780fc02da6ba52b8e7b2e7d4f72dad62b58c34c80994771b6cc7887702e1",
+    "r2c_c2r.raw_trials.json": "ab8c2c7b796b9b2a1869a84015d819ec52ec90602a7611335b24b28fa2ed75a0",
+    "sixway.md": "4d43c9f11ccbf08b9371681b6f6033380150cd6f53782e529849aef70be390fa",
+    "summary.json": "c1c9f8471c9886ec1c7ea04807f05935f5782777fefa3b5a955ac15ddc6b892a",
+    "trials.csv": "12e7558e72fc22b9075715a047e2078118ed8b44d728f451e256078bdaadd89f"
+  },
+  "raw_artifact_hashes": {
+    "e2e.json": "9356eb58800407685c1e34093424d3dcae41f73363c87ff362942c3e1c9e0479",
+    "e2e_app.json": "1549e6d009b1c6b7ae11d0034553ae392b53d8cf5bc12df896acdade9a36afa2",
+    "matrix.md": "8eea6bca5b9ab8c70388ebd1be18c4f9f5805ccb8ec154d0c510deba21040e9b",
+    "protocol.json": "0e64a717105e7b9126cd7d7197b066d1b72c8c7ceef577d5f8c36e5a3efac1e6",
+    "r2c_c2r.json": "48bbe541b015e9d56f7af9a38a36a22e71f239b0e404df0d6bf2bb3b5e8782b2",
+    "r2c_c2r.raw_trials.csv": "fd63780fc02da6ba52b8e7b2e7d4f72dad62b58c34c80994771b6cc7887702e1",
+    "r2c_c2r.raw_trials.json": "ab8c2c7b796b9b2a1869a84015d819ec52ec90602a7611335b24b28fa2ed75a0",
+    "sixway.md": "4d43c9f11ccbf08b9371681b6f6033380150cd6f53782e529849aef70be390fa",
+    "summary.json": "c1c9f8471c9886ec1c7ea04807f05935f5782777fefa3b5a955ac15ddc6b892a",
+    "trials.csv": "12e7558e72fc22b9075715a047e2078118ed8b44d728f451e256078bdaadd89f"
+  },
+  "schema_version": 3,
+  "selected_profile": {
+    "path": "config/ascend910_93_profile.json",
+    "sha256": "42768522dcdd2d3088dfe5ffbaf7d73a5c1041a8199b4f6c5a1fef27a4ee006f",
+    "soc": "Ascend910_9382"
+  },
+  "soc": "Ascend910_9382",
+  "started_utc": "2026-10-13T01:12:59.888860+00:00",
+  "updated_utc": "2026-10-13T01:13:01.146566+00:00",
+  "versions": {
+    "cann": "9.0.0",
+    "ccec": "2026-04-25T15:46:25+08:00 clang version 15.0.5 (clang-5c68a1cb1231 flang-5c68a1cb1231)",
+    "python": "3.11.15"
+  }
+}
