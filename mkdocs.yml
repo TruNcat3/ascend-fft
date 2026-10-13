@@ -17,12 +17,17 @@ exclude_docs: |
   矩阵测试与GPU绝对性能对比.md
   设计思路与演进.md
   阶段0-1-发现与结果.md
+  generated/matrix.md
+  generated/comparison.md
+  generated/current_matrix.md
+  generated/current_comparison.md
 theme:
   name: material
   language: zh
   features:
     - navigation.sections
     - navigation.top
+    - navigation.footer
     - content.code.copy
 extra_css:
   - stylesheets/extra.css
@@ -51,23 +56,19 @@ nav:
       - 性能模型: design/performance-model.md
       - 实数变换: design/real-transforms.md
   - 实验与结果:
-      - 测量方法: benchmarks/methodology.md
-      - 测试策略与扩展矩阵: testing.md
-      - 长 FFT 目的化实验计划: benchmarks/long-fft-plan.md
-      - 长 FFT 预声明数据表: generated/long-fft-tables.md
-      - 长 FFT 验收证据: generated/long-fft-evidence.md
-      - 长 FFT 同尺寸基线: generated/long-fft-baseline.md
-      - 长 FFT P0 归因与基线报告: benchmarks/long-fft-p0-report.md
-      - PR 7 迁移验收与后续优化: benchmarks/pr7-migration-convergence.md
-      - 当前结果: benchmarks/results.md
-      - 复现实验: benchmarks/reproducibility.md
+      - 实验设计与结果汇总: benchmarks/results.md
+      - 测量协议: benchmarks/methodology.md
+      - C2C 性能: benchmarks/c2c.md
+      - 端到端与应用: benchmarks/end-to-end.md
+      - R2C / C2R: benchmarks/real-transforms.md
+      - 规模切片: benchmarks/scale.md
+      - 原始数据与复现: benchmarks/reproducibility.md
       - 相关工作与基线: benchmarks/related-work.md
-      - C2C 发布矩阵: generated/current_matrix.md
-      - 多基线发布明细: generated/current_comparison.md
   - 开发指南:
       - 工程结构: development/repository-layout.md
       - 性能诊断: development/profiling.md
       - 新增设计点: development/adding-design-points.md
+      - 测试策略与扩展矩阵: testing.md
       - 验证与发布: development/validation-and-release.md
   - 参考:
       - 配置: reference/configuration.md
@@ -77,6 +78,12 @@ nav:
   - 项目与作者: about.md
   - 历史归档:
       - 演进与优化决策: archive/decisions.md
+      - 长 FFT 实验计划: benchmarks/long-fft-plan.md
+      - 长 FFT 预声明数据表: generated/long-fft-tables.md
+      - 长 FFT 验收证据: generated/long-fft-evidence.md
+      - 长 FFT 同尺寸基线: generated/long-fft-baseline.md
+      - 长 FFT P0 归因报告: benchmarks/long-fft-p0-report.md
+      - PR 7 迁移验收计划: benchmarks/pr7-migration-convergence.md
 validation:
   nav:
     omitted_files: info

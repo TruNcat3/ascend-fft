@@ -1,105 +1,67 @@
-# 当前实验结果
+# 实验设计与结果汇总
 
-> **当前发布快照**：`ascend910_9382-revalidation-20261010` · Ascend910_9382 · CANN 9.0.0 ·
-> fp32。快照目录位于 [GitHub results snapshot](https://github.com/TruNcat3/ascend-fft/tree/f1e97da/results/published/ascend910_9382-revalidation-20261010)。
-> 本页只引用这一份加固后的快照；旧的 `cann9.0.0-v2` 数字保留在历史提交中，不再参与现行结论。
+> **当前发布快照**：`ascend910_9382-migration-20261013` · Ascend910_9382 ·
+> CANN 9.0.0 · fp32。所有本页数值均来自同一不可变快照；旧快照只作为历史记录，
+> 不与当前结果拼接。
 
-本仓库是 cuButterfly 的 Ascend 迁移实例。实验的交付目标是：在**预先声明的长度、batch、
-精度和变换语义范围内**完成正确性门禁、同语义基线和可复现实测，并证明迁移后的计算流有收益。
-这不是对所有 Ascend SoC、所有尺寸或所有计算核心的全局最优承诺。
+Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 混合空间-时间数据流方法
+在 Ascend NPU 上的迁移实例。实验要回答的不是“一个固定 kernel 是否处处最优”，而是：在预先
+声明的硬件、变换语义和 shape 范围内，硬件 profile、参数化候选与实测选型能否形成正确、可复现、
+总体有收益的执行方案。
 
-## 一眼看结果
+## 实验问题
 
-![Ascend-FFT performance overview](../figures/overview_performance.png)
+当前报告按四个问题组织，避免把协议、过程记录和原始大表混在主结论中：
 
-速度比定义为 `基线耗时 / Ascend-FFT 耗时`，大于 1 表示自研更快。几何均值在同一快照、同一
-计时口径和同一工作负载集合内计算，不能与旧快照拼接。
+1. **C2C 主矩阵**：同卡、同语义的 device-only 路径是否获得总体收益？
+2. **端到端与应用 shape**：加入 H2D/D2H 后收益保留多少，在代表性 shape 上是否成立？
+3. **R2C/C2R**：同一计算流方法迁移到实数变换后，相对严格基线表现如何？
+4. **规模切片**：当前实现能否正确运行到 `N=65536`，其延迟如何随长度和 batch 变化？
 
-| 实验 | 严格基线 | 点数 | 几何均值 speedup | 覆盖结论 |
-|---|---|---:|---:|---|
-| C2C device-only | CANN 原生复数 FFT（`torch_npu`） | 49 | **1.62x** | 48/49 点严格领先；最低 0.96x，最高 2.50x |
-| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.36x** | 48/49 点严格领先；最低 0.997x |
-| 应用 shape end-to-end | OFDM / 雷达 / DL 频域层 | 12 | **1.42x** | 12/12 点领先 |
-| R2C device-only | `torch.fft.rfft`（同卡同语义） | 49 | **1.18x** | 胜/平/负 = 34/5/10 |
-| C2R device-only | `torch.fft.irfft`（同卡同语义） | 49 | **1.78x** | 胜/平/负 = 46/2/1 |
+统计合同、可比性等级和 correctness gate 见[测量协议](methodology.md)。速度比统一定义为
+`基线耗时 / Ascend-FFT 耗时`，大于 1 表示 Ascend-FFT 更快。
 
-所有 C2C 点均通过 correctness gate（最大相对误差小于 `1e-4`，实际约为 `1e-7`）；R2C/C2R
-采用对称 5-trial 协议，失败行不会进入 timing 汇总。这里的“平”使用 `0.95x..1.05x`
-区间，胜负统计与几何均值是两个不同维度。
+## 结果总览
 
-## C2C 网格
+![六类同卡实验的几何均值 speedup 汇总；每根柱子标注自己的同语义基线](../figures/overview_performance.png)
 
-矩阵为 `N ∈ {64,128,256,512,1024,2048,4096}` 与
-`batch ∈ {1,4,16,64,256,1024,4096}` 的 49 个组合，每点 3 轮、每轮 20 次稳态执行，
-自研与 CANN 原生 runner 交错执行。完整数值见[发布矩阵](../generated/current_matrix.md)，原始 CSV
-和协议见快照目录。
+| 实验 | 严格基线 | 点数 | 几何均值 | 严格胜/平/负 | ±5% 胜/平/负 |
+|---|---|---:|---:|---:|---:|
+| C2C device-only | CANN 原生复数 FFT（`torch_npu`） | 49 | **1.555x** | 47/0/2 | 46/2/1 |
+| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.442x** | 47/0/2 | 45/4/0 |
+| 应用 shape end-to-end | 同上，OFDM / Radar / DL 代理 shape | 12 | **1.422x** | 12/0/0 | 12/0/0 |
+| R2C device-only | `torch.fft.rfft`（torch_npu） | 49 | **1.180x** | 39/0/10 | 34/7/8 |
+| R2C device-only | `aclRfft1D` | 42 | **1.858x** | 37/0/5 | 36/1/5 |
+| C2R device-only | `torch.fft.irfft`（torch_npu） | 49 | **1.868x** | 47/0/2 | 45/2/2 |
 
-![C2C device-only speedup heatmap](../figures/fig1_speedup_heatmap.png)
+严格胜负按速度比是否严格大于 1 统计；±5% 带宽把 `0.95x..1.05x` 视为工程持平。
+二者回答不同问题，不能互换。几何均值保留全部有效点，包括负点。
 
-大多数点位的收益来自阶段/数据二维映射、UB 内复用和硬件相关的 lowering；随着 batch 增大，
-两条路径都接近持续吞吐区，倍率自然收窄。当前唯一严格回退点是 `N=1024,batch=4096`
-（约 `0.96x`），它已列为下一轮的定向优化项，而不是从矩阵中删除。
+## 可以得出的结论
 
-## 端到端与应用 shape
+- **迁移成立**：C2C、应用 shape、R2C 和 C2R 的同卡同语义集合均取得大于 1 的几何均值，
+  说明混合数据流方法可以在 Ascend 的 AIV/UB/MTE/GM 约束下形成有效实现。
+- **不是全面逐点领先**：C2C 仍有 2 个严格负点；R2C 相对 torch_npu 有 10 个严格负点，
+  其中多个位于小长度、大 batch。报告保留这些点，不用删点或只报均值掩盖边界。
+- **端到端收益低于 device-only 收益**：49 点同步 device-only 复测为 1.644x，而 host-to-host
+  E2E 为 1.442x，说明传输和同步会稀释 kernel 收益。
+- **应用代理 shape 有一致收益**：12 个预声明 shape 的 E2E 几何均值为 1.422x，12/12 严格领先；
+  这不等价于完整通信、雷达或深度学习应用的端到端加速。
+- **规模证据尚不含加速比**：`N=8192..65536` 的 12 点全部通过正确性，但没有同协议外部基线，
+  因此只支持“可正确运行及其延迟趋势”，不支持“长尺寸领先”。
 
-![Device-only and end-to-end heatmaps](../figures/fig6_end_to_end.png)
+## 分项阅读
 
-端到端计时包括 pinned H2D、一次前向 C2C 和 D2H，因此不会把 kernel 倍率直接等同于应用
-倍率。49 点的 E2E 几何均值为 **1.36x**；最低点仍接近持平，说明搬运与同步已经成为主要
-限制之一。
+| 页面 | 主要内容 |
+|---|---|
+| [实验一：C2C](c2c.md) | 49 点 device-only 网格、负点与 shape 趋势 |
+| [实验二：端到端与应用](end-to-end.md) | 49 点 E2E、搬运占比与 12 个应用代理 shape |
+| [实验三：R2C/C2R](real-transforms.md) | torch_npu / ACL 基线、实数变换边界与负点 |
+| [实验四：规模切片](scale.md) | `8192..65536` 正确性和延迟，不含外部 speedup |
+| [原始数据与复现](reproducibility.md) | 命令、manifest、逐点 JSON/CSV 与哈希 |
 
-![Application-shaped FFT workloads](../figures/fig9_application_workloads.png)
+## 结论边界
 
-12 个代表 shape 全部领先，按应用标签分组的 E2E 几何均值为：
-
-| 应用组 | 点数 | 几何均值 |
-|---|---:|---:|
-| OFDM | 4 | 1.43x |
-| Radar | 4 | 1.37x |
-| DL frequency-domain layer | 4 | 1.46x |
-
-这些是公开脚本中定义的代表输入，不等价于完整通信、雷达或深度学习应用端到端加速。
-
-## R2C / C2R
-
-![R2C/C2R win-tie-loss heatmap](../figures/fig10_real_speedup_heatmap.png)
-
-R2C 和 C2R 使用同样的 5-trial 对称协议：每个 trial 先执行一次丢弃的 warmup，再对稳态
-样本取 median；逐 trial correctness、`maxAbs`、`maxRel` 和状态全部保留在 raw 文件中。
-
-| 实验 | 点数 | 几何均值 | 胜 / 平 / 负（±5% parity band） |
-|---|---:|---:|---:|
-| R2C vs `torch.fft.rfft` | 49 | **1.18x** | **34 / 5 / 10** |
-| C2R vs `torch.fft.irfft` | 49 | **1.78x** | **46 / 2 / 1** |
-
-R2C 的负点主要集中在小长度、大 batch；这属于当前实验范围内的已知边界，后续优先检查
-batch 折叠、搬运占比和 CANN 原生路径的调用开销。C2R 的单个负点同样保留在 raw 数据中。
-
-## 设计点与实验范围
-
-本轮已经完成“迁移实例”所需的主要闭环：
-
-1. 用 Ascend910_9382 profile 约束 UB、AIV、对齐和数据通路；
-2. 在声明矩阵上运行参数化候选并回填实测结果；
-3. 将 C2C、E2E、应用 shape、R2C/C2R 分开报告，避免混合语义；
-4. 发布正确性、协议、源码 commit、硬件身份和产物哈希。
-
-因此本版本可以收敛为一个可复现的迁移实例。仍需改进但不阻塞本版本发布的项目包括：
-
-- C2C 的一个高 batch 边界点和 R2C 的若干负点；
-- profile 原始附件、cube probe 和 `msprof` 计数器归档；
-- pp2 实验路径的自动晋升与 UB 峰值模型一致性；
-- 逆向 C2C、更多精度、非二次幂、2D/stride 和其他 Ascend SoC。
-
-这些项目进入[未来计划](../roadmap.md)，不会被写成当前已支持或已达到全局最优的能力。
-
-## 原始数据与复现
-
-- [当前发布快照](https://github.com/TruNcat3/ascend-fft/tree/f1e97da/results/published/ascend910_9382-revalidation-20261010)
-- [C2C 发布矩阵](../generated/current_matrix.md)
-- [多基线明细](../generated/current_comparison.md)
-- [测量方法](methodology.md)
-- [复现实验命令](reproducibility.md)
-- [图表生成器](https://github.com/TruNcat3/ascend-fft/blob/f1e97da/scripts/plot_results.py)
-
-图、摘要和 raw 数据必须来自同一发布快照；禁止从不同日期、硬件或计时协议拼接结论。
+本轮结果适用于 Ascend910_9382、CANN 9.0.0、fp32 和各分项页面声明的语义与计时区间。
+它证明了一个有总体收益的跨平台迁移实例，但不证明所有 Ascend SoC、所有长度、所有精度、
+所有 batch 或所有专业 FFT 库上的全局最优。跨硬件必须重新运行 profile、模型校准与候选实测。

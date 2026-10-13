@@ -1,5 +1,15 @@
 # PR 7：迁移验收与后续优化收敛
 
+> **已完成历史记录**：[PR 7](https://github.com/TruNcat3/ascend-fft/pull/7) 已于
+> 2026-10-13 合并。本页保留当时的目标、测试设计和后续候选晋升门槛；下文“必须”“预期”
+> 等措辞描述原计划，不表示 PR 7 仍未完成。当前发布证据统一来自
+> `ascend910_9382-migration-20261013`。
+
+最新阅读顺序为：[实验设计与结果汇总](results.md) → [C2C](c2c.md) →
+[端到端与应用](end-to-end.md) → [R2C/C2R](real-transforms.md) →
+[规模切片](scale.md) → [原始数据与复现](reproducibility.md)。
+后续 B1/B2/B3 仍属于[未来研究任务](../roadmap.md)，不作为本次迁移发布的未完成项。
+
 本计划承接已关闭的 [PR 6](https://github.com/TruNcat3/ascend-fft/pull/6)。PR 6 的稳定迁移路径已经有独立发布快照和完整矩阵支撑；其
 `static`、`pipe` 和 `fused` 变体仍属于边界优化实验，不能作为当前迁移成果的必要前提。
 
@@ -46,7 +56,7 @@ naive Ascend lowering
 至少报告 kernel time、端到端时间、GM/UB 搬运量、AIV/MTE 利用率、正确性和配置选择原因。
 消融只用于解释方法，不替代完整发布矩阵，也不要求每个局部消融都超过 CANN。
 
-代表点必须包含当前 C2C `N=1024,batch=4096` 的 `0.96x` 边界点，以及发布快照中最慢的
+代表点必须包含当时 C2C `N=1024,batch=4096` 的 `0.96x` 边界点，以及当时发布快照中最慢的
 R2C 大 batch 点。对每个点同时记录固定 CANN baseline、稳定路径、模型选择、有限搜索最优点
 和选择损失。这样既能解释方法的平均收益，也能说明已知负点为什么没有被当前映射消除。
 

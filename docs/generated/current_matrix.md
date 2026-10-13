@@ -1,6 +1,12 @@
-# 矩阵测试：n × batch 全网格（自研 kfft_fwd vs CANN 原生复数 FFT）
+# 历史兼容页：旧 C2C 发布矩阵
 
-> **当前发布快照**：`ascend910_9382-revalidation-20261010`。49 个点全部通过正确性门禁，
+> 本页文件名保留用于兼容旧链接，已从文档站导航和搜索中排除。当前结论见
+> [C2C 分项实验](../benchmarks/c2c.md)，当前逐点数据见
+> [`ascend910_9382-migration-20261013/matrix.csv`](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/matrix.csv)。
+
+## 旧快照内容
+
+> **归档快照**：`ascend910_9382-revalidation-20261010`。49 个点全部通过正确性门禁，
 > 48/49 点严格领先 CANN；`N=1024,batch=4096` 的 0.96x 回退保留在表中。
 
 > **复现脚本**：[`scripts/matrix_test.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/matrix_test.py)（本文是它的输出）· [`scripts/one_click_test.sh`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/one_click_test.sh)（编译+门禁+矩阵一键）· [`scripts/calib_eta.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/calib_eta.py)（η 列）。

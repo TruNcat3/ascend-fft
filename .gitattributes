@@ -1,0 +1,3 @@
+# Published experiment files are immutable byte-for-byte evidence. Preserve their
+# original line endings and whitespace; integrity is enforced by manifest hashes.
+results/published/** -whitespace

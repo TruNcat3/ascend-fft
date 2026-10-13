@@ -1,0 +1,338 @@
+{
+  "protocol": {
+    "correctness_threshold": 0.0001,
+    "raw_rows": "one row per (N,B,trial) incl. failed/timeout with status+error",
+    "reps_policy": "nB<=4096:50, nB<=2^20:30, else 10",
+    "statistic": "per-trial median; summary (median/p10/p90/CV) over valid raw rows only",
+    "trials": 3,
+    "warmup": "one discarded full-reps execution inside every trial"
+  },
+  "provenance": {
+    "cann": "9.0.0",
+    "command": "scripts/bench_scale_slice.py --out results/runs/20261013T022933Z-pr7-provenance/scale_slice.json",
+    "compiler": "g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "ended_utc": "2026-10-13T03:22:19.182656+00:00",
+    "git_dirty": false,
+    "git_sha": "6b35a3fd0204bd3aa95d314f411e13e3be9ac03c",
+    "hardware": "Ascend910_9382",
+    "npu_smi": "+------------------------------------------------------------------------------------------------------------------+\n| npu-smi 26.1.1                              Version: 26.1.1                                                      |\n+---------------------------+---------------+----------------------------------------------------------------------+\n| NPU   Name                | Health        | Power(W)             Temp(C)                 Hugepages-Usage(page)   |\n| Chip  Phy-ID              | Bu",
+    "python": "3.11.15",
+    "started_utc": "2026-10-13T03:16:24.463886+00:00",
+    "torch": "2.10.0+cpu",
+    "torch_npu": "2.10.0"
+  },
+  "rows": [
+    {
+      "batch": 1,
+      "device_us": 20.5,
+      "maxRel": 1.02e-07,
+      "n": 8192,
+      "ok": true,
+      "stats": {
+        "cv": 0.06082506837932849,
+        "median": 20.5,
+        "p10": 19.619999999999997,
+        "p90": 21.619999999999997,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.05732980482345616,
+        "median": 271.7,
+        "p10": 267.94,
+        "p90": 291.7,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 271.7
+    },
+    {
+      "batch": 16,
+      "device_us": 55.2,
+      "maxRel": 1.158e-07,
+      "n": 8192,
+      "ok": true,
+      "stats": {
+        "cv": 0.09770543017055196,
+        "median": 55.2,
+        "p10": 55.2,
+        "p90": 63.12,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.016125356855340924,
+        "median": 1093.5,
+        "p10": 1084.46,
+        "p90": 1112.22,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 1093.5
+    },
+    {
+      "batch": 256,
+      "device_us": 665.5,
+      "maxRel": 2.363e-07,
+      "n": 8192,
+      "ok": true,
+      "stats": {
+        "cv": 0.011094760127632695,
+        "median": 665.5,
+        "p10": 664.9399999999999,
+        "p90": 675.5,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.08572705300519874,
+        "median": 22680.3,
+        "p10": 21618.94,
+        "p90": 24734.3,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 22680.3
+    },
+    {
+      "batch": 1,
+      "device_us": 27.0,
+      "maxRel": 2.269e-07,
+      "n": 16384,
+      "ok": true,
+      "stats": {
+        "cv": 0.4015271972916575,
+        "median": 27.0,
+        "p10": 22.2,
+        "p90": 41.32,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.10334869920568189,
+        "median": 408.2,
+        "p10": 359.72,
+        "p90": 421.56,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 408.2
+    },
+    {
+      "batch": 16,
+      "device_us": 73.9,
+      "maxRel": 2.269e-07,
+      "n": 16384,
+      "ok": true,
+      "stats": {
+        "cv": 0.10907674147411774,
+        "median": 73.9,
+        "p10": 73.9,
+        "p90": 85.82,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.09229217219560297,
+        "median": 2543.1,
+        "p10": 2453.6600000000003,
+        "p90": 2824.7799999999997,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 2543.1
+    },
+    {
+      "batch": 256,
+      "device_us": 1005.8,
+      "maxRel": 2.343e-07,
+      "n": 16384,
+      "ok": true,
+      "stats": {
+        "cv": 0.012274797069887176,
+        "median": 1005.8,
+        "p10": 1001.64,
+        "p90": 1020.52,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.2464076927023168,
+        "median": 44950.7,
+        "p10": 42105.42,
+        "p90": 60505.98,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 44950.7
+    },
+    {
+      "batch": 1,
+      "device_us": 25.1,
+      "maxRel": 4.14e-08,
+      "n": 32768,
+      "ok": true,
+      "stats": {
+        "cv": 0.38273647231449376,
+        "median": 25.1,
+        "p10": 24.54,
+        "p90": 41.66,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.13307429874752963,
+        "median": 541.6,
+        "p10": 515.6,
+        "p90": 630.8800000000001,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 541.6
+    },
+    {
+      "batch": 16,
+      "device_us": 130.9,
+      "maxRel": 1.278e-07,
+      "n": 32768,
+      "ok": true,
+      "stats": {
+        "cv": 0.021689366105513648,
+        "median": 130.9,
+        "p10": 128.1,
+        "p90": 132.58,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.27658945013668956,
+        "median": 9057.1,
+        "p10": 6104.54,
+        "p90": 9189.18,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 9057.1
+    },
+    {
+      "batch": 256,
+      "device_us": 1785.1,
+      "maxRel": 2.372e-07,
+      "n": 32768,
+      "ok": true,
+      "stats": {
+        "cv": 0.007943847287763164,
+        "median": 1785.1,
+        "p10": 1765.6599999999999,
+        "p90": 1785.3400000000001,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.030463135401947672,
+        "median": 77213.3,
+        "p10": 75725.06,
+        "p90": 79477.62,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 77213.3
+    },
+    {
+      "batch": 1,
+      "device_us": 42.6,
+      "maxRel": 8.04e-08,
+      "n": 65536,
+      "ok": true,
+      "stats": {
+        "cv": 0.15894965815178622,
+        "median": 42.6,
+        "p10": 37.88,
+        "p90": 48.84,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.20191941310242206,
+        "median": 1008.3,
+        "p10": 953.82,
+        "p90": 1285.5,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 1008.3
+    },
+    {
+      "batch": 16,
+      "device_us": 197.6,
+      "maxRel": 1.652e-07,
+      "n": 65536,
+      "ok": true,
+      "stats": {
+        "cv": 0.05485365572342676,
+        "median": 197.6,
+        "p10": 189.2,
+        "p90": 206.56,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.024652751697913033,
+        "median": 10001.8,
+        "p10": 9877.64,
+        "p90": 10266.12,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 10001.8
+    },
+    {
+      "batch": 256,
+      "device_us": 2942.7,
+      "maxRel": 2.267e-07,
+      "n": 65536,
+      "ok": true,
+      "stats": {
+        "cv": 0.0013725712644601959,
+        "median": 2942.7,
+        "p10": 2938.38,
+        "p90": 2944.7,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "stats_wall": {
+        "cv": 0.019280836872203617,
+        "median": 141827.6,
+        "p10": 139210.63999999998,
+        "p90": 143543.2,
+        "trials_ok": 3,
+        "trials_total": 3
+      },
+      "trials_ok": 3,
+      "trials_total": 3,
+      "wall_us": 141827.6
+    }
+  ]
+}

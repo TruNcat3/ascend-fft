@@ -24,7 +24,7 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
 <figure class="doc-diagram doc-diagram--compact">
   <a href="figures/overview_performance.png">
     <img src="figures/overview_performance.png" loading="lazy"
-         alt="Ascend-FFT 在 Ascend910_9382 上相对 CANN 原生基线的 C2C device-only、C2C end-to-end 和应用 end-to-end 几何均值 speedup 柱状图">
+         alt="Ascend-FFT 在 Ascend910_9382 上的 C2C、应用 shape、R2C 和 C2R 几何均值 speedup；每根柱子标注各自的同卡同语义基线">
   </a>
   <figcaption>
     当前加固发布快照的性能摘要；完整点数、协议、胜平负和限制见
@@ -63,7 +63,11 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
 
 ## 阅读与复现实验
 
-先读[实验协议](benchmarks/methodology.md)，再看[当前结果](benchmarks/results.md)。[复现实验](benchmarks/reproducibility.md)提供命令与来源；[相关工作与基线](benchmarks/related-work.md)区分同卡比较和跨硬件公开数据。
+先读[实验设计与结果汇总](benchmarks/results.md)和[测量协议](benchmarks/methodology.md)，再按问题查看
+[C2C](benchmarks/c2c.md)、[端到端与应用](benchmarks/end-to-end.md)、
+[R2C/C2R](benchmarks/real-transforms.md)与[规模切片](benchmarks/scale.md)。
+[原始数据与复现](benchmarks/reproducibility.md)提供命令、manifest 和逐点数据；
+[相关工作与基线](benchmarks/related-work.md)区分同卡比较和跨硬件公开数据。
 
 ## 修改工程
 
@@ -71,11 +75,11 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
 
 ## 当前发布口径
 
-`ascend910_9382-revalidation-20261010` 是当前文档唯一引用的性能快照：C2C device-only
-几何均值 **1.62x**（49 点中 48 点严格领先），C2C E2E **1.36x**，应用 shape E2E
-**1.42x**。这次迁移的验收目标是“在预先声明的矩阵内完成正确性、同语义基线和收益展示”，
-不是无限扩大设计空间后追求每个硬件/尺寸的极限。已声明矩阵中的回退点必须保留并进入后续
-优化清单；不允许用删点、改统计口径或只报告均值来掩盖它们。
+`ascend910_9382-migration-20261013` 是当前文档唯一引用的性能快照：C2C device-only
+几何均值 **1.555x**，C2C E2E **1.442x**，应用 shape E2E **1.422x**；R2C/C2R
+相对 torch_npu 分别为 **1.180x / 1.868x**。C2C 49 点中有 47 个严格领先、2 个回退；
+按 ±5% 带宽统计为 46/2/1。所有负点都保留在分项页面和 raw 数据中。`8192..65536` 规模切片无外部基线，
+只证明正确性和可运行规模，不计入性能领先结论。
 
 ## 后续方向
 

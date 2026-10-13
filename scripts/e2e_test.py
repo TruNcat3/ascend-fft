@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """端到端对比测试：H2D + 变换 + D2H，自研 kfft_fwd vs CANN 原生复数 FFT vs 裸 CANN C API。
 
-口径（三路逐段对应，详见 docs/实验对比.md §6）：
+口径（三路逐段对应，详见 docs/benchmarks/methodology.md 和 end-to-end.md）：
 
   自研   :  aclrtMemcpyAsync(H2D) -> kfft_fwd -> aclrtMemcpyAsync(D2H)   （fft_check AB_E2E=1）
   CANN 原生:  xd.copy_(x_cpu)      -> torch.fft.fft(xd) -> yd.copy_(out)  （bench_native_npu.py --e2e）
   裸 CANN :  aclrtMemcpyAsync(H2D) -> aclRfft1D -> aclrtMemcpyAsync(D2H)  （baseline_rfft --e2e）
 
-三路的主机缓冲默认都是 **pinned**（`AB_E2E_HOST`，见 docs/实验对比.md §6.3）：
+三路的主机缓冲默认都是 **pinned**（`AB_E2E_HOST`，见 docs/benchmarks/methodology.md）：
 自研/裸用 `aclrtMallocHost`，torch 用 `.pin_memory()` 源张量 + 预分配 pinned 目的张量；
 `AB_E2E_HOST=pageable` 切回受限口径做 A/B。
 

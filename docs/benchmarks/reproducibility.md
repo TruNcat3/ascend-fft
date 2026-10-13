@@ -1,4 +1,9 @@
-# 复现实验
+# 原始数据与复现
+
+当前报告只使用不可变快照 `ascend910_9382-migration-20261013`。快照记录实验命令、源码提交、
+硬件与工具链身份、硬件 profile、构建产物哈希、原始 trial 和派生产物哈希。查看
+[快照目录](https://github.com/TruNcat3/ascend-fft/tree/master/results/published/ascend910_9382-migration-20261013)
+或直接从下面的索引进入所需证据。
 
 ## 最短路径
 
@@ -20,8 +25,22 @@ scripts/repro.sh --list --verbose
 scripts/repro.sh --doc benchmarks/results.md
 ```
 
-常用实验包括 `matrix`、`sixway`、`e2e`、`e2e-app`、`r2c-c2r`、`eta`、`ab`、
+常用实验包括 `matrix`、`sixway`、`e2e`、`e2e-app`、`r2c-c2r`、`scale`、`eta`、`ab`、
 `hwprobe` 和 `profile`。慢速实验和历史基线不会被 `repro.sh all` 隐式覆盖。
+
+## 当前快照索引
+
+| 内容 | 汇总 | 逐轮原始数据 |
+|---|---|---|
+| 来源、协议、环境与哈希 | [manifest.json](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/manifest.json) | [protocol.json](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/protocol.json) |
+| C2C 49 点 | [matrix.csv](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/matrix.csv) | [trials.csv](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/trials.csv) |
+| C2C device/E2E | [e2e.json](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/e2e.json) | [e2e.raw_rounds.csv](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/e2e.raw_rounds.csv) |
+| 应用代理 shape | [e2e_app.json](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/e2e_app.json) | [e2e_app.raw_rounds.csv](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/e2e_app.raw_rounds.csv) |
+| R2C/C2R | [r2c_c2r.json](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/r2c_c2r.json) | [r2c_c2r.raw_trials.csv](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/r2c_c2r.raw_trials.csv) |
+| 长度规模切片 | [scale_slice.csv](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/scale_slice.csv) | [scale_slice.raw_trials.csv](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/scale_slice.raw_trials.csv) |
+
+`r2c_c2r.json` 已合并主网格和 `N=64/8192` 补充采集；补充采集的独立文件也保留在同一目录。
+这些链接是审计入口，不要求读者先浏览历史 PR 或生成大表。
 
 ## 发布结果
 
@@ -46,10 +65,10 @@ scripts/repro.sh figures
 # 等价于：python3 scripts/plot_results.py
 ```
 
-绘图器默认从 `results/published/ascend910_9382-revalidation-20261010/` 读取矩阵、端到端、应用 shape
-和多基线数据，不重新测量。输出统一写入 `docs/figures/`，当前画布均为 `1600x900`。若传入精简的
-5 列矩阵，device-only 图仍可生成，但因为没有 `eta` 字段会明确跳过模型图；不会从另一份历史表
-静默拼接模型数据。
+绘图器默认从 `results/published/ascend910_9382-migration-20261013/` 读取 C2C、端到端、应用
+shape、R2C/C2R 和规模切片，不重新测量。输出统一写入 `docs/figures/`，每张图按内容使用原生
+宽高比，不再强制填入统一画布。若某类输入缺失，绘图器会明确跳过对应图，不从另一份历史快照
+静默拼接数据。
 
 ## 结果检查
 
@@ -60,6 +79,13 @@ scripts/repro.sh figures
 3. baseline 与候选的变换、精度、布局和计时区间一致；
 4. 每个实现每个 shape 的 trial 数完整；
 5. `publish_results.py --check` 和文档构建均通过。
+
+文档发布还应运行：
+
+```bash
+mkdocs build --strict
+python3 scripts/check_docs_assets.py site --site-prefix /ascend-fft/
+```
 
 更深入的 A/B、硬件探针和 msprof 流程见[验证与发布](../development/validation-and-release.md)
 及[性能剖析](../development/profiling.md)。

@@ -1,6 +1,13 @@
-# 性能对比：标准库 vs CANN 原生算子 vs 自研 kernel（全网格 49 点）
+# 历史兼容页：旧多基线展开表
 
-> **当前发布快照**：`ascend910_9382-revalidation-20261010`。本页用于展开同卡 CANN 基线和
+> 本页混合了旧日期和不同统计协议的数据，只用于追溯，已从文档站导航和搜索中排除。
+> 当前同卡同语义结论请阅读[实验设计与结果汇总](../benchmarks/results.md)和
+> [原始数据与复现](../benchmarks/reproducibility.md)。不得把本页旧列与 `20261013` 快照拼接
+> 成新的多基线统计。
+
+## 旧快照内容
+
+> **归档快照**：`ascend910_9382-revalidation-20261010`。本页用于展开当时的同卡 CANN 基线和
 > 其他上下文基线；CPU 或不同变换语义的列不参与 C2C 主胜负。
 
 > **复现脚本**：[`scripts/gen_stdlib_doc.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/gen_stdlib_doc.py)（本文是它的输出）· [`scripts/bench_stdlib.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/bench_stdlib.py) · [`scripts/bench_native_npu.py`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/bench_native_npu.py) · [`scripts/repro.sh sixway`](https://github.com/TruNcat3/ascend-fft/blob/461d1c1/scripts/repro.sh)。
