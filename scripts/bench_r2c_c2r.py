@@ -14,16 +14,22 @@
   * 附 provenance（硬件 / CANN / torch / 编译器 / git 修订与 dirty）与逐 trial
     raw_trials.{json,csv}。
 
-aclRfft1D 列沿用 results/e2e.json 的 bare_dev（单点来源，不做 trial 化）。
+aclRfft1D 列来自 --acl-json 指定的 e2e JSON 的 bare_dev（默认 results/e2e.json，
+单点来源、不做 trial 化）；来源路径与 sha256 以 acl_source 字段写进输出，保证
+基线可绑定到不可变文件。torch 基线在计时前先做**每 shape 一次**的正确性校验
+（torch_npu rfft/irfft vs numpy 参考，maxRel ≤ 1e-4），失败则不进入计时。
 
-  python3 scripts/bench_r2c_c2r.py --trials 5 --warmup-per-trial \
-      --ns 64,...,8192 --bs 1,...,4096 --out results/runs/<UTC>-r2c-c2r/r2c_c2r.json
+  python3 scripts/bench_r2c_c2r.py --trials 5 \
+      --ns 64,...,8192 --bs 1,...,4096 --acl-json results/runs/<run>/e2e.json \
+      --out results/runs/<UTC>-r2c-c2r/r2c_c2r.json
 
-输出 JSON：{"protocol":..., "provenance":..., "rows":[...]};
+输出 JSON：{"protocol":..., "provenance":..., "acl_source":...,
+"baseline_checks":..., "rows":[...]};
 raw 逐 trial 记录写到 <out>.raw_trials.json 与 <out>.raw_trials.csv。
 比值一律 >1 表示自研更快；stdout 打印几何均值汇总，进度到 stderr。
 """
-import argparse, csv, json, math, os, re, statistics as st, subprocess, sys, time
+import argparse, csv, hashlib, json, math, os, re, statistics as st, subprocess, sys, time
+from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -127,10 +133,12 @@ def bench_ours_trials(dirn, n, b, trials, raw, impl):
 _TORCH_SRC = r"""
 import json, statistics as st, sys, time, warnings
 warnings.filterwarnings("ignore")
+import numpy as np
 import torch, torch_npu
 ns = [int(x) for x in sys.argv[1].split(",")]
 bs = [int(x) for x in sys.argv[2].split(",")]
 trials = int(sys.argv[3])
+THRESHOLD = 1e-4
 def reps_for(n, b):
     p = n * b
     return 50 if p <= 4096 else (30 if p <= 1 << 20 else 10)
@@ -142,6 +150,45 @@ def one_round(fn, reps):
         torch.npu.synchronize()
         ts.append((time.perf_counter() - t0) * 1e6)
     return st.median(ts)
+def max_rel(got, ref):
+    got = np.asarray(got).astype(np.complex128)
+    ref = np.asarray(ref).astype(np.complex128)
+    denom = max(float(np.max(np.abs(ref))), 1e-30)
+    return float(np.max(np.abs(got - ref))) / denom
+baseline_ok = True
+baseline_checks = []
+for n in ns:
+    x_cpu = torch.randn(1, n, dtype=torch.float32)
+    for b in bs:
+        xc_cpu = x_cpu.expand(b, n).contiguous()
+        try:
+            ref_r = np.fft.rfft(xc_cpu.numpy())
+            got_r = torch.fft.rfft(xc_cpu.npu()).cpu().numpy()
+            ref_i = np.fft.irfft(ref_r, n=n)
+            spec64 = torch.from_numpy(
+                np.ascontiguousarray(ref_r, dtype=np.complex64)).npu()
+            got_i = torch.fft.irfft(spec64, n=n).cpu().numpy()
+            row = dict(n=n, b=b,
+                       max_rel_rfft=max_rel(got_r, ref_r),
+                       max_rel_irfft=max_rel(got_i, ref_i),
+                       threshold=THRESHOLD, status="ok", error="")
+            if (row["max_rel_rfft"] > THRESHOLD
+                    or row["max_rel_irfft"] > THRESHOLD):
+                row["status"] = "error"
+                row["error"] = "baseline maxRel above threshold"
+        except Exception as exc:
+            row = dict(n=n, b=b, max_rel_rfft=None, max_rel_irfft=None,
+                       threshold=THRESHOLD, status="error",
+                       error=str(exc).replace("\n", " ")[:300])
+        baseline_ok &= row["status"] == "ok"
+        baseline_checks.append(row)
+        print("baseline n=%d b=%d rfft=%s irfft=%s %s"
+              % (n, b, row["max_rel_rfft"], row["max_rel_irfft"],
+                 row["status"].upper()), file=sys.stderr, flush=True)
+if not baseline_ok:
+    json.dump({"baseline_checks": baseline_checks, "raw": [],
+               "baseline_ok": False}, sys.stdout)
+    sys.exit(3)
 raw = []
 for n in ns:
     x = torch.randn(1, n, dtype=torch.float32).npu()
@@ -174,7 +221,8 @@ for n in ns:
                                     reps=reps_for(n, b), us=None,
                                     max_abs=None, max_rel=None,
                                     status="error", error=msg))
-json.dump(raw, sys.stdout)
+json.dump({"baseline_checks": baseline_checks, "raw": raw,
+           "baseline_ok": True}, sys.stdout)
 """
 
 
@@ -183,23 +231,38 @@ def bench_torch(ns, bs, trials):
                         ",".join(map(str, bs)), str(trials)],
                        capture_output=True, text=True, cwd=ROOT, timeout=7200)
     try:
-        return json.loads(r.stdout)
+        payload = json.loads(r.stdout)
     except json.JSONDecodeError:
         sys.stderr.write(r.stderr[-4000:])
         raise
+    if not payload.get("baseline_ok"):
+        bad = [c for c in payload.get("baseline_checks", [])
+               if c.get("status") != "ok"]
+        sys.stderr.write("torch baseline validation FAILED before timing: "
+                         + json.dumps(bad) + "\n")
+        return [], payload.get("baseline_checks", []), False
+    return payload["raw"], payload.get("baseline_checks", []), True
 
 
-def load_acl():
-    """results/e2e.json 各点的 aclRfft1D device 时间（bare_dev），缺文件则空。"""
-    path = os.path.join(ROOT, "results", "e2e.json")
-    if not os.path.exists(path):
-        return {}
+def load_acl(path=None):
+    """从 e2e JSON 取各点 aclRfft1D device 时间（bare_dev），附来源路径+sha256。"""
+    resolved = path or os.path.join(ROOT, "results", "e2e.json")
+    label = os.path.relpath(resolved, ROOT)
+    meta = {"path": label, "sha256": None, "status": "missing",
+            "field": "rows[].bare_dev",
+            "measured_by": "build/baseline_rfft via scripts/e2e_test.py"}
+    if not os.path.exists(resolved):
+        return {}, meta
+    data = open(resolved, "rb").read()
+    meta["sha256"] = hashlib.sha256(data).hexdigest()
+    meta["status"] = "ok"
     try:
-        rows = json.load(open(path)).get("rows", [])
+        rows = json.loads(data).get("rows", [])
         return {(d["n"], d["batch"]): d.get("bare_dev") for d in rows
-                if d.get("bare_dev")}
+                if d.get("bare_dev")}, meta
     except (OSError, json.JSONDecodeError, KeyError):
-        return {}
+        meta["status"] = "unreadable"
+        return {}, meta
 
 
 def detect_cann_version():
@@ -252,12 +315,16 @@ def geo(v):
 
 
 def main():
+    started_utc = datetime.now(timezone.utc).isoformat()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--ns", default=",".join(map(str, NS)))
     ap.add_argument("--bs", default=",".join(map(str, BS)))
     ap.add_argument("--trials", type=int, default=TRIALS)
     ap.add_argument("--rounds", type=int, default=None,
                     help="deprecated alias for --trials")
+    ap.add_argument("--acl-json", default="",
+                    help="提供 aclRfft1D bare_dev 的 e2e JSON（默认 results/e2e.json）；"
+                         "路径与 sha256 写入输出的 acl_source 字段")
     ap.add_argument("--out", default="")
     a = ap.parse_args()
     if a.rounds is not None:
@@ -276,12 +343,22 @@ def main():
                 "raw_rows": "one row per (impl,N,B,trial) incl. failed/"
                             "unsupported/timeout with status+error"}
     prov = provenance()
+    prov["command"] = " ".join(sys.argv)
+    prov["started_utc"] = started_utc
     raw = []
 
     print(f"[1/3] torch rfft/irfft ({len(ns)}x{len(bs)} x {a.trials}) ...",
           file=sys.stderr)
-    raw += bench_torch(ns, bs, a.trials)
-    acl = load_acl()
+    torch_raw, baseline_checks, baseline_ok = bench_torch(ns, bs, a.trials)
+    if not baseline_ok:
+        print("FAIL: torch baseline validation failed before timing "
+              "(see baseline rows above)", file=sys.stderr)
+        return 1
+    raw += torch_raw
+    acl, acl_source = load_acl(a.acl_json or None)
+    print(f"    acl source: {acl_source['path']} "
+          f"sha256={acl_source['sha256']} status={acl_source['status']}",
+          file=sys.stderr, flush=True)
 
     print(f"[2/3] 自研 kfft_r2c/kfft_c2r ({len(ns)}x{len(bs)} x {a.trials}) ...",
           file=sys.stderr)
@@ -335,7 +412,10 @@ def main():
                   file=sys.stderr, flush=True)
 
     print("[3/3] 汇总与 raw trials ...", file=sys.stderr)
-    document = {"protocol": protocol, "provenance": prov, "rows": rows}
+    prov["ended_utc"] = datetime.now(timezone.utc).isoformat()
+    document = {"protocol": protocol, "provenance": prov,
+                "acl_source": acl_source, "baseline_checks": baseline_checks,
+                "rows": rows}
     if a.out:
         dst = a.out if os.path.isabs(a.out) else os.path.join(ROOT, a.out)
         out_dir = os.path.dirname(dst)
@@ -344,6 +424,8 @@ def main():
         json.dump(document, open(dst, "w"), indent=1)
         base, _ = os.path.splitext(dst)
         json.dump({"protocol": protocol, "provenance": prov,
+                   "acl_source": acl_source,
+                   "baseline_checks": baseline_checks,
                    "raw_trials": raw}, open(base + ".raw_trials.json", "w"),
                   indent=1)
         with open(base + ".raw_trials.csv", "w", newline="") as fh:

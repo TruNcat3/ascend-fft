@@ -1,0 +1,111 @@
+{
+  "build_artifact_sha256": {
+    "build/baseline_rfft": "78158ac9ef6615d161442a70da54ceec4cc524a1b3256ed58cef9aae97e8ccae",
+    "build/bw_probe": "85de620e2ed2ac5945cc91651efb20ded0f9578b1881a52b002d539ac8b6c4f9",
+    "build/cube_probe": "111774acc252d41e957951c98a71f4b9e0d4996aeeaf0d3a69a3b918fbb58cb4",
+    "build/cube_probe.o": "f78e0e41c31478c098318ddd5653196854b8499b7d9d4027443b8c87f05337cb",
+    "build/fft_check": "61c8a692fe630b195b9a31202340db26d8a649d238291eed32a84f2d62714f68",
+    "build/fft_long.o": "a11ee1ea5d055e2225854a513990453f10a10b9d9f7f184bfc9dbfd52eb2dc26",
+    "build/fft_r2c_fwd.o": "c94d0151001c9510992add22c307b3fbbac5b8105123269e234c872605f83c3b",
+    "build/fft_radix2.o": "d7c20c72bccaa70f64b547061d9e5e8d77d0ef57b9fc10b08a74ed8e3fcb1d50",
+    "build/fft_radix2_v1.o": "2e3c9041d0e3337d26cd7c3d65f22c33953a8c7f924d1af4a9a2b87c58db9bb1",
+    "build/fft_radix2_v2.o": "d7a0a72185eab7adea6f834249e3c4ca615b622e1a233a473b3c5adaca045e2d",
+    "build/fft_real.o": "5fc46ac998ef12c6458b70a76ab1077c7621431d38d59cbf34d3c993849c4100",
+    "build/fft_real_pipe.o": "e7b65759db5cf88d8966aae7708187974f732811cdd2513f0a83c21ba038a88e",
+    "build/fft_real_static.o": "796f52a0ed47811504445c39142d8826c2d197bd806f22e28370e76f0c5e74d2",
+    "build/gather_probe": "bc6462433cbbb0905ee44d884d9a80b24b854f2d593ae9a8f9eb26d8d440477a",
+    "build/gather_probe.o": "ddae181de727e860cfed84df5b1da3a1d4fe3b65602c285beda62cb2a3079424",
+    "build/launch": "5ce02b2fa4024f49422cccd101352f3ea34367ca1f48f72f5197b3e653fb0ff2",
+    "build/mmad_f32.o": "9c4785b6519f82b3bdc247116c6d700df98af368784813c8c6a975dbf4651290",
+    "build/mmad_host": "6c1ff6ce9b62dc57140d5de850720720fd0f97fd086d6478858160c90cc10aab",
+    "build/probe_hw.o": "808a6f9919efe70910dbc29bf1202a44425fb2ac993699727fddbf72cde44be2",
+    "build/profile": "1929a2d4c44497882676e8da0923dbd781472dc9deb3fd1b581b0c6571b8f102",
+    "build/stride_probe": "194f5a8023efeece1da6ab3f8bd09a9b103209530c6999a1d1422ff0fdf542d6",
+    "build/stride_probe.o": "92f2811b35b1f3e5b8d5f78c33f9339e9079c908b36662ba30839666f2fe3781",
+    "build/test_descriptors": "08ab6f4fc90e433c41c66e73cd2d0fb58f5ccdcce063c457c1e510223dc277de",
+    "build/test_framework": "d26fcd8c7b2f6b7ca73840ae951acdcbc0eb0d5f96c348e61768a4ae483e6322",
+    "build/test_limits": "9dca3892c34449b03a04b3f74a64433b13ac2d7e9ed5629d331311d14a28b911"
+  },
+  "cann_path": "/usr/local/Ascend/ascend-toolkit/latest",
+  "cann_version": "9.0.0",
+  "commit": "6b35a3fd0204bd3aa95d314f411e13e3be9ac03c",
+  "compiler_target": "Ascend910_9382",
+  "created_utc": "2026-10-13T02:29:33.900850+00:00",
+  "dirty": false,
+  "ended_utc": "2026-10-13T04:03:44.960807+00:00",
+  "experiments": [
+    {
+      "command": "python3 scripts/matrix_test.py --reps 20 --rounds 3 --out results/runs/20261013T022933Z-pr7-provenance/matrix.md",
+      "ended_utc": "2026-10-13T02:43:40.833845+00:00",
+      "exit_code": 0,
+      "name": "matrix",
+      "started_utc": "2026-10-13T02:29:33.900850+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --reps 10 --rounds 3 --out results/runs/20261013T022933Z-pr7-provenance/e2e.md --json results/runs/20261013T022933Z-pr7-provenance/e2e.json",
+      "ended_utc": "2026-10-13T03:12:05.884915+00:00",
+      "exit_code": 0,
+      "name": "e2e",
+      "started_utc": "2026-10-13T02:43:40.932588+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/e2e_test.py --app all --reps 10 --rounds 3 --no-bare --out results/runs/20261013T022933Z-pr7-provenance/e2e_app.md --json results/runs/20261013T022933Z-pr7-provenance/e2e_app.json",
+      "ended_utc": "2026-10-13T03:16:24.311793+00:00",
+      "exit_code": 0,
+      "name": "e2e_app",
+      "started_utc": "2026-10-13T03:12:05.978810+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/bench_scale_slice.py --out results/runs/20261013T022933Z-pr7-provenance/scale_slice.json",
+      "ended_utc": "2026-10-13T03:22:19.249287+00:00",
+      "exit_code": 0,
+      "name": "scale",
+      "started_utc": "2026-10-13T03:16:24.404448+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/bench_r2c_c2r.py --trials 3 --ns 128,256,512,1024,2048,4096 --bs 1,4,16,64,256,1024,4096 --acl-json results/runs/20261013T022933Z-pr7-provenance/e2e.json --out results/runs/20261013T022933Z-pr7-provenance/r2c_c2r.json",
+      "ended_utc": "2026-10-13T03:56:59.655353+00:00",
+      "exit_code": 0,
+      "name": "r2c_main",
+      "started_utc": "2026-10-13T03:22:19.342807+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/bench_r2c_c2r.py --trials 3 --ns 64,8192 --bs 1,4,16,64,256,1024,4096 --acl-json results/runs/20261013T022933Z-pr7-provenance/e2e.json --out results/runs/20261013T022933Z-pr7-provenance/r2c_c2r_suppl.json",
+      "ended_utc": "2026-10-13T04:03:44.748820+00:00",
+      "exit_code": 0,
+      "name": "r2c_suppl",
+      "started_utc": "2026-10-13T03:56:59.750326+00:00",
+      "status": "complete"
+    },
+    {
+      "command": "python3 scripts/merge_r2c_supp.py results/runs/20261013T022933Z-pr7-provenance/r2c_c2r.json results/runs/20261013T022933Z-pr7-provenance/r2c_c2r_suppl.json",
+      "ended_utc": "2026-10-13T04:03:44.960807+00:00",
+      "exit_code": 0,
+      "name": "r2c_merge",
+      "started_utc": "2026-10-13T04:03:44.839814+00:00",
+      "status": "complete"
+    }
+  ],
+  "hardware_id": "2bb203072e12",
+  "npu_smi": "+------------------------------------------------------------------------------------------------------------------+\n| npu-smi 26.1.1                              Version: 26.1.1                                                      |\n+---------------------------+---------------+----------------------------------------------------------------------+\n| NPU   Name                | Health        | Power(W)             Temp(C)                 Hugepages-Usage(page)   |\n| Chip  Phy-ID              | Bus-Id        | AICore(%)            Memory-Usage(MB)        HBM-Usage(MB)           |\n+==============",
+  "profile_mismatch_override": false,
+  "schema_version": 3,
+  "selected_profile": {
+    "path": "config/ascend910_93_profile.json",
+    "sha256": "42768522dcdd2d3088dfe5ffbaf7d73a5c1041a8199b4f6c5a1fef27a4ee006f",
+    "soc": "Ascend910_9382"
+  },
+  "soc": "Ascend910_9382",
+  "started_utc": "2026-10-13T02:29:33.900850+00:00",
+  "updated_utc": "2026-10-13T04:03:44.960807+00:00",
+  "versions": {
+    "cann": "9.0.0",
+    "ccec": "2026-04-25T15:46:25+08:00 clang version 15.0.5 (clang-5c68a1cb1231 flang-5c68a1cb1231)",
+    "python": "3.11.15"
+  }
+}

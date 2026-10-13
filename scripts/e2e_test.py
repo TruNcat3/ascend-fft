@@ -31,15 +31,24 @@ op-plugin 实现（`FFTc2cKernelNpuOpApi.cpp`），并非 CANN 算子库条目�
 
 `--rounds K`：整套跑 K 遍、逐点取 min-of-means（与 matrix_test.py 同口径，
 宿主负载 20~30 下单次 mean 会被离群点污染）。markdown 表打到 stdout 并同时写入
-`--out` 文件；JSON 写 `--json` 文件（供 scripts/plot_results.py 画图）。
+`--out` 文件；JSON 写 `--json` 文件（供 scripts/plot_results.py 画图），
+其中 `raw_rounds` 保留每 (party, n, b, round) 的逐轮计时/状态/maxRel，
+同目录 `<名>.raw_rounds.csv` 为同内容的 CSV，meta 内附执行时 provenance。
 进度行（`[1/3] ...`、`    n=.. PASS ..`）与结尾的 `-> <out>` / `-> <json>` 两行打到 stderr。
 """
-import argparse, json, os, re, subprocess, sys, time
+import argparse, csv, json, os, re, subprocess, sys, time
+from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import abenv  # noqa: E402  与 scripts/env.sh 共用同一套路径探测
+from bench_r2c_c2r import provenance as bench_provenance  # noqa: E402
 PY = abenv.python_bin()
+
+
+def num(x):
+    """NaN -> None，保证 JSON allow_nan=False 可序列化。"""
+    return None if isinstance(x, float) and x != x else x
 
 
 def sh(cmd, env=None, cwd=ROOT, timeout=3600):
@@ -117,7 +126,8 @@ def main():
     ns = [int(x) for x in a.ns.split(",")]
     bs = [int(x) for x in a.bs.split(",")]
     rounds = max(1, a.rounds)
-
+    started_utc = datetime.now(timezone.utc).isoformat()
+    raw_rounds = []          # 逐轮原始记录：每 (party, n, b, round) 一行
     ours, nat, bare, boot, plan = {}, {}, {}, {}, {}
     nat_ok = True
     bare_ok = True
@@ -126,7 +136,7 @@ def main():
     what = (f"{len(runs)} 个应用 × {len(pairs)} 个 shape"
             if a.app else f"{len(ns)}x{len(bs)}")
     print(f"[1/3] CANN 原生 E2E  ({what} x{rounds}) ...", file=sys.stderr)
-    for _ in range(rounds):
+    for rnd in range(rounds):
         for nm, ns_s, bs_s in runs:
             out = sh(f"{PY} scripts/bench_native_npu.py --ns {ns_s} --bs {bs_s} "
                      f"--reps {max(a.reps, 20)} --e2e"
@@ -140,6 +150,12 @@ def main():
                     d["dev_mean"] = minof(d.get("dev_mean"), float(m.group(4)))
                     d["dev_min"] = minof(d.get("dev_min"), float(m.group(3)))
                     nat_ok &= (m.group(6) == "PASS")
+                    raw_rounds.append(dict(party="native", kind="dev",
+                                           n=k[0], b=k[1], round=rnd,
+                                           us_min=float(m.group(3)),
+                                           us_mean=float(m.group(4)),
+                                           maxRel=float(m.group(5)),
+                                           status=m.group(6)))
                 m = re.match(r"NATIVE_E2E n=(\d+) b=(\d+) e2e_us=([\d.]+) e2e_mean_us=([\d.]+) "
                              r"first_us=([\d.]+) maxRel=([\d.eE+-]+) (\w+)", ln)
                 if m:
@@ -148,6 +164,13 @@ def main():
                     d["e2e_min"] = minof(d.get("e2e_min"), float(m.group(3)))
                     d["e2e_mean"] = minof(d.get("e2e_mean"), float(m.group(4)))
                     d["first_us"] = minof(d.get("first_us"), float(m.group(5)))
+                    raw_rounds.append(dict(party="native", kind="e2e",
+                                           n=k[0], b=k[1], round=rnd,
+                                           us_min=float(m.group(3)),
+                                           us_mean=float(m.group(4)),
+                                           first_us=float(m.group(5)),
+                                           maxRel=float(m.group(6)),
+                                           status=m.group(7)))
     print(f"    native {len(nat)} 点 {'PASS' if nat_ok else 'FAIL'}", file=sys.stderr)
 
     # ---- 裸 CANN C API：逐点一个进程（每进程自带 boot + 极小变换冷启动）----
@@ -167,9 +190,12 @@ def main():
                 cmd = (f"./build/baseline_rfft {n} {b} 1 {abenv.work()}/ab_bare.bin "
                        f"--e2e --reps={max(a.reps, 10)}")
                 d = bare.setdefault((n, b), {})
-                for _ in range(rounds):
+                for rnd in range(rounds):
                     m = re.search(pat, sh(cmd, timeout=1800))
                     if not m:
+                        raw_rounds.append(dict(party="bare", n=n, b=b,
+                                               round=rnd, status="error",
+                                               error="no BARE line in output"))
                         continue
                     d["dev_min"] = minof(d.get("dev_min"), float(m.group(3)))
                     d["dev_mean"] = minof(d.get("dev_mean"), float(m.group(4)))
@@ -179,6 +205,17 @@ def main():
                     r = float(m.group(11))
                     d["maxRel"] = min(d.get("maxRel", float("inf")), r)
                     d["ok"] = bool(d.get("ok", False) or m.group(12) == "PASS")
+                    raw_rounds.append(dict(party="bare", n=n, b=b, round=rnd,
+                                           dev_min=float(m.group(3)),
+                                           dev_mean=float(m.group(4)),
+                                           e2e_min=float(m.group(5)),
+                                           e2e_mean=float(m.group(6)),
+                                           first_us=float(m.group(7)),
+                                           boot_us=float(m.group(8)),
+                                           setup_us=float(m.group(9)),
+                                           ws_mb=float(m.group(10)),
+                                           maxRel=float(m.group(11)),
+                                           status=m.group(12), error=""))
                 bare_ok &= bool(d.get("ok"))
                 print(f"    n={n:<5} b={b:<5} {'PASS' if d.get('ok') else 'FAIL'}  "
                       f"dev={d.get('dev_mean', float('nan')):.1f}  "
@@ -193,21 +230,39 @@ def main():
             cmd = (f"{('AB_INPUT=' + inp[(n, b)] + ' ') if (n, b) in inp else ''}"
                    f"AB_E2E={a.reps} ./build/fft_check {n} {b} {a.reps}")
             d = ours.setdefault((n, b), {})
-            for _ in range(rounds):
+            for rnd in range(rounds):
                 s = sh(cmd)
-                d["dev_mean"] = minof(d.get("dev_mean"), f(r"kfft_fwd: ([\d.]+) us/call", s))
-                d["dev_min"] = minof(d.get("dev_min"), f(r"\(min ([\d.]+) us\)", s))
-                d["e2e_mean"] = minof(d.get("e2e_mean"), f(r"e2e_us=([\d.]+)", s))
-                d["e2e_min"] = minof(d.get("e2e_min"), f(r"e2e_min_us=([\d.]+)", s))
-                d["first_us"] = minof(d.get("first_us"), f(r"first_us=([\d.]+)", s))
-                boot[(n, b)] = minof(boot.get((n, b)), f(r"boot_us=([\d.]+)", s))
-                plan[(n, b)] = minof(plan.get((n, b)), f(r"plan_us=([\d.]+)", s))
-                r = f(r"maxRel=([\d.eE+-]+)", s)
-                if r == r:
-                    d["maxRel"] = min(d.get("maxRel", float("inf")), r)
-                if re.search(r"^PASS$", s, re.M):
+                v_dev_mean = f(r"kfft_fwd: ([\d.]+) us/call", s)
+                v_dev_min = f(r"\(min ([\d.]+) us\)", s)
+                v_e2e_mean = f(r"e2e_us=([\d.]+)", s)
+                v_e2e_min = f(r"e2e_min_us=([\d.]+)", s)
+                v_first = f(r"first_us=([\d.]+)", s)
+                v_boot = f(r"boot_us=([\d.]+)", s)
+                v_plan = f(r"plan_us=([\d.]+)", s)
+                v_rel = f(r"maxRel=([\d.eE+-]+)", s)
+                status = "PASS" if re.search(r"^PASS$", s, re.M) else "FAIL"
+                d["dev_mean"] = minof(d.get("dev_mean"), v_dev_mean)
+                d["dev_min"] = minof(d.get("dev_min"), v_dev_min)
+                d["e2e_mean"] = minof(d.get("e2e_mean"), v_e2e_mean)
+                d["e2e_min"] = minof(d.get("e2e_min"), v_e2e_min)
+                d["first_us"] = minof(d.get("first_us"), v_first)
+                boot[(n, b)] = minof(boot.get((n, b)), v_boot)
+                plan[(n, b)] = minof(plan.get((n, b)), v_plan)
+                if v_rel == v_rel:
+                    d["maxRel"] = min(d.get("maxRel", float("inf")), v_rel)
+                if status == "PASS":
                     d["ok"] = True
                 d.setdefault("ok", False)
+                raw_rounds.append(dict(party="ours", n=n, b=b, round=rnd,
+                                       dev_mean=num(v_dev_mean),
+                                       dev_min=num(v_dev_min),
+                                       e2e_mean=num(v_e2e_mean),
+                                       e2e_min=num(v_e2e_min),
+                                       first_us=num(v_first),
+                                       boot_us=num(v_boot),
+                                       plan_us=num(v_plan),
+                                       maxRel=num(v_rel),
+                                       status=status, error=""))
             print(f"    n={n:<5} b={b:<5} {'PASS' if d.get('ok') else 'FAIL'}  "
                   f"dev={d.get('dev_mean', float('nan')):.1f}  "
                   f"e2e={d.get('e2e_mean', float('nan')):.1f} us", file=sys.stderr)
@@ -377,20 +432,38 @@ def main():
         best = max(rows, key=lambda r: r["e2e_ratio"] if r["e2e_ratio"] == r["e2e_ratio"] else -1)
         L.append(f"- E2E 最快点 **{best['e2e_ratio']:.2f}x** @ n={best['n']}/b={best['batch']}，"
                  f"最慢点 **{worst['e2e_ratio']:.2f}x** @ n={worst['n']}/b={worst['batch']}")
+    raw_name = os.path.splitext(os.path.basename(a.json))[0] + ".raw_rounds.csv"
+    L.append(f"- 逐轮原始计时/状态记录（每 round、每方一行，含 PASS/FAIL 与 maxRel）："
+             f"同目录 `{raw_name}`，并在 JSON 的 `raw_rounds` 字段内。")
 
     txt = "\n".join(L) + "\n"
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     open(a.out, "w", encoding="utf-8").write(txt)
     os.makedirs(os.path.dirname(a.json) or ".", exist_ok=True)
-    json.dump({"rows": rows,
+    prov = bench_provenance()
+    prov["command"] = " ".join(sys.argv)
+    prov["started_utc"] = started_utc
+    prov["ended_utc"] = datetime.now(timezone.utc).isoformat()
+    json.dump({"rows": rows, "raw_rounds": raw_rounds,
                "meta": {"ns": ns, "bs": bs, "app": a.app or None,
                         "shapes": pairs, "reps": a.reps, "rounds": rounds,
                         "bare_run": bool(run_bare),
+                        "provenance": prov,
                         "generated": time.strftime("%Y-%m-%d %H:%M:%S")}},
               open(a.json, "w", encoding="utf-8"), ensure_ascii=False, indent=1,
               allow_nan=False)
+    raw_csv = os.path.splitext(a.json)[0] + ".raw_rounds.csv"
+    if raw_rounds:
+        prefix = [k for k in ("party", "kind", "n", "b", "round")
+                  if any(k in r for r in raw_rounds)]
+        fields = prefix + sorted({k for r in raw_rounds for k in r} - set(prefix))
+        with open(raw_csv, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=fields)
+            w.writeheader()
+            for rec in raw_rounds:
+                w.writerow(rec)
     print(txt)
-    print(f"\n-> {a.out}\n-> {a.json}", file=sys.stderr)
+    print(f"\n-> {a.out}\n-> {a.json}\n-> {raw_csv}", file=sys.stderr)
     return 0 if all(r["ok"] for r in rows) else 1
 
 

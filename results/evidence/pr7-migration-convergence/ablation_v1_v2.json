@@ -1,0 +1,45 @@
+{
+  "base": "build/fft_radix2_v1.o",
+  "cand": "build/fft_radix2_v2.o",
+  "reps": 50,
+  "rounds": 3,
+  "geomean": 1.2764652728425756,
+  "rows": [
+    {
+      "n": 1024,
+      "b": 4096,
+      "base_us": 12329.3,
+      "cand_us": 7062.1,
+      "speedup": 1.7458404723807364,
+      "maxRel": 2.364e-07,
+      "ok": true
+    },
+    {
+      "n": 4096,
+      "b": 4096,
+      "base_us": 49292.5,
+      "cand_us": 27803.7,
+      "speedup": 1.772875552534375,
+      "maxRel": 3.165e-07,
+      "ok": true
+    },
+    {
+      "n": 64,
+      "b": 4096,
+      "base_us": 836.3,
+      "cand_us": 666.4,
+      "speedup": 1.2549519807923168,
+      "maxRel": 2.336e-07,
+      "ok": true
+    },
+    {
+      "n": 128,
+      "b": 4,
+      "base_us": 54.2,
+      "cand_us": 79.3,
+      "speedup": 0.6834804539722573,
+      "maxRel": 1.221e-07,
+      "ok": true
+    }
+  ]
+}

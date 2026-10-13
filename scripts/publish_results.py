@@ -529,8 +529,10 @@ def main():
         stale = synchronize(destination, artifacts, args.check)
         # docs/generated 只归"声明了图形映射"的快照所有，避免多快照互相覆盖；
         # legacy(v1) 快照不再触碰生成物，v2 起由 figures.json 声明所有权。
+        # 所有权对写模式同样生效：无 figures 的快照发布时不得改写在线生成页
+        # （f1e97da 的 revalidation 快照即遵循该约定）。
         owns_figures = bool(json.loads(artifacts["manifest.json"]).get("figures"))
-        if owns_figures or not args.check:
+        if owns_figures:
             stale += synchronize(args.generated_dir, generated, args.check)
         if args.check and not stale:
             stale += verify_immutable(destination, artifacts)

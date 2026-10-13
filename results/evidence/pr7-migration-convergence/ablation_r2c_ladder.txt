@@ -1,0 +1,4 @@
+# A2 r2c ladder n=128 b=4096
+v1: 973.9us maxRel=2.255e-07
+v2: 790.8us maxRel=2.255e-07
+current: 211.0us maxRel=2.255e-07
