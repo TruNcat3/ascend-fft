@@ -20,6 +20,10 @@ venv/
 !/results/published/**
 !/results/evidence/
 !/results/evidence/**
+# PR7 测量重跑（执行时 provenance，数据见 PR 7 评论；其余 run 目录保持忽略）
+!/results/runs/
+/results/runs/*
+!/results/runs/20261013T022933Z-pr7-provenance/
 /site/
 /tmp/
 /mindstudio_profiler_output/
