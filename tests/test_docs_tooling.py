@@ -60,6 +60,32 @@ class PublicationTests(unittest.TestCase):
             self.assertIn("Published Benchmark Summary", comparison)
             self.assertIn("matched detail", comparison)
 
+    def test_extended_raw_artifacts_are_preserved_when_present(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary) / "run"
+            self.make_run(run)
+            (run / "e2e.raw_rounds.csv").write_text("party,status\nours,PASS\n")
+            (run / "scale_slice.json").write_text(json.dumps({
+                "rows": [{"n": 8192, "batch": 1, "device_us": 20.0,
+                          "wall_us": 200.0, "ok": True}]}))
+            artifacts, _ = publish.build_artifacts(run)
+            self.assertIn("e2e.raw_rounds.csv", artifacts)
+            self.assertIn("scale_slice.json", artifacts)
+
+    def test_scale_raw_trials_use_device_and_wall_timings(self):
+        publish.validate_json("scale_slice.raw_trials.json", {
+            "raw_trials": [{"status": "ok", "device_us": 20.0,
+                            "wall_us": 200.0, "max_rel": 1e-7}]})
+        with self.assertRaises(ValueError):
+            publish.validate_json("scale_slice.raw_trials.json", {
+                "raw_trials": [{"status": "ok", "device_us": 0.0,
+                                "wall_us": 200.0, "max_rel": 1e-7}]})
+
+    def test_scale_protocol_names_trial_minimum_device_statistic(self):
+        text = (ROOT / "scripts" / "bench_scale_slice.py").read_text()
+        self.assertIn("minimum device_chain span within", text)
+        self.assertNotIn('"statistic": "per-trial median', text)
+
     def test_incomplete_run_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary) / "run"

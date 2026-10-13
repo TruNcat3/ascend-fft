@@ -14,13 +14,19 @@ import sys
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ("matrix.md", "matrix.csv", "summary.json", "sixway.md", "e2e.json",
-         "e2e_app.json", "r2c_c2r.json", "r2c_c2r.raw_trials.json",
-         "r2c_c2r.raw_trials.csv", "trials.csv", "protocol.json", "figures.json")
+FILES = (
+    "matrix.md", "matrix.csv", "summary.json", "sixway.md",
+    "e2e.json", "e2e.md", "e2e.raw_rounds.csv",
+    "e2e_app.json", "e2e_app.md", "e2e_app.raw_rounds.csv",
+    "r2c_c2r.json", "r2c_c2r.raw_trials.json", "r2c_c2r.raw_trials.csv",
+    "r2c_c2r_suppl.json", "r2c_c2r_suppl.raw_trials.json",
+    "r2c_c2r_suppl.raw_trials.csv",
+    "scale_slice.json", "scale_slice.csv", "scale_slice.raw_trials.json",
+    "scale_slice.raw_trials.csv",
+    "trials.csv", "protocol.json", "figures.json",
+)
 # 原始实验产物（进快照即为不可变原始证据）；matrix.csv/comparison.md 属派生。
-RAW_INPUTS = ("matrix.md", "summary.json", "sixway.md", "e2e.json",
-              "e2e_app.json", "r2c_c2r.json", "r2c_c2r.raw_trials.json",
-              "r2c_c2r.raw_trials.csv", "trials.csv", "protocol.json", "figures.json")
+RAW_INPUTS = tuple(name for name in FILES if name != "matrix.csv")
 DERIVED_GENERATED = ("matrix.csv", "matrix.md", "comparison.md")
 
 
@@ -261,8 +267,16 @@ def validate_json(name, value):
         for rec in trials:
             if rec.get("status") not in valid:
                 raise ValueError(f"{name} has unknown trial status {rec.get('status')!r}")
-            if rec.get("status") == "ok" and not (rec.get("us") and rec["us"] > 0):
-                raise ValueError(f"{name} admits a non-positive ok trial timing")
+            if rec.get("status") == "ok":
+                timing_keys = ("device_us", "wall_us") if name.startswith("scale_slice") else ("us",)
+                for key in timing_keys:
+                    timing = rec.get(key)
+                    if not isinstance(timing, (int, float)) or not math.isfinite(timing) or timing <= 0:
+                        raise ValueError(f"{name} admits an invalid {key} timing")
+                error = rec.get("max_rel")
+                if error is not None and (not isinstance(error, (int, float))
+                                          or not math.isfinite(error) or error > 1e-4):
+                    raise ValueError(f"{name} admits an invalid max_rel")
         return
     if name == "summary.json":
         if value.get("correct_points") != value.get("total_points") or not value.get("total_points"):

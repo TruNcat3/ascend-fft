@@ -1,7 +1,10 @@
-# 测试策略与扩展矩阵
+# 开发测试策略与扩展矩阵
 
-当前实验是短中长度、高 batch FFT 的基础证据，不是通用 FFT 所有应用的覆盖证明。本页将测试
-拆为五层，并保留历史矩阵作为对照。机器可读清单是
+本页面向开发者，说明每次改动、回归、压力与新增能力应如何验收，不承担主实验结果报告的职责。
+当前发布实验按目的整理在[实验设计与结果汇总](benchmarks/results.md)，原始数据来源见
+[复现说明](benchmarks/reproducibility.md)。测试通过证明所测契约成立，不等于所有 FFT 应用
+均已覆盖或所有 workload 均超过专业库。本页将测试拆为五层，并保留历史矩阵作为对照。
+机器可读清单是
 [`config/test_matrix.json`](https://github.com/TruNcat3/ascend-fft/blob/master/config/test_matrix.json)；
 清单描述测试目标，不会让尚未实现的 kernel 自动成为可用能力。
 
@@ -13,6 +16,7 @@
 | R2C | fp32，N=128..8192 的二次幂 | 非二次幂、更多精度（P3） |
 | C2R | fp32，N=64..4096 的二次幂，含 1/N | 非二次幂、更多精度（P3） |
 | 主性能网格 | 7 个长度 × 7 个 batch，共 49 点 | 核数拐点、尾块、独立模型验证 |
+| 长尺寸研究切片 | N=8192..65536，B=1/16/256，共 12 点 | 同尺寸外部基线、完整长 FFT 搜索与公开接口 |
 | 应用代理 | OFDM、雷达、DL 共 12 个 shape 的性能，四类负载（含 STFT 帧代理）的正确性 | STFT 性能代理、长卷积、range-Doppler 与 2D |
 | 用户布局 | 连续数组、host 指针、同步 | 任意 stride、device-pointer、用户 stream |
 
@@ -20,7 +24,8 @@
 但单次 FFT 长度较短。`4096×4096` 和 `1048576×16` 的总点数相同，却具有不同的阶段深度、
 片上容量需求和边界依赖，不能互相替代。当前 C2C 无法执行后一种形状。
 
-支持契约见[支持范围](reference/support.md)，已发布结果见[当前结果](benchmarks/results.md)。
+支持契约见[支持范围](reference/support.md)。`ascend910_9382-migration-20261013` 的长尺寸
+切片使用研究后端；其正确性和延迟证据不改变短 FFT 公共接口范围，也不补齐长 FFT 全研究矩阵。
 
 ## 五层测试与退出条件
 
@@ -168,9 +173,11 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   `results/evidence/long-fft-baseline/baseline.json`（清洁树才允许发布），
   文档表由 `--check` 校验、`tests/test_long_baseline.py`（7 用例）锁定，见
   [长 FFT 同尺寸基线](generated/long-fft-baseline.md)。P1-B：C2C、E2E、应用 shape 与 R2C/C2R 已在
-  `ascend910_9382-revalidation-20261010` 中按加固门禁重采；R2C/C2R 使用 5-trial 对称协议，
-  快照包含逐 trial raw、协议、raw/derived 哈希与 UTC 起止。新汇总见
-  [当前结果](benchmarks/results.md)；旧 min 口径和旧快照倍率不再被引用。独立模型验证仍待完成。
+  `ascend910_9382-migration-20261013` 中完成最新采集，并补充 12 点规模切片。
+  最新 R2C/C2R 使用 3-trial 协议；各实验统计量不同，必须按
+  [测量方法](benchmarks/methodology.md)解释，不能将旧 5-trial 协议或历史倍率混入当前结果。
+  快照保留逐 trial raw、协议、raw/derived 哈希与来源。新汇总见
+  [当前结果](benchmarks/results.md)。独立模型验证仍待完成。
 - P2：分段长 FFT 后端（G1）已实现（宿主四步 Cooley-Tukey + 设备行 FFT，8192..65536
   验收抽样与动态输入证据见 `results/evidence/long-fft-acceptance/` 与长 FFT 计划的
   G0/G1 落地记录）。架构描述符合法性层（addendum step 2）已落地：
@@ -191,5 +198,6 @@ Ascend910_9382 有 48 个 AIV。数据折叠 D=1/2/3/4 时，除常见幂次 bat
   GM 流量和同步后再测。
 - P3：逆向 C2C、2D/stride、其他精度和非二次幂。补零不得冒充原长度 DFT。
 
-这些是待完成工作，不是新增支持声明。整体工程依赖与验收见[未来计划](roadmap.md)，
+以上包含已完成证据和待完成扩展；历史验收数字只对应各自归档，不是当前发布性能摘要。
+未来目标不是新增支持声明。整体工程依赖与验收见[未来计划](roadmap.md)，
 复现协议见[测量方法](benchmarks/methodology.md)和[验证与发布](development/validation-and-release.md)。

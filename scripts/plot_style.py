@@ -1,12 +1,8 @@
 """Shared publication style for Ascend-FFT benchmark figures."""
 
-from io import BytesIO
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from PIL import Image
-
-CANVAS = (1600, 900)
 COLORS = {
     "ours": "#167D9A",
     "native": "#D1495B",
@@ -35,17 +31,10 @@ def apply_publication_style():
     })
 
 
-def save_on_canvas(fig, path, canvas=CANVAS, padding=36):
-    """Save a plot on a fixed canvas without stretching its contents."""
-    buffer = BytesIO()
-    fig.savefig(buffer, format="png", dpi=160, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    buffer.seek(0)
-    image = Image.open(buffer).convert("RGBA")
-    image.thumbnail((canvas[0] - 2 * padding, canvas[1] - 2 * padding), Image.Resampling.LANCZOS)
-    output = Image.new("RGBA", canvas, "white")
-    output.alpha_composite(image, ((canvas[0] - image.width) // 2,
-                                   (canvas[1] - image.height) // 2))
+def save_on_canvas(fig, path, dpi=160, padding=0.08):
+    """Save at the figure's native aspect ratio for readable web embedding."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    output.convert("RGB").save(target, optimize=True)
+    fig.savefig(target, format="png", dpi=dpi, bbox_inches="tight",
+                pad_inches=padding, facecolor="white")
+    plt.close(fig)

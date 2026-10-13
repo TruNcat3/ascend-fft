@@ -1,7 +1,8 @@
 # 矩阵测试：n × batch 全网格（自研 kfft_fwd vs CANN 原生复数 FFT）
 
 > **历史存档提示**：本文记录 A7 迭代，不能代表当前发布快照。现行结果请看
-> [当前实验结果](benchmarks/results.md) 和 [发布矩阵](generated/current_matrix.md)。
+> [实验设计与结果汇总](benchmarks/results.md)、[C2C 分项实验](benchmarks/c2c.md)和
+> [`20261013` 原始矩阵](https://github.com/TruNcat3/ascend-fft/blob/master/results/published/ascend910_9382-migration-20261013/matrix.csv)。
 
 > **复现脚本**：[`scripts/matrix_test.py`](../scripts/matrix_test.py)（本文是它的输出）· [`scripts/one_click_test.sh`](../scripts/one_click_test.sh)（编译+门禁+矩阵一键）· [`scripts/calib_eta.py`](../scripts/calib_eta.py)（η 列）。
 > **全量索引**：[`scripts/repro.sh --doc <文档名片段>`](../scripts/repro.sh) 列出本文件涉及的全部实验与命令；`scripts/repro.sh --list` 是全仓清单。

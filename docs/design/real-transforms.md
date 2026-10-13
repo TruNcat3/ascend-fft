@@ -38,4 +38,12 @@ AB_DIR=r2c ./build/fft_check 1024 64 30
 AB_DIR=c2r ./build/fft_check 1024 64 30
 ```
 
-验收使用双精度参考与仓库误差判据；历史原始结果见 [r2c_c2r.json](https://github.com/TruNcat3/ascend-fft/blob/master/results/r2c_c2r.json)。最新性能与基线解释集中在 [实验结果](../benchmarks/results.md)，历史实现细节见 [决策归档](../archive/decisions.md)。
+验收使用双精度参考与仓库误差判据。当前发布证据为
+`ascend910_9382-migration-20261013`，包含主矩阵、长度边界补充与逐 trial 原始记录；最新协议
+使用 3 个 trial，自研路径逐 trial 检查，Torch 基线的数值检查在每个 shape 计时前执行。
+具体统计口径、Torch/ACL 基线覆盖与负点见[实数变换实验](../benchmarks/real-transforms.md)，
+数据文件入口见[原始数据与复现](../benchmarks/reproducibility.md)。
+
+R2C/C2R 的平均收益不能外推成所有 batch 均加速，也不能替代对后处理、布局转换和传输的
+独立归因；R2C 的大 batch 边界仍是后续优化对象。历史实现细节见
+[决策归档](../archive/decisions.md)，PR 6 的实验 writer 不代表默认稳定路径。

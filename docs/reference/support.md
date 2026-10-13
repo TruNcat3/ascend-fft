@@ -15,6 +15,11 @@
 
 主C2C性能矩阵覆盖`n={64,128,256,512,1024,2048,4096}`和`batch={1,4,16,64,256,1024,4096}`。不是所有合法batch的穷举，也不是所有硬件的性能保证。
 
+当前发布实验使用 `ascend910_9382-migration-20261013`。研究后端另外完成了
+`N=8192/16384/32768/65536`、`batch=1/16/256` 的 12 点规模切片；这是正确性与延迟证据，
+不是公共 `makePlan()` 长度范围的扩展，也没有同尺寸专业库 speedup 结论。
+实验范围与接口范围应分开阅读，详见[规模切片](../benchmarks/scale.md)。
+
 ## 硬件
 
 已验证`Ascend910_9382`，48矢量核、每核192KiB UB，实验使用CANN 9.0.0。Context固定选择设备0，profile的`device_index`不改变执行设备。
@@ -28,4 +33,6 @@
 - 本目标没有SIMT shuffle；Cube探针不是公开FFT后端。
 - 枚举保留不可行点供分析，成本模型不承诺整个理论空间的全局最优。
 
-调用见[变换指南](../user-guide/transforms.md)，性能见[当前结果](../benchmarks/results.md)。
+调用见[变换指南](../user-guide/transforms.md)。性能先读[实验设计与结果汇总](../benchmarks/results.md)，
+再按[实数变换](../benchmarks/real-transforms.md)或[C2C](../benchmarks/c2c.md)查看同语义基线与负点；
+原始来源见[数据与复现](../benchmarks/reproducibility.md)。

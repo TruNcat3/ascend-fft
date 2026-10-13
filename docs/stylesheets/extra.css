@@ -89,4 +89,8 @@
   .doc-diagram img {
     min-width: 46rem;
   }
+
+  .doc-diagram--compact img {
+    min-width: 0;
+  }
 }

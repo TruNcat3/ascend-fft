@@ -70,24 +70,25 @@ cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个
 
 | 工作负载 | 严格基线 | 点数 | 几何均值 speedup |
 |---|---|---:|---:|
-| C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **1.62x** |
-| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.36x** |
+| C2C device-only | CANN 原生复数 FFT（torch_npu） | 49 | **1.56x** |
+| C2C end-to-end | 同上，pinned H2D + FFT + D2H | 49 | **1.44x** |
 | 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | 12 | **1.42x** |
 | R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | 49 | **1.18x** |
-| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | 49 | **1.78x** |
+| R2C device-only | `aclRfft1D`（同卡同语义） | 42 | **1.86x** |
+| C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | 49 | **1.87x** |
 
 <!-- END GENERATED: benchmark-summary -->
 
 数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照
-[`ascend910_9382-revalidation-20261010`](results/published/ascend910_9382-revalidation-20261010/)。
-当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；C2C device-only 有 48/49 个点严格
-快于 CANN，唯一回退点为 `N=1024,batch=4096`（0.96x）。C2C E2E 的几何均值为 1.36x，
-应用 shape 为 1.42x 且 12/12 点领先。R2C/C2R 的对称 5-trial 结果分别为 1.18x 和 1.78x；
-其中 R2C 的胜/平/负为 34/5/10，C2R 为 46/2/1，负点保留在热图和 raw 数据中。
-因此，本版本已经证明迁移方法在声明的实验范围内有稳定总体收益，但尚未把每一个边界点都
-优化到严格大于 1；该单点回退是下一轮的明确优化目标，而不是被隐藏的平均值。
+[`ascend910_9382-migration-20261013`](results/published/ascend910_9382-migration-20261013/)。
+当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；device-only 有 47 个点严格领先、
+2 个点回退，最低点为 `N=1024,batch=4096`（0.942x）；按 ±5% 带宽统计为 46/2/1。
+C2C E2E 为 1.442x，应用 shape 为 1.422x 且 12/12 点严格领先。R2C/C2R 使用 3-trial 对称计时协议；
+相对 torch_npu 的几何均值分别为 1.180x 和 1.868x，负点完整保留在热图和 raw 数据中。
+因此，本版本证明的是声明实验范围内的稳定总体收益，而不是每个点、每种变换或所有硬件上的
+全局最优。`N=8192..65536` 的规模切片目前只有正确性和延迟证据，不参与上述加速比汇总。
 每根柱子都标注自己的同语义基线，跨 GPU 数据不参与几何均值。查看[实验结果](docs/benchmarks/results.md)、
-[测量协议](docs/benchmarks/methodology.md)和[完整矩阵](docs/generated/current_matrix.md)。
+[测量协议](docs/benchmarks/methodology.md)和[原始数据与复现](docs/benchmarks/reproducibility.md)。
 
 ## 为什么这样设计
 
@@ -160,18 +161,15 @@ plan->run(host_input, host_output, 4096, 64);
 |---|---|
 | 使用库 | [安装](docs/getting-started/installation.md) -> [Quick Start](docs/getting-started/quickstart.md) -> [变换语义](docs/user-guide/transforms.md) -> [API](docs/reference/api.md) |
 | 理解方法 | [设计动机](docs/design/motivation.md) -> [架构](docs/design/architecture.md) -> [kernel](docs/design/kernels.md) -> [性能模型](docs/design/performance-model.md) |
-| 检查实验 | [基准方法](docs/benchmarks/methodology.md) -> [当前结果](docs/benchmarks/results.md) -> [复现](docs/benchmarks/reproducibility.md) |
+| 检查实验 | [实验设计与结果汇总](docs/benchmarks/results.md) -> [C2C](docs/benchmarks/c2c.md) -> [端到端与应用](docs/benchmarks/end-to-end.md) -> [R2C/C2R](docs/benchmarks/real-transforms.md) -> [规模切片](docs/benchmarks/scale.md) -> [原始数据与复现](docs/benchmarks/reproducibility.md) |
 | 贡献设计点 | [仓库结构](docs/development/repository-layout.md) -> [增加设计点](docs/development/adding-design-points.md) -> [验证发布](docs/development/validation-and-release.md) |
 | 了解项目 | [项目与作者](docs/about.md) -> [未来计划](docs/roadmap.md) -> [引用信息](CITATION.cff) |
 
 完整导航见 [GitHub Pages](https://truncat3.github.io/ascend-fft/) 或 [`docs/index.md`](docs/index.md)。
 后续工程实现、能力扩展和测试验收见[未来计划](docs/roadmap.md)。
-当前迁移案例的复验、消融、规模压力测试以及 PR 6 遗留边界优化的门禁见
-[PR 7 迁移验收与后续优化](docs/benchmarks/pr7-migration-convergence.md)。
-分层测试、硬件拐点与待扩展负载见[测试策略](docs/testing.md)。
-长 FFT 的容量、延迟、吞吐、消融与应用验收矩阵见[目的化实验计划](docs/benchmarks/long-fft-plan.md)
-及其[预声明数据表](docs/generated/long-fft-tables.md)，其中 `N=65536` 是下一阶段核心验收点；
-未实现项目不进入当前性能结论。
+PR 7 和长 FFT 的探索过程保留在站点的“历史归档”，不再插入当前实验的主阅读顺序。
+分层测试与开发门禁见[测试策略](docs/testing.md)；未实现项目只进入[未来计划](docs/roadmap.md)，
+不进入当前性能结论。
 
 ## 复现实验
 

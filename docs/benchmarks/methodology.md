@@ -25,6 +25,9 @@
 - C2R：半谱输入，输出实数并包含 `1/n` 归一化。
 - 主网格：`n in {64,128,256,512,1024,2048,4096}`，
   `batch in {1,4,16,64,256,1024,4096}`。
+- 应用代理：OFDM、Radar、DL frequency-domain layer 各 4 个预声明 shape。
+- 规模切片：`n in {8192,16384,32768,65536}`，`batch in {1,16,256}`；该集合当前没有
+  外部基线，只报告正确性和延迟。
 - 正确性：相对双精度 CPU 参考，`maxRel <= 1e-4`。
 
 ## 两种计时区间
@@ -39,17 +42,21 @@
 
 分两套协议，逐点记录进各自 raw 行，不混算：
 
-- **C2C 矩阵 / 端到端**：每个点执行若干 warmup，然后进行 `rounds` 轮测量；每轮取 `reps`
-  次均值，最终采用 min-of-means。C2C 的 native/self runner 使用记录在 summary 中的固定 seed
+- **C2C device-only 矩阵 / 端到端**：每个点执行若干 warmup，然后进行 3 轮测量；每轮取固定
+  次数的均值，最终采用 min-of-means。device-only 矩阵每轮 20 次，端到端实验每轮 10 次。
+  C2C 的 native/self runner 使用记录在 summary 中的固定 seed
   逐轮随机交错，避免始终先跑完某一实现造成单向温度、频率或负载漂移。该规则用于降低共享
   服务器上的瞬态干扰，但不会替代对温度、频率和系统负载的记录。
-- **R2C/C2R 对比（P1-B 对称协议）**：自研与 torch 两侧同一口径——5 个独立 trial，
+- **R2C/C2R 对比（P1-B 对称计时协议）**：自研与 torch 两侧采用 3 个独立 trial，
   每个 trial 先做一次丢弃的 warmup 执行，再做 `reps` 次计时样本；trial 值取该 trial 样本的
-  **median**，逐 trial 校验（自研侧 `maxRel <= 1e-4` 且 PASS 才准入 timing，`maxAbs`/
-  `maxRel`/status 逐行留存）；跨 trial 汇总只由有效 raw 行派生，报告 median、p10、p90 与 CV。
-  失败、超时、不支持的行保留在 `raw_trials` 中，不从分母抹去。
+  **median**。Ascend-FFT 每个 trial 都执行 correctness gate，失败的 trial 不准入 timing；Torch
+  基线在每个 shape 计时前做一次 NumPy 语义预检，而不是每个 trial 重复正确性计算。两侧的
+  `maxAbs`、`maxRel`、status 和失败原因按其协议保留；失败、超时或不支持的行不从分母抹去。
+- **规模切片**：3 个 trial；设备时间先在每个 trial 内取最小值，再跨 trial 取中位数，亦即
+  *median of per-trial minima*。host wall time 逐 trial 保留。该实验无基线，不计算 speedup。
 
-汇总 speedup 使用逐点比值的几何均值，同时报告最小值、最大值、胜出点数和总点数。
+汇总 speedup 使用逐点比值的几何均值，同时报告最小值、最大值和覆盖点数。严格胜/平/负按
+速度比与 1 的关系统计；工程持平另用 `0.95x..1.05x` 带宽统计。两套计数必须分别标注。
 
 ## 必需元数据
 
@@ -58,4 +65,4 @@
 哈希、变换语义、精度、shape 网格、warmup/reps/rounds、计时区间、基线、选择策略和正确性阈值。
 `publish_results.py --check` 会在任何产物哈希、图形输入、归档图像输出或 manifest commit 漂移时失败。
 
-当前发布快照的详细数值见[结果](results.md)，复现入口见[复现实验](reproducibility.md)。
+当前发布快照的详细数值见[结果汇总](results.md)，复现入口见[原始数据与复现](reproducibility.md)。

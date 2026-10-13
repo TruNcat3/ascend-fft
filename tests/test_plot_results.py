@@ -38,6 +38,18 @@ class PlotResultsTests(unittest.TestCase):
         self.assertAlmostEqual(rows[0]["eta"], 17.8)
         self.assertAlmostEqual(rows[0]["dev"], 10.6)
 
+    def test_csv_matrix_preserves_unrounded_speedup(self):
+        content = (
+            "n,batch,ours_us,ours_min_us,max_rel,native_min_us,native_us,eta_us,correct\n"
+            "4096,1024,421.5,410.0,2e-7,408.0,421.1,400.0,True\n")
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "matrix.csv"
+            path.write_text(content)
+            rows = plots.parse_matrix(str(path))
+        self.assertEqual(len(rows), 1)
+        self.assertLess(rows[0]["ratio"], 1.0)
+        self.assertAlmostEqual(rows[0]["ratio"], 421.1 / 421.5)
+
     def test_application_shape_groups_are_disjoint_and_complete(self):
         groups = list(plots.APP_SHAPES.values())
         union = set().union(*groups)
@@ -57,6 +69,18 @@ class PlotResultsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             plots.fig_real(rows, temporary)
             image = Path(temporary) / "fig10_real_speedup_heatmap.png"
+            self.assertTrue(image.is_file())
+            self.assertGreater(image.stat().st_size, 10_000)
+
+    def test_overview_includes_real_transform_baselines(self):
+        rows = [{"ratio": 1.5}]
+        e2e = [{"e2e_ratio": 1.4}]
+        apps = [{"e2e_ratio": 1.3}]
+        real = [{"r2c_vs_torch": 1.2, "r2c_vs_acl": 1.8,
+                 "c2r_vs_torch": 1.9}]
+        with tempfile.TemporaryDirectory() as temporary:
+            plots.fig_overview(rows, e2e, apps, real, temporary)
+            image = Path(temporary) / "overview_performance.png"
             self.assertTrue(image.is_file())
             self.assertGreater(image.stat().st_size, 10_000)
 

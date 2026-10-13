@@ -2,18 +2,19 @@
 """从发布快照生成实验图（PNG，docs/figures/）。
 
 默认数据源来自同一份已发布快照；脚本只画图，不重新测量：
-  --matrix  results/published/.../matrix.md  C2C device-only 与模型校准字段
+  --matrix  results/published/.../matrix.csv C2C device-only 与模型校准字段
   --std     results/published/.../sixway.md  多基线上下文
   --e2e     results/published/.../e2e.json   C2C 端到端
   --e2e-app results/published/.../e2e_app.json 代表应用 shape
   --real    results/published/<snapshot>/r2c_c2r.json   R2C/C2R 实数变换（fig10）
+  --scale   results/published/<snapshot>/scale_slice.json  长度扩展切片（fig11）
 
   python3 scripts/plot_results.py --out docs/figures
 
 图片一律用英文标签：仓库已有 CJK 字体（WenQuanYi）在本机可用，但换机器重跑时
-没有 CJK 字体会变成豆腐块，英文标签可移植。中文说明写在 docs/实验对比.md 的图注里。
+没有 CJK 字体会变成豆腐块，英文标签可移植。中文说明写在 docs/benchmarks/ 的分项实验页中。
 """
-import argparse, json, os, re, sys
+import argparse, csv, json, os, re, sys
 
 import matplotlib
 matplotlib.use("Agg")
@@ -32,7 +33,7 @@ PALE = plt.get_cmap("tab20")
 apply_publication_style()
 
 
-PUBLISHED = "results/published/ascend910_9382-revalidation-20261010"
+PUBLISHED = "results/published/ascend910_9382-migration-20261013"
 
 
 def num(s):
@@ -42,6 +43,23 @@ def num(s):
 
 def parse_matrix(path):
     """Read both the rich archived table and the compact published table."""
+    path = os.fspath(path)
+    if path.endswith(".csv"):
+        with open(path, encoding="utf-8", newline="") as handle:
+            records = list(csv.DictReader(handle))
+        rows = []
+        for record in records:
+            ours = num(record["ours_us"])
+            native = num(record["native_us"])
+            eta = num(record["eta_us"])
+            rows.append(dict(
+                n=int(record["n"]), b=int(record["batch"]),
+                ours=ours, ours_min=num(record["ours_min_us"]),
+                nat=native, nat_min=num(record["native_min_us"]),
+                ratio=native / ours, eta=eta,
+                dev=(eta / ours - 1.0) * 100.0,
+                maxRel=num(record["max_rel"])))
+        return rows
     rows = []
     with open(path, encoding="utf-8") as handle:
         for ln in handle:
@@ -111,18 +129,25 @@ def geo(values):
     return float(np.exp(np.mean(np.log(values)))) if values.size else float("nan")
 
 
-def fig_overview(rows, e2rows, approws, out):
+def fig_overview(rows, e2rows, approws, realrows, out):
     """README headline: comparable groups, each with its baseline in the label."""
+    r2c_torch = [r.get("r2c_vs_torch") for r in realrows]
+    r2c_acl = [r.get("r2c_vs_acl") for r in realrows]
+    c2r_torch = [r.get("c2r_vs_torch") for r in realrows]
     groups = [
         ("C2C\ndevice-only", geo([r["ratio"] for r in rows]), "CANN native", len(rows)),
         ("C2C\nend-to-end", geo([r["e2e_ratio"] for r in e2rows]), "CANN native", len(e2rows)),
         ("Applications\nend-to-end", geo([r["e2e_ratio"] for r in approws]), "CANN native", len(approws)),
+        ("R2C\ndevice-only", geo(r2c_torch), "torch.rfft", sum(v is not None for v in r2c_torch)),
+        ("R2C\ndevice-only", geo(r2c_acl), "aclRfft1D", sum(v is not None for v in r2c_acl)),
+        ("C2R\ndevice-only", geo(c2r_torch), "torch.irfft", sum(v is not None for v in c2r_torch)),
     ]
     groups = [g for g in groups if g[1] == g[1]]
-    fig, ax = plt.subplots(figsize=(12.8, 6.3))
+    fig, ax = plt.subplots(figsize=(13.6, 6.2))
     x = np.arange(len(groups))
     values = [g[1] for g in groups]
-    colors = [COLORS["ours"], COLORS["e2e"], COLORS["application"]][:len(groups)]
+    colors = [COLORS["ours"], COLORS["e2e"], COLORS["application"],
+              "#6C5CE7", "#8C6D31", "#4C956C"][:len(groups)]
     bars = ax.bar(x, values, width=.62, color=colors, edgecolor="white", linewidth=1.2)
     ax.axhline(1.0, color=COLORS["native"], linestyle="--", linewidth=1.6,
                label="baseline parity (1.0x)")
@@ -130,16 +155,16 @@ def fig_overview(rows, e2rows, approws, out):
         ax.text(bar.get_x() + bar.get_width() / 2, value + .09,
                 f"{value:.2f}x", ha="center", va="bottom", fontsize=14,
                 fontweight="bold", color="#101828")
-        ax.text(bar.get_x() + bar.get_width() / 2, .12,
+        ax.text(bar.get_x() + bar.get_width() / 2, .08,
                 f"vs {baseline}\n{points} points", ha="center", va="bottom",
-                fontsize=9, color="white", fontweight="bold")
+                fontsize=8, color="white", fontweight="bold")
     ax.set_xticks(x, [g[0] for g in groups])
     ax.set_ylabel("Geometric-mean speedup (higher is better)")
     ax.set_ylim(0, max(values) * 1.24)
     fig.suptitle("Ascend-FFT performance summary", x=.06, y=.98, ha="left",
                  fontsize=19, fontweight="bold")
     ax.set_title(
-        "Ascend910_9382, FP32 C2C; correctness-gated results from one published snapshot",
+        "Ascend910_9382, FP32; each bar names its same-device semantic baseline",
         loc="left", fontsize=11, color=COLORS["neutral"], pad=12)
     ax.grid(axis="y", color=COLORS["grid"], linewidth=.8, alpha=.65)
     ax.set_axisbelow(True)
@@ -166,12 +191,11 @@ def cell_label(ax, mat, fmt="{:.2f}", fs=7.5, thresh=None):
 def fig_speedup(rows, out):
     ns, bs, a = grid(rows, "ratio")
     fig, ax = plt.subplots(figsize=(8.2, 5.4))
-    # 全网格都 >=1.04（没有 <1 的点），vmin 必须严格小于 vcenter 才能用 TwoSlopeNorm；
-    # 下界取 0.9 让 1.0（盈亏平衡）落在色标中部偏左，读者一眼能看出 1.0 的位置。
+    # 让 1.0（盈亏平衡）始终落在色标内，负点与正收益使用不同色侧。
     im = ax.imshow(a, cmap="RdYlGn",
                    norm=TwoSlopeNorm(vmin=min(0.9, a.min()), vcenter=1.0,
                                      vmax=a.max()), aspect="auto")
-    cell_label(ax, a, "{:.2f}", 8)
+    cell_label(ax, a, "{:.3f}", 7.3)
     ax.set_xticks(range(len(bs)), [f"{b:,}" for b in bs])
     ax.set_yticks(range(len(ns)), [f"{n:,}" for n in ns])
     ax.set_xlabel("batch")
@@ -316,11 +340,10 @@ def fig_eta(rows, out):
 
 # ------------------------------------------------------------------ fig6
 def fig_e2e(rows, out):
-    fig, axes = plt.subplots(1, 3, figsize=(13.6, 4.8), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(10.8, 4.9), sharey=True)
     panels = [
         ("dev_ratio", "Device-only speedup", "speedup"),
         ("e2e_ratio", "End-to-end speedup", "speedup"),
-        ("xfer_share", "Time outside device region", "share"),
     ]
     for ax, (key, title, kind) in zip(axes, panels):
         ns, bs, mat = grid(rows, key)
@@ -333,15 +356,6 @@ def fig_e2e(rows, out):
             wins = int((finite > 1).sum())
             title += f"\n{wins}/{finite.size} wins, geo {geo(finite):.2f}x"
             cb_label = "CANN native / Ascend-FFT"
-        else:
-            im = ax.imshow(mat, cmap="magma", vmin=0.55, vmax=0.9, aspect="auto")
-            for i in range(mat.shape[0]):
-                for j in range(mat.shape[1]):
-                    if np.isfinite(mat[i, j]):
-                        ax.text(j, i, f"{mat[i, j] * 100:.0f}%", ha="center",
-                                va="center", fontsize=7.2, color="white")
-            title += "\n1 - device / end-to-end"
-            cb_label = "fraction"
         ax.set_xticks(range(len(bs)), [f"{b:,}" for b in bs], rotation=45,
                       ha="right")
         ax.set_yticks(range(len(ns)), [f"{n:,}" for n in ns])
@@ -354,6 +368,27 @@ def fig_e2e(rows, out):
                  fontsize=12.5, y=1.02)
     fig.tight_layout()
     save(fig, out, "fig6_end_to_end.png")
+
+    ns, bs, mat = grid(rows, "xfer_share")
+    finite = mat[np.isfinite(mat)]
+    lower = max(0.0, float(finite.min()) - 0.05)
+    upper = min(1.0, float(finite.max()) + 0.05)
+    fig, ax = plt.subplots(figsize=(7.8, 5.0))
+    im = ax.imshow(mat, cmap="magma", vmin=lower, vmax=upper, aspect="auto")
+    for i in range(mat.shape[0]):
+        for j in range(mat.shape[1]):
+            if np.isfinite(mat[i, j]):
+                ax.text(j, i, f"{mat[i, j] * 100:.0f}%", ha="center",
+                        va="center", fontsize=7.8, color="white")
+    ax.set_xticks(range(len(bs)), [f"{b:,}" for b in bs])
+    ax.set_yticks(range(len(ns)), [f"{n:,}" for n in ns])
+    ax.set_xlabel("batch")
+    ax.set_ylabel("n")
+    ax.set_title("Time outside the synchronized device region\n1 - device / end-to-end")
+    cb = fig.colorbar(im, ax=ax, shrink=.82, pad=.02)
+    cb.set_label("fraction")
+    fig.tight_layout()
+    save(fig, out, "fig6b_transfer_share.png")
 
 
 APP_SHAPES = {
@@ -549,13 +584,37 @@ def fig_real(rows, out):
     save(fig, out, "fig10_real_speedup_heatmap.png")
 
 
+def fig_scale(rows, out):
+    """Correctness-gated long-length latency slice; no external baseline implied."""
+    fig, ax = plt.subplots(figsize=(8.4, 5.0))
+    batches = sorted({row["batch"] for row in rows})
+    for index, batch in enumerate(batches):
+        subset = sorted((row for row in rows if row["batch"] == batch),
+                        key=lambda row: row["n"])
+        ax.plot([row["n"] for row in subset], [row["device_us"] for row in subset],
+                marker="o", linewidth=1.8, color=PALE(index * 2),
+                label=f"batch={batch:,}")
+    ax.set_xscale("log", base=2)
+    ax.set_yscale("log")
+    ns = sorted({row["n"] for row in rows})
+    ax.set_xticks(ns, [f"{n:,}" for n in ns])
+    ax.set_xlabel("FFT length")
+    ax.set_ylabel("device_chain latency (us, log scale)")
+    ax.set_title("Long-length feasibility slice\n12 correctness-gated points; no baseline speedup claim")
+    ax.grid(alpha=.3, which="both")
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    save(fig, out, "fig11_scale_slice.png")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--matrix", default=f"{PUBLISHED}/matrix.md")
+    ap.add_argument("--matrix", default=f"{PUBLISHED}/matrix.csv")
     ap.add_argument("--std", default=f"{PUBLISHED}/sixway.md")
     ap.add_argument("--e2e", default=f"{PUBLISHED}/e2e.json")
     ap.add_argument("--e2e-app", default=f"{PUBLISHED}/e2e_app.json")
     ap.add_argument("--real", default=f"{PUBLISHED}/r2c_c2r.json")
+    ap.add_argument("--scale", default=f"{PUBLISHED}/scale_slice.json")
     ap.add_argument("--out", default="docs/figures")
     a = ap.parse_args()
 
@@ -603,7 +662,8 @@ def main():
             er.append({**r, "b": r.get("b", r.get("batch")), "xfer_share": share})
         if er:
             print(f"e2e: {len(er)} points")
-            made.append("fig6_end_to_end.png"); fig_e2e(er, ap_(a.out))
+            made.extend(("fig6_end_to_end.png", "fig6b_transfer_share.png"))
+            fig_e2e(er, ap_(a.out))
             if any(r.get("bare_e2e") == r.get("bare_e2e") for r in er):
                 made.append("fig7_three_way_e2e.png"); fig_e2e_three(er, ap_(a.out))
             else:
@@ -626,6 +686,7 @@ def main():
     except (FileNotFoundError, ValueError):
         print(f"{a.e2e_app} 不存在，fig8 只画两箱", file=sys.stderr)
 
+    real_rows = []
     try:
         loaded = json.load(open(ap_(a.real), encoding="utf-8"))
         real_rows = loaded if isinstance(loaded, list) else loaded.get("rows", [])
@@ -636,10 +697,20 @@ def main():
     except (FileNotFoundError, ValueError):
         print(f"{a.real} 不存在或无法解析，跳过 fig10", file=sys.stderr)
 
+    try:
+        loaded = json.load(open(ap_(a.scale), encoding="utf-8"))
+        scale_rows = loaded if isinstance(loaded, list) else loaded.get("rows", [])
+        if scale_rows:
+            print(f"scale: {len(scale_rows)} points")
+            made.append("fig11_scale_slice.png")
+            fig_scale(scale_rows, ap_(a.out))
+    except (FileNotFoundError, ValueError):
+        print(f"{a.scale} 不存在或无法解析，跳过 fig11", file=sys.stderr)
+
     made.append("fig8_speedup_boxplot.png"); fig_box(rows, er, app_r, ap_(a.out))
 
     made.append("overview_performance.png")
-    fig_overview(rows, er, app_r, ap_(a.out))
+    fig_overview(rows, er, app_r, real_rows, ap_(a.out))
 
     print(f"done: {len(made)} figures")
     return 0

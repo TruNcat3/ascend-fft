@@ -5,7 +5,8 @@
   * 每 trial 先做一次丢弃的 warmup fft_check，再一次 timed fft_check；
   * timed 的 maxRel ≤ 1e-4 才准入（PASS 行），失败/超时保留在 raw
     （status=error/timeout，计时字段 None）；
-  * 汇总 = trials 个有效样本的 median/p10/p90/CV，maxRel 取有效 trial 的最小值。
+  * device_us 在每次 fft_check 内取 reps 次 device_chain 的最小值，再对 trials
+    个有效样本汇总 median/p10/p90/CV；maxRel 取有效 trial 的最小值。
 
 计时口径（n≥8192 走长链后端，逐次 launch 含段间传输，kfft_fwd 的
 us/call 是宿主墙钟；见 src/host/fft_check.cpp scopes 行）：
@@ -122,8 +123,10 @@ def main():
     bs = [int(x) for x in a.bs.split(",")]
     protocol = {"trials": a.trials,
                 "warmup": "one discarded full-reps execution inside every trial",
-                "statistic": "per-trial median; summary (median/p10/p90/CV) "
-                             "over valid raw rows only",
+                "statistic": "device_us is the minimum device_chain span within "
+                             "each trial; summary reports median/p10/p90/CV "
+                             "over valid trial minima only; wall_us is the "
+                             "per-trial mean host wall time",
                 "reps_policy": "nB<=4096:50, nB<=2^20:30, else 10",
                 "correctness_threshold": THRESHOLD,
                 "raw_rows": "one row per (N,B,trial) incl. failed/"
