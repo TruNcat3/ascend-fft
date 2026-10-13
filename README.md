@@ -83,7 +83,7 @@ cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个
 [`ascend910_9382-migration-20261013`](results/published/ascend910_9382-migration-20261013/)。
 `A*` 表示语义和计时区间一致，但当前归档的两侧内层重复数不同；ACL 行是单独报告的 B 级
 次级对照，不与 A 级结果合并。当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；device-only 有 47 个点严格领先、
-2 个点回退，最低点为 `N=1024,batch=4096`（0.942x）；按 ±5% 带宽统计为 46/2/1。
+2 个点回退，最低点为 `N=1024,batch=4096`（0.942x）；按 ±5% 工程持平区间统计为 46/2/1。
 C2C E2E 为 1.442x，应用 shape 为 1.422x 且 12/12 点严格领先。R2C/C2R 使用 3-trial 对称计时协议；
 相对 torch_npu 的几何均值分别为 1.180x 和 1.868x，负点完整保留在热图和 raw 数据中。
 因此，本版本证明的是声明实验范围内的稳定总体收益，而不是每个点、每种变换或所有硬件上的
@@ -93,13 +93,18 @@ C2C E2E 为 1.442x，应用 shape 为 1.422x 且 12/12 点严格领先。R2C/C2R
 
 ## 为什么这样设计
 
-单看 Roofline 不能解释蝶形算子在 Ascend 上的流水线空洞。纯数据并行受到跨阶段依赖限制；
-纯阶段展开又会迅速增加片上缓存、重排和同步压力。因此 Ascend-FFT 不固定 tile 或分段数，而是
-参数化阶段维度和数据维度各自的空间/时间映射，再根据硬件事实排除不可行点。
+Roofline 首先告诉我们：在计算核心固定时，应减少同一中间数组反复写回/读入 GM，让设计点的
+理论上界因更高算术强度而提高；在简化 payload 模型下，增大 batch 本身不消除每元素的重复往返，
+主要摊销固定开销。但 Roofline
+没有描述阶段依赖、UB 容量、片上交换和流水空洞，因此 Ascend-FFT 继续把阶段维度和数据维度各自
+分为空间展开与时间复用，并由硬件事实选择合法组合。完整流量账本、`N=16` 可视例子及四因素推导
+见[设计动机的 Roofline 小节](docs/design/motivation.md#roofline-insight)。
 
 <p align="center">
-  <img src="docs/figures/architecture.png" width="900"
-       alt="Ascend-FFT 从蝶形约束到四维空间时间映射，再到 Ascend 硬件 lowering 和实测选型的架构图">
+  <a href="docs/figures/roofline_insight.svg">
+    <img src="docs/figures/roofline_insight.png" width="1100"
+         alt="同一个十六点 FFT 在四次、两次和一次 GM 往返下的流量与 Roofline 上界对照，以及四因素混合展开的设计启发">
+  </a>
 </p>
 
 执行流程分为四层：

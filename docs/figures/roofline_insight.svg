@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040" role="img" aria-labelledby="title desc">
+  <title id="title">Roofline 如何导出混合空间时间映射</title>
+  <desc id="desc">以十六点 FFT 为例，对比每级写回、每两级驻留和四级全部驻留的全局内存流量。右侧符号化 Roofline 用空心点表示减少物化执行组后提高的理论上界，不是实测吞吐。底部说明 Ud、Td、Us、Ts、布局和计算核心分别改变什么成本。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#425466"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#2f7d4a"/>
+    </marker>
+    <style>
+      .title{font:700 30px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#17212b}
+      .subtitle{font:15px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#475569}
+      .head{font:700 19px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#17212b}
+      .body{font:14px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#334155}
+      .small{font:12px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#52606d}
+      .tiny{font:11px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#52606d}
+      .mono{font:13px 'Noto Sans Mono CJK SC','DejaVu Sans Mono',monospace;fill:#243447}
+      .tag{font:700 12px 'Noto Sans CJK SC','Microsoft YaHei',sans-serif}
+      .metric{font:700 14px 'Noto Sans Mono CJK SC','DejaVu Sans Mono',monospace}
+      .panel{fill:#fff;stroke:#cbd5e1;stroke-width:2}
+      .axis{stroke:#52606d;stroke-width:2;fill:none;marker-end:url(#arrow)}
+      .edge{stroke:#425466;stroke-width:2;fill:none;marker-end:url(#arrow)}
+      .thin{stroke:#7a8a9e;stroke-width:1.4;fill:none}
+      .dash{stroke:#7a8a9e;stroke-width:1.5;stroke-dasharray:6 5;fill:none}
+    </style>
+  </defs>
+
+  <rect width="1600" height="1040" rx="18" fill="#f8fafc"/>
+  <text x="42" y="49" class="title">Roofline 给我们的启发：先减少高层存储往返，再平衡片上服务</text>
+  <text x="42" y="78" class="subtitle">固定 FFT 语义与计算核心 P：I<tspan baseline-shift="sub">L</tspan>=W<tspan baseline-shift="sub">P</tspan>/Q<tspan baseline-shift="sub">L</tspan>，吞吐 ≤ min(P<tspan baseline-shift="sub">peak</tspan>, BW<tspan baseline-shift="sub">L</tspan>·I<tspan baseline-shift="sub">L</tspan>)。Roofline 指出流量方向，不替代依赖、容量与流水分析。</text>
+
+  <!-- Left: traffic ledger -->
+  <rect x="32" y="105" width="920" height="532" rx="12" class="panel"/>
+  <text x="56" y="140" class="head">1  同一 N=16 FFT，计算不变，GM 物化边界不同</text>
+  <text x="56" y="166" class="body">B=1，K=log2(N)=4，q=每个复数 payload 字节数；每个执行组完整读取并写出 16 个复数。</text>
+
+  <!-- Row A -->
+  <rect x="55" y="193" width="870" height="122" rx="10" fill="#fff8f0" stroke="#d99a3d"/>
+  <rect x="72" y="207" width="121" height="27" rx="13" fill="#fbe8d0"/>
+  <text x="87" y="226" class="tag" fill="#8a5514">每级都物化到 GM</text>
+  <text x="73" y="257" class="small">GM</text>
+  <g class="tag" text-anchor="middle">
+    <rect x="113" y="242" width="95" height="45" rx="7" fill="#eaf3fb" stroke="#4d8fbd"/><text x="160" y="270" fill="#245f86">s0</text>
+    <rect x="244" y="242" width="95" height="45" rx="7" fill="#eaf3fb" stroke="#4d8fbd"/><text x="291" y="270" fill="#245f86">s1</text>
+    <rect x="375" y="242" width="95" height="45" rx="7" fill="#eaf3fb" stroke="#4d8fbd"/><text x="422" y="270" fill="#245f86">s2</text>
+    <rect x="506" y="242" width="95" height="45" rx="7" fill="#eaf3fb" stroke="#4d8fbd"/><text x="553" y="270" fill="#245f86">s3</text>
+  </g>
+  <g fill="#d99a3d">
+    <rect x="214" y="237" width="19" height="55" rx="4"/><rect x="345" y="237" width="19" height="55" rx="4"/><rect x="476" y="237" width="19" height="55" rx="4"/>
+  </g>
+  <path d="M91 264H113M208 264H214M233 264H244M339 264H345M364 264H375M470 264H476M495 264H506M601 264H623" class="thin"/>
+  <text x="625" y="251" class="metric" fill="#9a5e17">G=4</text>
+  <text x="625" y="274" class="mono">Q<tspan baseline-shift="sub">GM</tspan>=128q = 1024 B (q=8)</text>
+  <text x="625" y="296" class="small">四次完整读写；中间边界反复付费</text>
+
+  <!-- Row B -->
+  <rect x="55" y="330" width="870" height="122" rx="10" fill="#f7fbf8" stroke="#65a276"/>
+  <rect x="72" y="344" width="155" height="27" rx="13" fill="#dff0e4"/>
+  <text x="87" y="363" class="tag" fill="#28643b">每两级在 UB 内驻留</text>
+  <text x="73" y="394" class="small">GM</text>
+  <g>
+    <rect x="113" y="379" width="226" height="45" rx="8" fill="#e7f6ee" stroke="#4f8b55" stroke-width="2"/>
+    <rect x="375" y="379" width="226" height="45" rx="8" fill="#e7f6ee" stroke="#4f8b55" stroke-width="2"/>
+  </g>
+  <g class="tag" text-anchor="middle" fill="#245f86">
+    <rect x="128" y="386" width="86" height="31" rx="5" fill="#eaf3fb" stroke="#4d8fbd"/><text x="171" y="407">s0</text>
+    <rect x="224" y="386" width="86" height="31" rx="5" fill="#eaf3fb" stroke="#4d8fbd"/><text x="267" y="407">s1</text>
+    <rect x="390" y="386" width="86" height="31" rx="5" fill="#eaf3fb" stroke="#4d8fbd"/><text x="433" y="407">s2</text>
+    <rect x="486" y="386" width="86" height="31" rx="5" fill="#eaf3fb" stroke="#4d8fbd"/><text x="529" y="407">s3</text>
+  </g>
+  <rect x="345" y="374" width="19" height="55" rx="4" fill="#d99a3d"/>
+  <path d="M91 401H113M339 401H345M364 401H375M601 401H623" class="thin"/>
+  <text x="625" y="388" class="metric" fill="#28643b">G=2</text>
+  <text x="625" y="411" class="mono">Q<tspan baseline-shift="sub">GM</tspan>=64q = 512 B (q=8)</text>
+  <text x="625" y="433" class="small">GM 算术强度相对上行提高 2×</text>
+
+  <!-- Row C -->
+  <rect x="55" y="467" width="870" height="143" rx="10" fill="#f3f8fd" stroke="#4d8fbd"/>
+  <rect x="72" y="481" width="147" height="27" rx="13" fill="#dcecf8"/>
+  <text x="87" y="500" class="tag" fill="#245f86">四级全部合法驻留</text>
+  <text x="73" y="539" class="small">GM</text>
+  <rect x="113" y="518" width="488" height="52" rx="9" fill="#e7f6ee" stroke="#4f8b55" stroke-width="2"/>
+  <g class="tag" text-anchor="middle" fill="#245f86">
+    <rect x="128" y="528" width="99" height="32" rx="5" fill="#eaf3fb" stroke="#4d8fbd"/><text x="177" y="550">s0</text>
+    <rect x="239" y="528" width="99" height="32" rx="5" fill="#eaf3fb" stroke="#4d8fbd"/><text x="288" y="550">s1</text>
+    <rect x="350" y="528" width="99" height="32" rx="5" fill="#eaf3fb" stroke="#4d8fbd"/><text x="399" y="550">s2</text>
+    <rect x="461" y="528" width="99" height="32" rx="5" fill="#eaf3fb" stroke="#4d8fbd"/><text x="510" y="550">s3</text>
+  </g>
+  <path d="M91 544H113M601 544H623" class="thin"/>
+  <text x="625" y="526" class="metric" fill="#245f86">G=1</text>
+  <text x="625" y="549" class="mono">Q<tspan baseline-shift="sub">GM</tspan>=32q = 256 B (q=8)</text>
+  <text x="625" y="571" class="small">只剩 compulsory input/output；强度提高 4×</text>
+  <text x="72" y="595" class="tiny">橙色竖条 = 完整数组在 GM 物化；绿色外框 = 中间状态在所选片上层级保持。</text>
+
+  <!-- Right: symbolic roofline -->
+  <rect x="972" y="105" width="596" height="532" rx="12" class="panel"/>
+  <text x="996" y="140" class="head">2  流量减少怎样提高设计点的 Roofline 上界</text>
+  <text x="996" y="166" class="body">横轴是 log2 GM 算术强度；空心点是上界投影，不是实测吞吐。</text>
+  <path d="M1043 504V211M1043 504H1517" class="axis"/>
+  <text x="1015" y="207" class="small" transform="rotate(-90 1015 207)">吞吐</text>
+  <text x="1350" y="539" class="small">log2(I<tspan baseline-shift="sub">GM</tspan>)，I<tspan baseline-shift="sub">GM</tspan>=W<tspan baseline-shift="sub">P</tspan>/Q<tspan baseline-shift="sub">GM</tspan></text>
+  <path d="M1044 504L1307 267H1508" fill="none" stroke="#425466" stroke-width="3"/>
+  <text x="1081" y="421" class="small" transform="rotate(-42 1081 421)">BW<tspan baseline-shift="sub">GM</tspan>·I<tspan baseline-shift="sub">GM</tspan></text>
+  <text x="1342" y="252" class="small">compute roof P<tspan baseline-shift="sub">peak</tspan></text>
+  <g>
+    <circle cx="1115" cy="440" r="10" fill="#fff" stroke="#c85d4a" stroke-width="4"/>
+    <circle cx="1192" cy="371" r="10" fill="#fff" stroke="#d99a3d" stroke-width="4"/>
+    <circle cx="1269" cy="302" r="10" fill="#fff" stroke="#3f8a58" stroke-width="4"/>
+    <path d="M1128 432L1178 387" stroke="#2f7d4a" stroke-width="2" fill="none" marker-end="url(#arrow-green)"/>
+    <path d="M1205 363L1255 318" stroke="#2f7d4a" stroke-width="2" fill="none" marker-end="url(#arrow-green)"/>
+  </g>
+  <text x="1068" y="463" class="tiny">G=4 / I0</text><text x="1141" y="394" class="tiny">G=2 / 2I0</text><text x="1218" y="325" class="tiny">G=1 / 4I0</text>
+  <rect x="1004" y="560" width="532" height="50" rx="8" fill="#fff4df" stroke="#d6a13c"/>
+  <text x="1022" y="581" class="body">上界右移不代表实测点沿屋顶线移动</text>
+  <text x="1022" y="601" class="small">GM 瓶颈减轻后，UB 交换、Vector 发射、依赖等待或容量可能成为新上界。</text>
+  <text x="1172" y="625" class="tiny">符号化上界示意；点和折点没有使用 Ascend 实测坐标。</text>
+
+  <!-- Bottom: decisions -->
+  <rect x="32" y="660" width="1536" height="344" rx="12" class="panel"/>
+  <text x="56" y="696" class="head">3  因此我们不是“盲目增加并行度”，而是平衡四类服务</text>
+  <text x="56" y="722" class="body">先用 Roofline 找到应减少的高层流量，再用依赖、容量和 profile 决定哪种空间-时间分解能够兑现它。</text>
+
+  <g>
+    <rect x="56" y="750" width="315" height="92" rx="9" fill="#fff8f0" stroke="#d99a3d"/>
+    <text x="76" y="777" class="tag" fill="#8a5514">A  计算物化边界 G</text>
+    <text x="76" y="800" class="small">先问同一份有效计算为何反复经过 GM；</text>
+    <text x="76" y="821" class="small">目标是减少完整数组写回/重读。</text>
+    <path d="M378 796H417" class="edge"/>
+    <rect x="426" y="750" width="315" height="92" rx="9" fill="#f7fbf8" stroke="#65a276"/>
+    <text x="446" y="777" class="tag" fill="#28643b">B  选择驻留层级 L</text>
+    <text x="446" y="800" class="small">UB 能否容纳并持续供给 live state？</text>
+    <text x="446" y="821" class="small">放不下或喂不满时，减少 G 不能兑现。</text>
+    <path d="M748 796H787" class="edge"/>
+    <rect x="796" y="750" width="315" height="92" rx="9" fill="#f3f8fd" stroke="#4d8fbd"/>
+    <text x="816" y="777" class="tag" fill="#245f86">C  平衡空间复制与时间复用</text>
+    <text x="816" y="800" class="small">固定 C=Us·Ud，重分配边界、内部链路、</text>
+    <text x="816" y="821" class="small">状态容量和启动/尾部压力。</text>
+    <path d="M1118 796H1157" class="edge"/>
+    <rect x="1166" y="750" width="374" height="92" rx="9" fill="#f6f1fa" stroke="#9470ad"/>
+    <text x="1186" y="777" class="tag" fill="#684389">D  用计数器和同协议实测闭环</text>
+    <text x="1186" y="800" class="small">payload 只是逻辑账本；事务、重排、twiddle、</text>
+    <text x="1186" y="821" class="small">MTE/Vector 重叠与等待必须由 profile 验证。</text>
+  </g>
+
+  <g>
+    <rect x="56" y="866" width="236" height="102" rx="8" fill="#eaf3fb" stroke="#8bb5d5"/>
+    <text x="74" y="892" class="tag" fill="#245f86">Ud · 数据空间</text>
+    <text x="74" y="915" class="small">增加独立数据并发；G 不变时</text>
+    <text x="74" y="936" class="small">不会自动提高 I<tspan baseline-shift="sub">GM</tspan>。</text>
+    <text x="74" y="957" class="tiny">过大还会扩大边界与活跃状态。</text>
+
+    <rect x="306" y="866" width="236" height="102" rx="8" fill="#edf7ed" stroke="#79a982"/>
+    <text x="324" y="892" class="tag" fill="#28643b">Td / batch · 数据时间</text>
+    <text x="324" y="915" class="small">摊销启动与填充、保持硬件繁忙；</text>
+    <text x="324" y="936" class="small">简化 payload 模型下强度不变。</text>
+    <text x="324" y="957" class="tiny">规模变大不消除每元素重复流量。</text>
+
+    <rect x="556" y="866" width="236" height="102" rx="8" fill="#f2ecf8" stroke="#9a78bd"/>
+    <text x="574" y="892" class="tag" fill="#684389">Us · 阶段空间</text>
+    <text x="574" y="915" class="small">减少反馈/边界压力，但增加阶段间</text>
+    <text x="574" y="936" class="small">交接、系数并发与 live state。</text>
+    <text x="574" y="957" class="tiny">Us 不是“融合了几级”的别名。</text>
+
+    <rect x="806" y="866" width="236" height="102" rx="8" fill="#fff4df" stroke="#d6a13c"/>
+    <text x="824" y="892" class="tag" fill="#8a5514">Ts + residence · 阶段时间</text>
+    <text x="824" y="915" class="small">复用同一阶段服务；只要状态仍留在</text>
+    <text x="824" y="936" class="small">UB，就不必为每个 fold 支付 GM。</text>
+    <text x="824" y="957" class="tiny">时间复用本身不等于低效。</text>
+
+    <rect x="1056" y="866" width="236" height="102" rx="8" fill="#f5f7f9" stroke="#aab6c2"/>
+    <text x="1074" y="892" class="tag" fill="#465568">layout / boundary</text>
+    <text x="1074" y="915" class="small">决定理论 payload 是否变成合并、</text>
+    <text x="1074" y="936" class="small">无冲突的实际事务。</text>
+    <text x="1074" y="957" class="tiny">在线重排有代价，需实测。</text>
+
+    <rect x="1306" y="866" width="234" height="102" rx="8" fill="#fbe8e8" stroke="#c48282"/>
+    <text x="1324" y="892" class="tag" fill="#8a3030">计算核心 P</text>
+    <text x="1324" y="915" class="small">改变 W<tspan baseline-shift="sub">P</tspan>、P<tspan baseline-shift="sub">peak</tspan> 与资源需求；</text>
+    <text x="1324" y="936" class="small">不自动消除物化边界 G。</text>
+    <text x="1324" y="957" class="tiny">与计算流优化基本正交、成本耦合。</text>
+  </g>
+
+  <text x="56" y="990" class="tiny">方法推导来源：cuButterfly。N=16 为可核算教学例，不是 Ascend 实测 Roofline；当前实现状态与计数器证据以 Ascend-FFT 代码和归档为准。</text>
+</svg>

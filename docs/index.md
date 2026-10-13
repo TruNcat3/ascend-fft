@@ -60,7 +60,9 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
 
 ## 理解方法
 
-[设计动机](design/motivation.md) → [架构与映射](design/architecture.md) → [计算核心](design/kernels.md)与[性能模型](design/performance-model.md)。实数链路单独见[实数变换实现](design/real-transforms.md)。
+[设计动机](design/motivation.md)先用可视化流量账本解释 Roofline 怎样导出混合展开，再读
+[架构与映射](design/architecture.md) → [计算核心](design/kernels.md)与[性能模型](design/performance-model.md)。
+实数链路单独见[实数变换实现](design/real-transforms.md)。
 
 ## 阅读与复现实验
 
@@ -79,7 +81,7 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
 `ascend910_9382-migration-20261013` 是当前 headline 性能结论唯一采用的快照：C2C device-only
 几何均值 **1.555x**，C2C E2E **1.442x**，应用 shape E2E **1.422x**；R2C/C2R
 相对 torch_npu 分别为 **1.180x / 1.868x**。C2C 49 点中有 47 个严格领先、2 个回退；
-按 ±5% 带宽统计为 46/2/1。所有负点都保留在分项页面和 raw 数据中。`8192..65536` 规模切片无外部基线，
+按 ±5% 工程持平区间统计为 46/2/1。所有负点都保留在分项页面和 raw 数据中。`8192..65536` 规模切片无外部基线，
 只证明正确性和可运行规模，不计入性能领先结论。
 
 ## 后续方向

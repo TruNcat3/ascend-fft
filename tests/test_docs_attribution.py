@@ -51,6 +51,30 @@ class AttributionTests(unittest.TestCase):
         renderer = (ROOT / "scripts/render_docs_diagrams.py").read_text()
         self.assertIn('"hybrid_unfolding_example"', renderer)
 
+    def test_roofline_insight_is_quantified_and_keeps_evidence_boundary(self):
+        motivation = (ROOT / "docs/design/motivation.md").read_text()
+        figure = ROOT / "docs/figures/roofline_insight.svg"
+        self.assertTrue(figure.is_file())
+        self.assertIn("Q_GM,payload = compulsory input/output + materialized boundaries", motivation)
+        self.assertIn("= 2 * B * N * q * G", motivation)
+        self.assertIn("规模增大不等于强度必然上升", motivation)
+        self.assertIn("I_GM` 近似正比于 `K/G", motivation)
+        self.assertIn("C=Us*Ud", motivation)
+        self.assertIn("符号化上界示意", figure.read_text())
+        self.assertIn("不是 Ascend 实测 Roofline", figure.read_text())
+        renderer = (ROOT / "scripts/render_docs_diagrams.py").read_text()
+        self.assertIn('"roofline_insight"', renderer)
+
+    def test_statistical_tolerance_is_not_called_bandwidth(self):
+        for relative in (
+            "README.md",
+            "docs/index.md",
+            "docs/benchmarks/results.md",
+            "docs/benchmarks/methodology.md",
+        ):
+            content = (ROOT / relative).read_text()
+            self.assertNotIn("±5% 带宽", content)
+
 
 if __name__ == "__main__":
     unittest.main()
