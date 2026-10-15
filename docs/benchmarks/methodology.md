@@ -50,10 +50,11 @@
 分两套协议，逐点记录进各自 raw 行，不混算：
 
 - **C2C device-only 矩阵**：每个点先 warmup，再进行 3 轮、每轮 20 次；每轮取均值，最终采用
-  min-of-means。native/self runner 使用记录在 summary 中的固定 seed 逐轮随机交错，避免
+  min-of-means。历史 raw runner ID `native/self` 中，`native` 明确表示
+  `torch.fft.fft`/torch_npu 基线；二者使用记录在 summary 中的固定 seed 逐轮随机交错，避免
   始终先跑完某一实现造成单向温度、频率或负载漂移。
 - **端到端与应用 shape（`20261013` 快照）**：两侧同样按 3 轮 min-of-means 汇总，但内层重复数
-  不相同：native 为每轮 20 次，自研为每轮 10 次，网格实验中的裸 ACL 为每轮 10 次（应用 shape
+  不相同：torch_npu 基线为每轮 20 次，自研为每轮 10 次，网格实验中的裸 ACL 为每轮 10 次（应用 shape
   不运行 ACL）；执行顺序为先完成全部 native 轮次，再执行裸 ACL 和自研，未随机交错。该历史协议和执行顺序必须随结果披露，不能
   写成与 C2C matrix 完全相同；未来重采集应统一重复数并交错执行。
 

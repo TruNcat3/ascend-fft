@@ -13,7 +13,7 @@
 | 语义 | fp32，前向 1D C2C，稠密交错输入，自然序输出 |
 | 长度 N | 64、128、256、512、1024、2048、4096 |
 | Batch | 1、4、16、64、256、1024、4096 |
-| 严格基线 | 同卡 `torch.fft.fft` 的 torch_npu / CANN 原生复数 FFT 路径 |
+| 严格基线 | 同卡 `torch.fft.fft` 的 torch_npu op-plugin 路径；不是裸 CANN C API |
 | 计时 | Device-only 同步执行；不含 Plan 构造、输入生成和 H2D/D2H |
 | 重复与汇总 | 每点双方各 3 轮，每轮 20 次；取每轮均值的最小值 |
 | 正确性 | 自研与原生分别对 CPU 双精度参考，所有轮次 PASS 且 `maxRel <= 1e-4` |

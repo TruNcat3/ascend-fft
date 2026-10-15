@@ -24,12 +24,13 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 在 Ascend
 <figure class="doc-diagram doc-diagram--compact">
   <a href="figures/overview_performance.png">
     <img src="figures/overview_performance.png" loading="lazy"
-         alt="Ascend-FFT 在 Ascend910_9382 上的 C2C、应用 shape、R2C 和 C2R 几何均值 speedup；每根柱子标注各自的同卡同语义基线">
+         alt="Ascend-FFT 在 Ascend910_9382 上相对匹配 torch_npu FFT API 的 C2C、应用 shape、R2C 和 C2R 几何均值 speedup">
   </a>
   <figcaption>
     当前加固发布快照的性能摘要；完整点数、协议、胜平负和限制见
-    <a href="benchmarks/results/">实验结果</a>。每根柱子使用各自标注的对照；其中 ACL 是异统计
-    协议的 B 级次级对照。这张图不代表跨硬件或未验证长度的保证。
+    <a href="benchmarks/results/">实验结果</a>。五根柱子分别使用匹配的
+    <code>torch.fft.fft/rfft/irfft</code>（torch_npu）对照；异统计协议的裸 ACL 数据不进入
+    主图。这张图不代表跨硬件或未验证长度的保证。
   </figcaption>
 </figure>
 
