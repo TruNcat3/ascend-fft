@@ -70,25 +70,26 @@ cuButterfly/Ascend-FFT 的主要研究对象是计算流：我们不把某一个
 
 | 工作负载 | 比较基线 | 可比性 | 点数 | 几何均值 speedup |
 |---|---|---:|---:|---:|
-| C2C device-only | CANN 原生复数 FFT（torch_npu） | A | 49 | **1.56x** |
-| C2C end-to-end | 同上，pinned H2D + FFT + D2H | A* | 49 | **1.44x** |
-| 应用 shape end-to-end | 同上，OFDM / 雷达 / DL 频域层 | A* | 12 | **1.42x** |
+| C2C device-only | `torch.fft.fft`（torch_npu） | A | 49 | **1.56x** |
+| C2C end-to-end | `torch.fft.fft`（torch_npu），pinned H2D + FFT + D2H | A* | 49 | **1.44x** |
+| 应用 shape end-to-end | `torch.fft.fft`（torch_npu），OFDM / 雷达 / DL 频域层 | A* | 12 | **1.42x** |
 | R2C device-only | `torch.fft.rfft`（torch_npu，同卡同语义） | A | 49 | **1.18x** |
-| R2C device-only | `aclRfft1D`（同卡同语义、异统计协议） | B | 42 | **1.86x** |
 | C2R device-only | `torch.fft.irfft`（torch_npu，同卡同语义） | A | 49 | **1.87x** |
 
 <!-- END GENERATED: benchmark-summary -->
 
 数据来自 Ascend910_9382、CANN 9.0.0、fp32 发布快照
 [`ascend910_9382-migration-20261013`](results/published/ascend910_9382-migration-20261013/)。
-`A*` 表示语义和计时区间一致，但当前归档的两侧内层重复数不同；ACL 行是单独报告的 B 级
-次级对照，不与 A 级结果合并。当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；device-only 有 47 个点严格领先、
+主图只汇总 `torch.fft.*` 经 torch_npu 执行的匹配基线；C2C 过去称作“CANN 原生”的路径实际也是
+`torch.fft.fft` 的 torch_npu op-plugin，并不是裸 CANN C API。裸 `aclRfft1D` 的 42 点 R2C
+B 级次级对照为 1.858x，由于统计协议不同，只在[实数变换实验](docs/benchmarks/real-transforms.md)中单列。
+`A*` 表示语义和计时区间一致，但当前归档的两侧内层重复数不同。当前快照包含 49 个 C2C 网格点，全部通过正确性门禁；device-only 有 47 个点严格领先、
 2 个点回退，最低点为 `N=1024,batch=4096`（0.942x）；按 ±5% 工程持平区间统计为 46/2/1。
 C2C E2E 为 1.442x，应用 shape 为 1.422x 且 12/12 点严格领先。R2C/C2R 使用 3-trial 对称计时协议；
 相对 torch_npu 的几何均值分别为 1.180x 和 1.868x，负点完整保留在热图和 raw 数据中。
 因此，本版本证明的是声明实验范围内的稳定总体收益，而不是每个点、每种变换或所有硬件上的
 全局最优。`N=8192..65536` 的规模切片目前只有正确性和延迟证据，不参与上述加速比汇总。
-每根柱子都标注自己的同语义基线，跨 GPU 数据不参与几何均值。查看[实验结果](docs/benchmarks/results.md)、
+每根柱子都标注对应的 torch_npu FFT API，跨 GPU 数据和异协议 ACL 数据不参与主图。查看[实验结果](docs/benchmarks/results.md)、
 [测量协议](docs/benchmarks/methodology.md)和[原始数据与复现](docs/benchmarks/reproducibility.md)。
 
 ## 为什么这样设计

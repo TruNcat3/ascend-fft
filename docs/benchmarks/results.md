@@ -23,20 +23,34 @@ Ascend-FFT 是 [cuButterfly](https://github.com/TruNcat3/cuButterfly) 混合空�
 
 ## 结果总览
 
-![六类同卡实验的几何均值 speedup 汇总；每根柱子标注自己的同语义基线](../figures/overview_performance.png)
+![五类同卡实验相对匹配 torch_npu FFT API 的几何均值 speedup 汇总](../figures/overview_performance.png)
+
+主图只放入同一前端/后端家族的匹配对照：C2C 使用 `torch.fft.fft`，R2C/C2R 分别使用
+`torch.fft.rfft/irfft`，均由 torch_npu 在同卡执行。过去文档把 C2C 柱写成“CANN native”，
+但它实际是 torch_npu op-plugin，而非裸 CANN C API；这种混合命名会造成基线层级不同的错觉。
 
 | 实验 | 比较基线 | 可比性 | 点数 | 几何均值 | 严格胜/平/负 | ±5% 胜/平/负 |
 |---|---|---:|---:|---:|---:|---:|
-| C2C device-only | CANN 原生复数 FFT（`torch_npu`） | A | 49 | **1.555x** | 47/0/2 | 46/2/1 |
-| C2C end-to-end | 同上，pinned H2D + FFT + D2H | A* | 49 | **1.442x** | 47/0/2 | 45/4/0 |
-| 应用 shape end-to-end | 同上，OFDM / Radar / DL 代理 shape | A* | 12 | **1.422x** | 12/0/0 | 12/0/0 |
+| C2C device-only | `torch.fft.fft`（torch_npu） | A | 49 | **1.555x** | 47/0/2 | 46/2/1 |
+| C2C end-to-end | `torch.fft.fft`（torch_npu），pinned H2D + FFT + D2H | A* | 49 | **1.442x** | 47/0/2 | 45/4/0 |
+| 应用 shape end-to-end | `torch.fft.fft`（torch_npu），OFDM / Radar / DL 代理 shape | A* | 12 | **1.422x** | 12/0/0 | 12/0/0 |
 | R2C device-only | `torch.fft.rfft`（torch_npu） | A | 49 | **1.180x** | 39/0/10 | 34/7/8 |
-| R2C device-only | `aclRfft1D` | B | 42 | **1.858x** | 37/0/5 | 36/1/5 |
 | C2R device-only | `torch.fft.irfft`（torch_npu） | A | 49 | **1.868x** | 47/0/2 | 45/2/2 |
 
-`A*` 表示变换语义、设备、精度、shape、计时区间和 min-of-means 汇总一致，但当前归档的
-native/self 内层重复数分别为 20/10，且没有交错执行；这两行保留为同语义对比，同时明确其
-采样限制。ACL 行为 B 级，因为它与 R2C/Torch 主实验的统计协议不同。
+`A*` 表示变换语义、设备、精度、shape、计时区间和 min-of-means 汇总一致，但当前归档中历史
+runner ID `native/self`（其中 `native` 即 torch_npu 路径）的内层重复数分别为 20/10，且没有
+交错执行；这两行保留为同语义对比，同时明确其
+采样限制。
+
+### 次级 ACL 对照
+
+| 实验 | 比较基线 | 可比性 | 点数 | 几何均值 | 严格胜/平/负 | ±5% 胜/平/负 |
+|---|---|---:|---:|---:|---:|---:|
+| R2C device-only | 裸 CANN `aclRfft1D` | B | 42 | **1.858x** | 37/0/5 | 36/1/5 |
+
+该行与 R2C/Torch 主实验的变换语义和设备一致，但来自另一套 min-of-means 采集与汇总协议，
+因此不进入首页主图，也不和五项 A/A* 结果计算联合均值。它用于回答“相对公开 ACL R2C API
+表现如何”，不是供首页逐柱横向排名的替代基线。
 
 “严格胜负”中的“严格”只表示按速度比是否严格大于 1 计数，不表示该行必然属于 A 级基线；
 ±5% 工程持平区间把 `0.95x..1.05x` 视为工程持平。

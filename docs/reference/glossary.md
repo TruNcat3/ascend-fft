@@ -17,7 +17,7 @@
 | Candidate / Plan | 配置描述 / 装载可执行资源的计划 |
 | Infeasible | 已检查约束失败，保留原因 |
 | Unverified / Feasible / Measured | 未验证 / 满足相应验证 / 已回填实测 |
-| 原生C2C | torch.fft.fft经torch_npu执行，不是公开CANN C2C C API |
+| 历史字段 `native` | `torch.fft.fft` 经 torch_npu 执行，不是公开 CANN C2C C API；现行图表直接写具体 API，避免称谓混淆 |
 | aclRfft1D | CANN实数到复数接口，不能无条件当作C2C基线 |
 | v1 | 本仓标量旋转因子历史kernel，不是外部库 |
 | device-only | 准备后的稳态变换/API 调用到同步，不含显式 H2D/D2H；可能含 dispatch 或必要 executor 构造，须查看具体协议 |

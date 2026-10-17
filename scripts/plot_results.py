@@ -129,25 +129,38 @@ def geo(values):
     return float(np.exp(np.mean(np.log(values)))) if values.size else float("nan")
 
 
-def fig_overview(rows, e2rows, approws, realrows, out):
-    """README headline: comparable groups, each with its baseline in the label."""
+def overview_groups(rows, e2rows, approws, realrows):
+    """Return headline groups with one explicit torch_npu baseline family.
+
+    The bare ACL R2C measurement intentionally stays out of this list: it was
+    collected with a different aggregation protocol and is reported as a
+    secondary comparison in the real-transform results page.
+    """
     r2c_torch = [r.get("r2c_vs_torch") for r in realrows]
-    r2c_acl = [r.get("r2c_vs_acl") for r in realrows]
     c2r_torch = [r.get("c2r_vs_torch") for r in realrows]
     groups = [
-        ("C2C\ndevice-only", geo([r["ratio"] for r in rows]), "CANN native", len(rows)),
-        ("C2C\nend-to-end", geo([r["e2e_ratio"] for r in e2rows]), "CANN native", len(e2rows)),
-        ("Applications\nend-to-end", geo([r["e2e_ratio"] for r in approws]), "CANN native", len(approws)),
-        ("R2C\ndevice-only", geo(r2c_torch), "torch.rfft", sum(v is not None for v in r2c_torch)),
-        ("R2C\ndevice-only", geo(r2c_acl), "aclRfft1D [B]", sum(v is not None for v in r2c_acl)),
-        ("C2R\ndevice-only", geo(c2r_torch), "torch.irfft", sum(v is not None for v in c2r_torch)),
+        ("C2C\ndevice-only", geo([r["ratio"] for r in rows]),
+         "torch.fft.fft\n(torch_npu)", len(rows)),
+        ("C2C\nend-to-end", geo([r["e2e_ratio"] for r in e2rows]),
+         "torch.fft.fft\n(torch_npu)", len(e2rows)),
+        ("Applications\nend-to-end", geo([r["e2e_ratio"] for r in approws]),
+         "torch.fft.fft\n(torch_npu)", len(approws)),
+        ("R2C\ndevice-only", geo(r2c_torch),
+         "torch.fft.rfft\n(torch_npu)", sum(v is not None for v in r2c_torch)),
+        ("C2R\ndevice-only", geo(c2r_torch),
+         "torch.fft.irfft\n(torch_npu)", sum(v is not None for v in c2r_torch)),
     ]
-    groups = [g for g in groups if g[1] == g[1]]
-    fig, ax = plt.subplots(figsize=(13.6, 6.2))
+    return [group for group in groups if group[1] == group[1]]
+
+
+def fig_overview(rows, e2rows, approws, realrows, out):
+    """README headline using only matched torch_npu FFT API baselines."""
+    groups = overview_groups(rows, e2rows, approws, realrows)
+    fig, ax = plt.subplots(figsize=(12.4, 6.2))
     x = np.arange(len(groups))
     values = [g[1] for g in groups]
     colors = [COLORS["ours"], COLORS["e2e"], COLORS["application"],
-              "#6C5CE7", "#8C6D31", "#4C956C"][:len(groups)]
+              "#6C5CE7", "#4C956C"][:len(groups)]
     bars = ax.bar(x, values, width=.62, color=colors, edgecolor="white", linewidth=1.2)
     ax.axhline(1.0, color=COLORS["native"], linestyle="--", linewidth=1.6,
                label="baseline parity (1.0x)")
@@ -155,16 +168,16 @@ def fig_overview(rows, e2rows, approws, realrows, out):
         ax.text(bar.get_x() + bar.get_width() / 2, value + .09,
                 f"{value:.2f}x", ha="center", va="bottom", fontsize=14,
                 fontweight="bold", color="#101828")
-        ax.text(bar.get_x() + bar.get_width() / 2, .08,
+        ax.text(bar.get_x() + bar.get_width() / 2, .06,
                 f"vs {baseline}\n{points} points", ha="center", va="bottom",
-                fontsize=8, color="white", fontweight="bold")
+                fontsize=7.7, color="white", fontweight="bold", linespacing=1.05)
     ax.set_xticks(x, [g[0] for g in groups])
-    ax.set_ylabel("Geometric-mean speedup (higher is better)")
+    ax.set_ylabel("Geometric-mean speedup vs matched torch_npu API")
     ax.set_ylim(0, max(values) * 1.24)
     fig.suptitle("Ascend-FFT performance summary", x=.06, y=.98, ha="left",
                  fontsize=19, fontweight="bold")
     ax.set_title(
-        "Ascend910_9382, FP32; each bar names its baseline; ACL uses a B-level aggregation protocol",
+        "Ascend910_9382, FP32; matched torch.fft APIs on torch_npu only; no cross-protocol ACL bar",
         loc="left", fontsize=11, color=COLORS["neutral"], pad=12)
     ax.grid(axis="y", color=COLORS["grid"], linewidth=.8, alpha=.65)
     ax.set_axisbelow(True)

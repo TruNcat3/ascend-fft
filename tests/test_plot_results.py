@@ -72,12 +72,19 @@ class PlotResultsTests(unittest.TestCase):
             self.assertTrue(image.is_file())
             self.assertGreater(image.stat().st_size, 10_000)
 
-    def test_overview_includes_real_transform_baselines(self):
+    def test_overview_uses_only_matched_torch_npu_baselines(self):
         rows = [{"ratio": 1.5}]
         e2e = [{"e2e_ratio": 1.4}]
         apps = [{"e2e_ratio": 1.3}]
         real = [{"r2c_vs_torch": 1.2, "r2c_vs_acl": 1.8,
                  "c2r_vs_torch": 1.9}]
+        groups = plots.overview_groups(rows, e2e, apps, real)
+        self.assertEqual(len(groups), 5)
+        baselines = [group[2] for group in groups]
+        self.assertEqual(baselines.count("torch.fft.fft\n(torch_npu)"), 3)
+        self.assertIn("torch.fft.rfft\n(torch_npu)", baselines)
+        self.assertIn("torch.fft.irfft\n(torch_npu)", baselines)
+        self.assertFalse(any("acl" in baseline.lower() for baseline in baselines))
         with tempfile.TemporaryDirectory() as temporary:
             plots.fig_overview(rows, e2e, apps, real, temporary)
             image = Path(temporary) / "overview_performance.png"
