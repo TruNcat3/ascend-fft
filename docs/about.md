@@ -52,7 +52,7 @@ contract 后接入。流编排和算法核心在概念上正交、在物理资�
 苏州高等研究院的官方软件发布，机构标识的出现不表示上述机构对本项目作认证、赞助或背书。
 
 本页使用的中科大横向标识来自[中国科学技术大学官方网站](https://www.ustc.edu.cn/)。该标识不属于
-Ascend-FFT 的 Apache-2.0 授权范围，项目使用者不得依据本仓库的软件许可证推定其可被再次授权。
+Ascend-FFT 的软件授权范围，项目使用者不得依据本仓库的软件许可证推定其可被再次授权。
 来源和许可边界同时记录在 [`THIRD_PARTY_NOTICES.md`](https://github.com/TruNcat3/ascend-fft/blob/master/THIRD_PARTY_NOTICES.md)。
 
 ## 引用
@@ -77,7 +77,8 @@ Ascend-FFT 的 Apache-2.0 授权范围，项目使用者不得依据本仓库的
 
 - 发布结果只适用于对应 manifest 中记录的硬件、工具链、精度、shape 和计时协议。
 - 华为、CANN 和 Ascend 的名称属于其各自权利人；相关工具链不随本仓库分发。
-- 软件按 Apache-2.0 的“AS IS”条款提供；论文或产品使用者应独立完成适用性验证。
+- 软件按 Research-Only Non-Commercial License (RONC-1.0) 的“AS IS”条款提供；商业使用需另行书面
+  授权，论文或产品使用者应独立完成适用性验证。
 
 继续阅读：[设计动机](design/motivation.md) · [当前实验结果](benchmarks/results.md) ·
 [未来计划](roadmap.md)。

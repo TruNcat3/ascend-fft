@@ -17,7 +17,7 @@ class AttributionTests(unittest.TestCase):
         self.assertTrue((ROOT / "docs/assets/ustc-logo.png").is_file())
         notice = (ROOT / "THIRD_PARTY_NOTICES.md").read_text()
         self.assertIn("official USTC website", notice)
-        self.assertIn("not granted under this repository's Apache-2.0 license", notice)
+        self.assertIn("not granted under this repository's RONC-1.0 software license", notice)
         self.assertIn("does not imply", notice)
 
     def test_about_page_is_in_site_navigation(self):
