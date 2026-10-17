@@ -1,7 +1,7 @@
 # Ascend-FFT
 
 [![Documentation](https://github.com/TruNcat3/ascend-fft/actions/workflows/docs.yml/badge.svg)](https://truncat3.github.io/ascend-fft/)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-research--only%20non--commercial-orange.svg)](LICENSE)
 [![Citation](https://img.shields.io/badge/citation-CFF-orange.svg)](CITATION.cff)
 [![Hardware](https://img.shields.io/badge/SoC-Ascend910__9382-8A2BE2.svg)](docs/reference/support.md)
 [![Method](https://img.shields.io/badge/method-cuButterfly-2F80ED.svg)](https://github.com/TruNcat3/cuButterfly)
@@ -221,6 +221,7 @@ scripts/repro.sh r2c-c2r
 
 ## License
 
-Ascend-FFT 使用 [Apache License 2.0](LICENSE)。CANN 与 Ascend 工具链不随本仓库分发，
-适用其各自许可证。项目版权声明见 [`NOTICE`](NOTICE)，机构标识和上游代码的许可边界见
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+Ascend-FFT 使用 [Research-Only Non-Commercial License (RONC-1.0)](LICENSE)：允许非商业研究、
+教学、评估和个人用途下的修改与再发布，明确禁止商业使用；商业许可需另行书面授权。CANN 与
+Ascend 工具链不随本仓库分发，适用其各自许可证。项目版权声明见 [`NOTICE`](NOTICE)，机构标识和
+上游代码的许可边界见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
